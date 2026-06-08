@@ -9,6 +9,18 @@
 - 基于标准 `MCP (Model Context Protocol)` + Function Calling 实现工具调用链路
 - 语音输入与长会话性能优化
 
+## Project Attribution and My Work
+
+This project was rebuilt and extended from an existing Vue Agent demo, with additional work on MCP tool orchestration, RAG flow, streaming UX, deployment setup, and documentation.
+
+在原有项目基础上，我重点补充和优化了以下内容：
+
+- **自动检索知识库**：将 RAG 检索前置到后端编排层，当用户开启 RAG 且已有知识文档时，服务端会自动构造 `retrieve_knowledge` 工具调用，把召回片段注入模型上下文，减少模型漏调工具导致的回答不稳定。
+- **MCP / Function Calling 编排增强**：通过 Express 作为 MCP Client 连接独立 MCP Server，将工具定义映射给 Qwen OpenAI-Compatible API，并打通「模型决策 → 工具执行 → 结果回填 → 前端展示」链路。
+- **参考来源展开 Bug 修复**：修复 RAG 引用来源在消息卡片中展开/收起状态异常的问题，让每条回答的 citations 展示更稳定、可读。
+- **部署适配**：补充生产构建、`npm start`、`PORT` / `HOST` 云平台监听配置，以及 README 中的部署、DNS、HTTPS 和健康检查说明。
+- **工程化文档**：整理架构说明、流式响应流程、RAG 流程、Tool Calling 流程和投递检查清单，方便评审者快速理解项目实现。
+
 项目适合作为以下场景的参考实现：
 
 - AI 对话产品原型
@@ -144,6 +156,49 @@ npm run dev
 ```bash
 npm run build
 ```
+
+## Deployment
+
+推荐使用支持常驻 Node 服务的平台部署，例如 `Render`、`Railway`、`Zeabur` 或云服务器。该项目不是纯静态站点：前端通过 `/api/*` 访问 Express 后端，后端负责保存 `QWEN_API_KEY`、转发流式响应、执行 MCP 工具与 RAG 检索。
+
+### Recommended Platform Setup
+
+以 Render / Railway / Zeabur 这类 Node Web Service 为例：
+
+| Item | Value |
+| --- | --- |
+| Build Command | `npm install && npm run build` |
+| Start Command | `npm start` |
+| Node Version | `20+` |
+| Health Check | `/api/health` |
+
+需要配置的环境变量：
+
+| Name | Description |
+| --- | --- |
+| `QWEN_API_KEY` | DashScope / Qwen API Key |
+| `QWEN_BASE_URL` | Qwen OpenAI-Compatible endpoint |
+| `QWEN_MODEL` | Chat model, e.g. `qwen-plus` |
+| `QWEN_EMBEDDING_MODEL` | Embedding model, e.g. `text-embedding-v3` |
+| `HOST` | Cloud deployment should use `0.0.0.0` |
+| `PORT` | Usually provided automatically by the platform |
+
+生产环境启动后，Express 会同时托管 `dist` 前端静态资源和 `/api` 后端接口，因此部署链接可以直接访问完整 Demo。
+
+### DNS and HTTPS
+
+1. 在部署平台绑定自定义域名，例如 `agent.example.com`。
+2. 到域名服务商添加平台要求的 `CNAME` 或 `A` 记录。
+3. 等待 DNS 生效后，在平台控制台开启自动 HTTPS 证书。
+4. 验证 `https://your-domain.com/api/health` 返回 `ok: true`。
+
+### Submission Checklist
+
+- 线上 Demo 链接可访问。
+- `/api/health` 返回成功，说明 Express 与 MCP 工具链可用。
+- 聊天支持流式输出。
+- 上传知识文件后可以触发 RAG 引用来源。
+- README 保留架构说明、关键 Prompt / Vibe 思路、Function Calling / MCP 调用逻辑、部署步骤和 DNS / HTTPS 说明。
 
 ## How It Works
 

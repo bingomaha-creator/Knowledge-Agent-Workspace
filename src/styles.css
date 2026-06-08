@@ -208,6 +208,26 @@ button:disabled {
   color: var(--muted);
 }
 
+.panel-header-button {
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--heading);
+  text-align: left;
+  cursor: pointer;
+}
+
+.panel-header-button:hover {
+  background: transparent;
+}
+
+.panel-toggle {
+  margin-left: auto;
+  color: var(--accent-strong);
+  font-weight: 700;
+}
+
 .sidebar-overline,
 .section-label,
 .hero-chip {
@@ -248,6 +268,7 @@ button:disabled {
 .topbar-icon,
 .send-action,
 .tool-button,
+.panel-toggle,
 .clear-button,
 .inline-link,
 .nav-icon-button,
@@ -261,6 +282,7 @@ button:disabled {
 .inline-link,
 .clear-button,
 .tool-button,
+.panel-toggle,
 .topbar-chip,
 .topbar-icon,
 .nav-icon-button,
@@ -277,6 +299,7 @@ button:disabled {
 .inline-link:hover,
 .clear-button:hover,
 .tool-button:hover,
+.panel-toggle:hover,
 .topbar-chip:hover,
 .topbar-icon:hover,
 .nav-icon-button:hover,
@@ -542,6 +565,38 @@ button:disabled {
 .knowledge-empty {
   padding: 14px 16px;
   border-radius: 18px;
+}
+
+.tool-detail-list {
+  display: grid;
+  gap: 12px;
+  margin: 12px 0 0;
+}
+
+.tool-detail-list div {
+  display: grid;
+  gap: 6px;
+}
+
+.tool-detail-list dt {
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.tool-detail-list dd {
+  margin: 0;
+}
+
+.tool-result,
+.source-card p {
+  max-height: 180px;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.tool-result {
+  white-space: pre-wrap;
+  line-height: 1.65;
 }
 
 .tool-status {
