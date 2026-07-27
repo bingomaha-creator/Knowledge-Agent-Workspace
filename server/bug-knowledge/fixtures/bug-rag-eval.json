@@ -1,0 +1,290 @@
+{
+  "projects": [
+    {
+      "projectRef": "project-vue",
+      "knowledgeBaseId": "kb-project-vue",
+      "name": "Vue Storefront"
+    },
+    {
+      "projectRef": "project-react",
+      "knowledgeBaseId": "kb-project-react",
+      "name": "React Admin"
+    }
+  ],
+  "cases": [
+    {
+      "id": "bug-vue-hydration-utc",
+      "sourceProjectRef": "project-vue",
+      "scope": "project",
+      "reviewStatus": "confirmed",
+      "title": "Vue SSR hydration 时区不一致",
+      "symptom": "SSR 页面刷新后出现水合节点不一致，日期文本在服务端和客户端不同。",
+      "errorSignatures": ["Hydration node mismatch at /src/App.vue:42"],
+      "reproductionSteps": ["启动 SSR", "刷新商品详情页"],
+      "context": {
+        "language": "TypeScript",
+        "framework": "Vue",
+        "versions": ["3.5.13"],
+        "module": "product-detail",
+        "environment": "Node 22"
+      },
+      "resolutionType": "root_cause_fix",
+      "rootCause": "服务端使用 UTC，而客户端 formatter 使用本地时区。",
+      "fix": "服务端和客户端统一使用 UTC formatter。",
+      "workaroundRisks": [],
+      "applicability": ["Vue SSR 3.5.x"],
+      "verification": "SSR 快照和浏览器 hydration 测试通过。",
+      "tags": ["ssr", "hydration", "timezone"],
+      "sourceRefs": ["tests/product-detail.spec.ts"]
+    },
+    {
+      "id": "bug-react-hydration-extension",
+      "sourceProjectRef": "project-react",
+      "scope": "common",
+      "reviewStatus": "confirmed",
+      "title": "React hydration 被浏览器扩展修改 DOM",
+      "symptom": "浏览器扩展在 hydration 前插入节点，导致服务端标记与客户端树不一致。",
+      "errorSignatures": ["Hydration node mismatch at /build/App.vue:99"],
+      "reproductionSteps": ["启用 DOM 扩展", "刷新页面"],
+      "context": {
+        "language": "TypeScript",
+        "framework": "React",
+        "versions": ["18.2.0"],
+        "module": "shell",
+        "environment": "Chrome"
+      },
+      "resolutionType": "root_cause_fix",
+      "rootCause": "扩展在 React hydration 前修改了根节点。",
+      "fix": "隔离扩展注入节点并延迟挂载。",
+      "workaroundRisks": [],
+      "applicability": ["React 18"],
+      "verification": "扩展开关对照测试通过。",
+      "tags": ["ssr", "hydration", "extension"],
+      "sourceRefs": ["https://example.test/react-hydration"]
+    },
+    {
+      "id": "bug-vue-map-response",
+      "sourceProjectRef": "project-vue",
+      "scope": "project",
+      "reviewStatus": "confirmed",
+      "title": "列表接口缺字段导致 map TypeError",
+      "symptom": "接口偶发返回空对象，页面渲染列表时读取 map 失败。",
+      "errorSignatures": ["TypeError: Cannot read properties of undefined (reading 'map')"],
+      "reproductionSteps": ["模拟空对象响应", "进入订单列表"],
+      "context": {
+        "language": "TypeScript",
+        "framework": "Vue",
+        "versions": ["3.5.13"],
+        "module": "orders",
+        "environment": "Browser"
+      },
+      "resolutionType": "root_cause_fix",
+      "rootCause": "API adapter 未把缺失的 items 归一化为空数组。",
+      "fix": "在 adapter 中将 items 默认成空数组。",
+      "workaroundRisks": [],
+      "applicability": ["orders API v2"],
+      "verification": "空对象、null 与正常数组合同测试通过。",
+      "tags": ["api", "typeerror"],
+      "sourceRefs": ["tests/orders-adapter.test.ts"]
+    },
+    {
+      "id": "bug-vue-sse-event-buffer",
+      "sourceProjectRef": "project-vue",
+      "scope": "project",
+      "reviewStatus": "confirmed",
+      "title": "SSE 网络分片被当成完整事件解析",
+      "symptom": "聊天流式回答一直显示正在输出，刷新页面后才出现完整内容；控制台偶发 SyntaxError: Unexpected end of JSON input。",
+      "errorSignatures": ["SyntaxError: Unexpected end of JSON input"],
+      "reproductionSteps": ["让服务端把一个 SSE event 拆成多个网络 chunk", "连续读取响应并直接解析每个 chunk"],
+      "context": {
+        "language": "TypeScript",
+        "framework": "Vue",
+        "versions": ["3.5.13"],
+        "module": "chat-stream",
+        "environment": "Browser Fetch ReadableStream"
+      },
+      "resolutionType": "root_cause_fix",
+      "rootCause": "ReadableStream 的网络 chunk 边界与 SSE event 边界不一致，客户端在事件尚未接收完整时就执行 JSON.parse。",
+      "fix": "保留 remainder 缓冲区，只按空行分隔完整 SSE event block；拼接同一事件的 data 行后再执行 JSON.parse。",
+      "workaroundRisks": [],
+      "applicability": ["浏览器 Fetch 流式读取 text/event-stream"],
+      "verification": "覆盖单事件跨 chunk、多事件同 chunk、多 data 行和尾部残片的协议测试均通过。",
+      "tags": ["vue", "sse", "streaming", "json-parse"],
+      "sourceRefs": ["server/sse-utils.js", "src/features/chat/api.test.ts"]
+    },
+    {
+      "id": "bug-common-eaddrinuse",
+      "sourceProjectRef": "project-react",
+      "scope": "common",
+      "reviewStatus": "confirmed",
+      "title": "开发服务器端口被占用",
+      "symptom": "启动前端开发服务器时提示端口已经被其他本地进程占用。",
+      "errorSignatures": ["Error: listen EADDRINUSE: address already in use :::5173"],
+      "reproductionSteps": ["保留旧 dev server", "再次启动 Vite"],
+      "context": {
+        "language": "JavaScript",
+        "framework": "Vite",
+        "versions": ["6.0.7"],
+        "module": "dev-server",
+        "environment": "macOS"
+      },
+      "resolutionType": "verified_workaround",
+      "rootCause": null,
+      "fix": "确认旧进程归属后结束它，或显式选择另一个端口。",
+      "workaroundRisks": ["结束错误进程会中断其他项目"],
+      "applicability": ["仅适用于本地开发端口冲突"],
+      "verification": "人工确认 PID 后重启 10 次均成功。",
+      "tags": ["vite", "port", "workaround"],
+      "sourceRefs": ["https://nodejs.org/api/errors.html"]
+    },
+    {
+      "id": "bug-react-private-build",
+      "sourceProjectRef": "project-react",
+      "scope": "project",
+      "reviewStatus": "confirmed",
+      "title": "React 私有构建配置错误",
+      "symptom": "PrivateBuildError 只属于 React Admin 私有构建配置。",
+      "errorSignatures": ["PrivateBuildError: vite config alias missing"],
+      "reproductionSteps": ["运行私有构建"],
+      "context": {
+        "language": "TypeScript",
+        "framework": "React",
+        "versions": ["18.2.0"],
+        "module": "private-build",
+        "environment": "CI"
+      },
+      "resolutionType": "root_cause_fix",
+      "rootCause": "私有 alias 配置遗漏。",
+      "fix": "补齐私有 alias。",
+      "workaroundRisks": [],
+      "applicability": ["React Admin"],
+      "verification": "私有构建通过。",
+      "tags": ["private", "build"],
+      "sourceRefs": ["private/build.test.ts"]
+    },
+    {
+      "id": "bug-candidate-eaddr-noise",
+      "sourceProjectRef": "project-vue",
+      "scope": "project",
+      "reviewStatus": "candidate",
+      "title": "未经确认的端口猜测",
+      "symptom": "EADDRINUSE candidate 噪声，不得进入正式结果。",
+      "errorSignatures": ["Error: listen EADDRINUSE: address already in use :::5173"],
+      "reproductionSteps": [],
+      "context": {
+        "language": "JavaScript",
+        "framework": "Vite",
+        "versions": ["6.0.7"],
+        "module": "unknown",
+        "environment": "local"
+      },
+      "resolutionType": "root_cause_fix",
+      "rootCause": "尚未确认。",
+      "fix": "尚未验证。",
+      "workaroundRisks": [],
+      "applicability": [],
+      "verification": "",
+      "tags": ["noise"],
+      "sourceRefs": []
+    },
+    {
+      "id": "bug-rejected-hydration-noise",
+      "sourceProjectRef": "project-react",
+      "scope": "common",
+      "reviewStatus": "rejected",
+      "title": "已拒绝的 hydration 猜测",
+      "symptom": "Hydration node mismatch 的错误猜测。",
+      "errorSignatures": ["Hydration node mismatch at /wrong/App.vue:1"],
+      "reproductionSteps": [],
+      "context": {
+        "language": "TypeScript",
+        "framework": "Vue",
+        "versions": ["3.5.13"],
+        "module": "wrong",
+        "environment": "unknown"
+      },
+      "resolutionType": "root_cause_fix",
+      "rootCause": "错误归因。",
+      "fix": "无效。",
+      "workaroundRisks": [],
+      "applicability": [],
+      "verification": "未通过。",
+      "tags": ["noise"],
+      "sourceRefs": []
+    }
+  ],
+  "queries": [
+    {
+      "id": "exact-vue-context",
+      "query": "Hydration node mismatch at /Users/me/App.vue:777",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "filters": { "framework": "Vue", "versions": ["3.5.13"] },
+      "expectedId": "bug-vue-hydration-utc",
+      "highSignal": true
+    },
+    {
+      "id": "chinese-symptom",
+      "query": "SSR 日期文本时区不同导致水合节点不一致",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "expectedId": "bug-vue-hydration-utc",
+      "highSignal": true
+    },
+    {
+      "id": "ambiguous-hydration",
+      "query": "Hydration node mismatch at /tmp/App.vue:123",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "acceptableIds": ["bug-vue-hydration-utc", "bug-react-hydration-extension"],
+      "ambiguous": true,
+      "highSignal": true
+    },
+    {
+      "id": "common-port-workaround",
+      "query": "listen EADDRINUSE address already in use 5173",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "expectedId": "bug-common-eaddrinuse",
+      "highSignal": true
+    },
+    {
+      "id": "exact-map-error",
+      "query": "TypeError: Cannot read properties of undefined (reading 'map')",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "expectedId": "bug-vue-map-response",
+      "highSignal": true
+    },
+    {
+      "id": "exact-sse-json-truncation",
+      "query": "Uncaught SyntaxError: Unexpected end of JSON input",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "expectedId": "bug-vue-sse-event-buffer",
+      "highSignal": true
+    },
+    {
+      "id": "sse-refresh-symptom",
+      "query": "流式回答一直正在输出，刷新后才看到完整内容，JSON.parse 解析失败",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "expectedId": "bug-vue-sse-event-buffer",
+      "highSignal": true
+    },
+    {
+      "id": "private-project-default-deny",
+      "query": "PrivateBuildError vite config alias missing",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "noHit": true
+    },
+    {
+      "id": "unknown-evidence-gap",
+      "query": "QuantumFluxError XZ-9999 impossible signal",
+      "projectRef": "project-vue",
+      "includeCommon": true,
+      "noHit": true
+    }
+  ]
+}

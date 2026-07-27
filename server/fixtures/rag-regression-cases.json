@@ -1,0 +1,64 @@
+{
+  "cases": [
+    {
+      "name": "中文阅读路线可在无向量时通过关键词召回",
+      "query": "项目阅读路线应该怎么开始？",
+      "topK": 3,
+      "expectedIds": ["chunk-reading-route"],
+      "chunks": [
+        {
+          "id": "chunk-reading-route",
+          "documentId": "doc-guide",
+          "documentName": "project-guide.md",
+          "text": "项目阅读路线建议先看 README 和 package.json，再跟踪一次聊天请求。",
+          "tokens": ["项目阅读路线", "README", "package.json", "聊天请求"],
+          "vectorScore": 0.02
+        },
+        {
+          "id": "chunk-unrelated",
+          "documentId": "doc-guide",
+          "documentName": "project-guide.md",
+          "text": "主题配色可以在浏览器中切换。",
+          "tokens": ["主题配色", "浏览器", "切换"],
+          "vectorScore": 0.01
+        }
+      ]
+    },
+    {
+      "name": "关键词和向量共同命中的持久化说明保持在结果中",
+      "query": "知识库怎样持久化 documents 和 chunks？",
+      "topK": 2,
+      "expectedIds": ["chunk-knowledge-persistence"],
+      "chunks": [
+        {
+          "id": "chunk-vector-only",
+          "documentId": "doc-architecture",
+          "documentName": "architecture.md",
+          "text": "这一段只有相近语义。",
+          "tokens": ["相近语义"],
+          "vectorScore": 0.96
+        },
+        {
+          "id": "chunk-knowledge-persistence",
+          "documentId": "doc-architecture",
+          "documentName": "architecture.md",
+          "text": "知识库使用 SQLite 持久化 documents 和 chunks。",
+          "tokens": ["知识库", "sqlite", "持久化", "documents", "chunks"],
+          "vectorScore": 0.82,
+          "keywordRank": 1,
+          "bm25Score": -1.3
+        },
+        {
+          "id": "chunk-keyword-only",
+          "documentId": "doc-upload",
+          "documentName": "upload.md",
+          "text": "知识库支持上传 Markdown。",
+          "tokens": ["知识库", "上传", "markdown"],
+          "vectorScore": 0.02,
+          "keywordRank": 2,
+          "bm25Score": -0.7
+        }
+      ]
+    }
+  ]
+}

@@ -1,6 +1,14 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { appendToolPlanningChoice, createAutoRetrieveToolCall, getLatestUserContent, shouldAutoRetrieveKnowledge } from './chat-flow-utils.js';
+import {
+  appendToolPlanningChoice,
+  createAutoRetrieveToolCall,
+  getLatestUserContent,
+  getModelVisibleTools,
+  getPresetVisibleTools,
+  isToolExecutionAllowed,
+  mergeCitations
+} from './chat-flow-utils.js';
 
 test('appendToolPlanningChoice does not append non-tool draft answers before final streaming', () => {
   const messages = [{ role: 'system', content: 'system prompt' }];
@@ -10,6 +18,21 @@ test('appendToolPlanningChoice does not append non-tool draft answers before fin
 
   assert.equal(didAppend, false);
   assert.equal(messages.length, 1);
+});
+
+test('mergeCitations deduplicates chunks and keeps the stronger result', () => {
+  const merged = mergeCitations(
+    [{ id: 'chunk-1', title: 'A', score: 0.01 }],
+    [
+      { id: 'chunk-1', title: 'A newer', score: 0.03 },
+      { id: 'chunk-2', title: 'B', score: 0.02 }
+    ]
+  );
+
+  assert.deepEqual(merged, [
+    { id: 'chunk-1', title: 'A newer', score: 0.03 },
+    { id: 'chunk-2', title: 'B', score: 0.02 }
+  ]);
 });
 
 test('appendToolPlanningChoice appends assistant tool calls for tool execution rounds', () => {
@@ -37,13 +60,6 @@ test('appendToolPlanningChoice appends assistant tool calls for tool execution r
   });
 });
 
-test('shouldAutoRetrieveKnowledge requires rag enabled, documents, and a user query', () => {
-  assert.equal(shouldAutoRetrieveKnowledge({ ragEnabled: true, hasKnowledge: true, query: '测试暗号是什么？' }), true);
-  assert.equal(shouldAutoRetrieveKnowledge({ ragEnabled: false, hasKnowledge: true, query: '测试暗号是什么？' }), false);
-  assert.equal(shouldAutoRetrieveKnowledge({ ragEnabled: true, hasKnowledge: false, query: '测试暗号是什么？' }), false);
-  assert.equal(shouldAutoRetrieveKnowledge({ ragEnabled: true, hasKnowledge: true, query: '' }), false);
-});
-
 test('getLatestUserContent returns the newest user message', () => {
   const messages = [
     { role: 'user', content: '旧问题' },
@@ -55,12 +71,86 @@ test('getLatestUserContent returns the newest user message', () => {
 });
 
 test('createAutoRetrieveToolCall builds a retrieve_knowledge call for the latest query', () => {
-  const toolCall = createAutoRetrieveToolCall('测试暗号是什么？');
+  const toolCall = createAutoRetrieveToolCall('测试暗号是什么？', ['kb-project']);
 
   assert.equal(toolCall.id, 'auto-retrieve-knowledge');
   assert.equal(toolCall.function.name, 'retrieve_knowledge');
   assert.deepEqual(JSON.parse(toolCall.function.arguments), {
     query: '测试暗号是什么？',
+    topK: 4,
+    knowledgeBaseIds: ['kb-project']
+  });
+});
+
+test('createAutoRetrieveToolCall keeps the legacy payload without a scope', () => {
+  const toolCall = createAutoRetrieveToolCall('测试暗号是什么？');
+  assert.deepEqual(JSON.parse(toolCall.function.arguments), {
+    query: '测试暗号是什么？',
     topK: 4
   });
+});
+
+test('createAutoRetrieveToolCall does not invent a fallback for an empty knowledge scope', () => {
+  const toolCall = createAutoRetrieveToolCall('不要检索任何知识库', []);
+
+  assert.deepEqual(JSON.parse(toolCall.function.arguments), {
+    query: '不要检索任何知识库',
+    topK: 4
+  });
+});
+
+test('getModelVisibleTools exposes only safe read-only tools to autonomous planning', () => {
+  const tools = [
+    { name: 'retrieve_knowledge' },
+    { name: 'list_knowledge_documents' },
+    { name: 'get_current_time' },
+    { name: 'ingest_knowledge_documents' },
+    { name: 'delete_knowledge_document' },
+    { name: 'clear_knowledge_documents' },
+    { name: 'propose_memory' },
+    { name: 'retrieve_memory' },
+    { name: 'delete_memory' }
+  ];
+
+  assert.deepEqual(getModelVisibleTools(tools).map((tool) => tool.name), [
+    'retrieve_knowledge',
+    'list_knowledge_documents',
+    'get_current_time'
+  ]);
+
+  assert.deepEqual(
+    getModelVisibleTools(tools, { ragEnabled: false }).map((tool) => tool.name),
+    ['get_current_time']
+  );
+});
+
+test('preset filtering keeps list-only knowledge access without enabling retrieval', () => {
+  const tools = [
+    { name: 'retrieve_knowledge' },
+    { name: 'list_knowledge_documents' },
+    { name: 'get_current_time' }
+  ];
+  assert.deepEqual(
+    getPresetVisibleTools(tools, {
+      knowledgeScopeEnabled: true,
+      toolWhitelist: ['list_knowledge_documents']
+    }).map((tool) => tool.name),
+    ['list_knowledge_documents']
+  );
+  assert.deepEqual(
+    getPresetVisibleTools(tools, {
+      knowledgeScopeEnabled: false,
+      toolWhitelist: ['list_knowledge_documents', 'get_current_time']
+    }).map((tool) => tool.name),
+    ['get_current_time']
+  );
+});
+
+test('runtime tool guard blocks hidden write tools even if a model invents the call', () => {
+  const allowed = new Set(['retrieve_knowledge', 'get_current_time']);
+  assert.equal(isToolExecutionAllowed('retrieve_knowledge', allowed), true);
+  assert.equal(isToolExecutionAllowed('update_memory', allowed), false);
+  assert.equal(isToolExecutionAllowed('delete_memory', allowed), false);
+  assert.equal(isToolExecutionAllowed('update_memory'), false, 'missing allow-set cannot bypass policy');
+  assert.equal(isToolExecutionAllowed('unknown_tool'), false);
 });

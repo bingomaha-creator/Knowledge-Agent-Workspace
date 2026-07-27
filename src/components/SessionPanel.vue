@@ -2,7 +2,7 @@
   <aside class="session-panel">
     <div class="session-panel-header">
       <div>
-        <p class="section-label">yuan-agent conversations</p>
+        <p class="section-label">Workspace conversations</p>
         <h2>最近对话</h2>
       </div>
       <button class="nav-icon-button" :disabled="disabled" @click="$emit('new-session')">＋</button>
@@ -33,7 +33,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ChatSession } from '@/types/chat';
+import type { ChatSession } from '@/features/chat/types';
 
 defineProps<{
   sessions: ChatSession[];
