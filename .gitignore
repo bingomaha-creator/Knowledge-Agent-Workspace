@@ -6,4 +6,20 @@ dist
 .env.local
 .DS_Store
 code-reading-coach-skill.md
+server/data/
+
+# Local planning, research, and learning artifacts are intentionally kept out
+# of the public repository. The README is the public project documentation.
 docs/
+reference/
+research/
+lessons/
+learning-records/
+.superpowers/
+evals/
+server/evaluation/
+CONTEXT.md
+MISSION.md
+NOTES.md
+RESOURCES.md
+reading_map.md

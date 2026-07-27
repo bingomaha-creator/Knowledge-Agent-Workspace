@@ -1,0 +1,4 @@
+import assert from 'node:assert/strict'; import test from 'node:test'; import { estimateCost, normalizeUsage, parsePricing, shouldRetryModelError } from './run-utils.js';
+test('usage and pricing safely fall back when upstream data is missing', () => { assert.deepEqual(normalizeUsage({ prompt_tokens: 2, completion_tokens: 3 }), { inputTokens: 2, outputTokens: 3 }); assert.equal(estimateCost('unknown', {}, {}), 0); assert.deepEqual(parsePricing('{bad'), {}); });
+test('cost estimation uses configured per-million rates only', () => { assert.equal(estimateCost('m', { input_tokens: 1_000_000, output_tokens: 500_000 }, { m: { inputPerMillion: 2, outputPerMillion: 4 } }), 4); });
+test('only transient model errors are retryable', () => { assert.equal(shouldRetryModelError({ code: 'RATE_LIMITED' }), true); assert.equal(shouldRetryModelError({ code: 'MISSING_API_KEY' }), false); assert.equal(shouldRetryModelError({ code: 'QWEN_REQUEST_INVALID' }), false); });
