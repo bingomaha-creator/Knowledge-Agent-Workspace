@@ -1,0 +1,32 @@
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { useState, type ReactNode } from 'react';
+
+export function createWorkspaceQueryClient() {
+  return new QueryClient({
+    defaultOptions: {
+      queries: {
+        refetchOnWindowFocus: false,
+        retry: 1,
+        staleTime: 15_000
+      },
+      mutations: {
+        retry: false
+      }
+    }
+  });
+}
+
+type AppProvidersProps = {
+  children: ReactNode;
+  queryClient?: QueryClient;
+};
+
+export function AppProviders({ children, queryClient }: AppProvidersProps) {
+  const [client] = useState(() => queryClient ?? createWorkspaceQueryClient());
+
+  return (
+    <QueryClientProvider client={client}>
+      {children}
+    </QueryClientProvider>
+  );
+}

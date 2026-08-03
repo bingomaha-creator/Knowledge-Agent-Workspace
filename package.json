@@ -3,18 +3,33 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "workspaces": [
+    "apps/react"
+  ],
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:client": "vite",
+    "dev": "npm run dev:vue",
+    "dev:vue": "concurrently -n server,vue -c yellow,blue \"npm run dev:server\" \"npm run dev:client:vue\"",
+    "dev:react": "concurrently -n server,react -c yellow,green \"npm run dev:server\" \"npm run dev:client:react\"",
+    "dev:compare": "concurrently -n server,vue,react -c yellow,blue,green \"npm run dev:server\" \"npm run dev:client:vue\" \"npm run dev:client:react\"",
+    "dev:client": "npm run dev:client:vue",
+    "dev:client:vue": "vite",
+    "dev:client:react": "npm run dev --workspace @matthews-workspace/react",
     "dev:server": "node ./server/index.js",
-    "build": "vue-tsc -b && vite build",
-    "preview": "vite preview",
+    "build": "npm run build:vue",
+    "build:vue": "vue-tsc -b && vite build",
+    "build:react": "npm run build --workspace @matthews-workspace/react",
+    "preview": "npm run preview:vue",
+    "preview:vue": "vite preview",
+    "preview:react": "npm run preview --workspace @matthews-workspace/react",
     "start": "node ./server/index.js",
     "test": "node --test \"server/**/*.test.js\"",
-    "test:client": "vitest run src"
+    "test:client": "npm run test:vue",
+    "test:vue": "vitest run --config vitest.vue.config.ts",
+    "test:react": "npm run test --workspace @matthews-workspace/react",
+    "check:react": "npm run typecheck --workspace @matthews-workspace/react && npm run test:react && npm run build:react"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
