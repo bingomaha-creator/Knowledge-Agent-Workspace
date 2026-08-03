@@ -12,7 +12,7 @@ server/data/
 # of the public repository. The README is the public project documentation.
 docs/
 reference/
-research/
+/research/
 lessons/
 learning-records/
 .superpowers/
