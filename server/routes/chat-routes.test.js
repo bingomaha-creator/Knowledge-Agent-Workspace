@@ -96,6 +96,10 @@ test('persisted chat routes expose session CRUD, cursor messages, and accepted-f
       calls.push(['getMessage', id]);
       return id === userMessage.id ? userMessage : null;
     },
+    updateMessageMemoryCandidate(id, memoryCandidate) {
+      calls.push(['updateMessageMemoryCandidate', id, memoryCandidate]);
+      return { ...assistantMessage, memoryCandidate };
+    },
     updateSession(id, patch) {
       calls.push(['updateSession', id, patch]);
       return { ...session, ...patch };
@@ -150,6 +154,13 @@ test('persisted chat routes expose session CRUD, cursor messages, and accepted-f
 
   response = await fetch(`${baseUrl}/api/chat/messages/user-1`);
   assert.deepEqual(await response.json(), { message: userMessage });
+
+  response = await fetch(`${baseUrl}/api/chat/messages/assistant-1/memory-candidate`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ memoryCandidate: { id: 'memory-1', status: 'confirmed' } })
+  });
+  assert.equal((await response.json()).message.memoryCandidate.status, 'confirmed');
 
   response = await fetch(`${baseUrl}/api/chat/sessions/session-1`, {
     method: 'PATCH',

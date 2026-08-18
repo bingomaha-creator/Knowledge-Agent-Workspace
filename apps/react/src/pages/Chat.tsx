@@ -11,6 +11,12 @@ export function Chat() {
       onSessionAccepted={(acceptedSessionId) => {
         navigate(`/chat/${encodeURIComponent(acceptedSessionId)}`, { replace: true });
       }}
+      onStartResearch={(chatSeed) => {
+        navigate('/research', { state: { chatSeed } });
+      }}
+      onStartBugInvestigation={(chatSeed) => {
+        navigate('/bugs', { state: { chatSeed } });
+      }}
     />
   );
 }

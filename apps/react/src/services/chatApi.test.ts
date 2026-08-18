@@ -14,13 +14,15 @@ describe('chatApi', () => {
       .mockResolvedValueOnce(jsonResponse({ sessions: [] }))
       .mockResolvedValueOnce(jsonResponse({ messages: [], nextCursor: 101 }))
       .mockResolvedValueOnce(jsonResponse({ session: { id: 'session-1' } }))
-      .mockResolvedValueOnce(jsonResponse({ deleted: true }));
+      .mockResolvedValueOnce(jsonResponse({ deleted: true }))
+      .mockResolvedValueOnce(jsonResponse({ message: { id: 'assistant-1' } }));
     const api = createChatApi(fetcher);
 
     await api.listSessions();
     await api.listMessages('session/1', { before: 201, limit: 100 });
     await api.updateSession('session-1', { ragEnabled: false });
     await api.deleteSession('session-1');
+    await api.updateMessageMemoryCandidate('assistant-1', { id: 'memory-1', status: 'confirmed' });
 
     expect(fetcher).toHaveBeenNthCalledWith(1, '/api/chat/sessions', expect.any(Object));
     expect(fetcher).toHaveBeenNthCalledWith(
@@ -35,6 +37,14 @@ describe('chatApi', () => {
     expect(fetcher).toHaveBeenNthCalledWith(4, '/api/chat/sessions/session-1', expect.objectContaining({
       method: 'DELETE'
     }));
+    expect(fetcher).toHaveBeenNthCalledWith(
+      5,
+      '/api/chat/messages/assistant-1/memory-candidate',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ memoryCandidate: { id: 'memory-1', status: 'confirmed' } })
+      })
+    );
   });
 
   it('normalizes accepted, token, tool, error, and canonical done events', async () => {

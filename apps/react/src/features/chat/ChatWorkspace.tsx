@@ -1,10 +1,15 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useShallow } from 'zustand/react/shallow';
 import styled from 'styled-components';
+import { chatApi } from '@/services/chatApi';
+import { knowledgeCatalogApi } from '@/services/knowledgeCatalogApi';
+import { memoryApi, type MemoryPatch } from '@/services/memoryApi';
 import { ComposerPanel } from './ComposerPanel';
 import { MessageList } from './MessageList';
 import { useChatStreamStore } from './chatStreamStore';
-import type { ChatMessage } from './chat.types';
+import { cacheCanonicalMessage, chatQueryKeys } from './chatQueries';
+import type { ChatMemoryCandidate, ChatMessage } from './chat.types';
 import {
   useChatMessages,
   useChatPresets,
@@ -16,6 +21,17 @@ import { useChatStream } from './useChatStream';
 type ChatWorkspaceProps = {
   sessionId?: string;
   onSessionAccepted?: (sessionId: string) => void;
+  onStartResearch?: (seed: {
+    question: string;
+    sourceSessionId?: string;
+    sourceMessageId: string;
+    knowledgeBaseIds: string[];
+  }) => void;
+  onStartBugInvestigation?: (seed: {
+    content: string;
+    sourceSessionId?: string;
+    sourceMessageId: string;
+  }) => void;
 };
 
 const Workspace = styled.section`
@@ -91,6 +107,14 @@ const WorkspaceState = styled.div`
   }
 `;
 
+const InlineError = styled.p`
+  margin: 0;
+  padding: var(--space-2) var(--space-5);
+  color: var(--color-danger);
+  background: var(--color-danger-surface);
+  font-size: 0.75rem;
+`;
+
 function streamStatusLabel(status: ReturnType<typeof useChatStreamStore.getState>['status']) {
   if (status === 'connecting') return '正在连接';
   if (status === 'stopping') return '正在停止';
@@ -98,10 +122,21 @@ function streamStatusLabel(status: ReturnType<typeof useChatStreamStore.getState
   return '';
 }
 
-export function ChatWorkspace({ sessionId, onSessionAccepted }: ChatWorkspaceProps) {
+export function ChatWorkspace({
+  sessionId,
+  onSessionAccepted,
+  onStartResearch,
+  onStartBugInvestigation
+}: ChatWorkspaceProps) {
+  const queryClient = useQueryClient();
   const sessionQuery = useChatSession(sessionId);
   const messagesQuery = useChatMessages(sessionId);
   const presetsQuery = useChatPresets();
+  const knowledgeBasesQuery = useQuery({
+    queryKey: chatQueryKeys.knowledgeBases(),
+    queryFn: () => knowledgeCatalogApi.list(),
+    staleTime: 60_000
+  });
   const updateSession = useUpdateChatSession();
   const stream = useChatStream({ sessionId, onSessionAccepted });
   const streamSnapshot = useChatStreamStore(useShallow((state) => ({
@@ -118,17 +153,36 @@ export function ChatWorkspace({ sessionId, onSessionAccepted }: ChatWorkspacePro
   const presets = presetsQuery.data || [];
   const [newPresetId, setNewPresetId] = useState('general');
   const [newRagEnabled, setNewRagEnabled] = useState(true);
+  const [newKnowledgeBaseIds, setNewKnowledgeBaseIds] = useState<string[]>([]);
+  const [memoryBusyIds, setMemoryBusyIds] = useState<Set<string>>(() => new Set());
+  const [memoryError, setMemoryError] = useState('');
+  const initializedNewScope = useRef(false);
 
   useEffect(() => {
     if (!presets.length || presets.some((preset) => preset.id === newPresetId)) return;
     setNewPresetId(presets[0].id);
   }, [newPresetId, presets]);
 
+  useEffect(() => {
+    if (initializedNewScope.current || !presets.length || !knowledgeBasesQuery.data) return;
+    const availableIds = new Set(knowledgeBasesQuery.data.map((base) => base.id));
+    setNewKnowledgeBaseIds(
+      (presets.find((preset) => preset.id === newPresetId)?.defaultKnowledgeBaseIds || [])
+        .filter((id) => availableIds.has(id))
+    );
+    initializedNewScope.current = true;
+  }, [knowledgeBasesQuery.data, newPresetId, presets]);
+
   const session = sessionQuery.data;
   const presetId = session?.presetId || newPresetId;
   const ragEnabled = session?.ragEnabled ?? newRagEnabled;
+  const knowledgeBaseIds = session?.knowledgeBaseIds || newKnowledgeBaseIds;
   const messages = useMemo(() => {
-    if (streamSnapshot.sessionId !== sessionId || !streamSnapshot.assistantMessageId) {
+    if (
+      streamSnapshot.status === 'idle'
+      || streamSnapshot.sessionId !== sessionId
+      || !streamSnapshot.assistantMessageId
+    ) {
       return messagesQuery.messages;
     }
     return messagesQuery.messages.map((message): ChatMessage => (
@@ -139,6 +193,7 @@ export function ChatWorkspace({ sessionId, onSessionAccepted }: ChatWorkspacePro
             tools: streamSnapshot.tools,
             citations: streamSnapshot.citations,
             memoryCandidate: streamSnapshot.memoryCandidate,
+            run: streamSnapshot.run,
             status: streamSnapshot.status === 'idle' ? message.status : 'streaming',
             errorCode: streamSnapshot.error?.code || message.errorCode,
             errorMessage: streamSnapshot.error?.message || message.errorMessage
@@ -151,8 +206,7 @@ export function ChatWorkspace({ sessionId, onSessionAccepted }: ChatWorkspacePro
     return stream.send(content, sessionId ? {} : {
       presetId,
       ragEnabled,
-      knowledgeBaseIds: presets.find((preset) => preset.id === presetId)
-        ?.defaultKnowledgeBaseIds || []
+      knowledgeBaseIds
     });
   }
 
@@ -160,6 +214,7 @@ export function ChatWorkspace({ sessionId, onSessionAccepted }: ChatWorkspacePro
     const preset = presets.find((item) => item.id === nextPresetId);
     if (!sessionId) {
       setNewPresetId(nextPresetId);
+      setNewKnowledgeBaseIds(preset?.defaultKnowledgeBaseIds || []);
       return;
     }
     updateSession.mutate({
@@ -177,6 +232,44 @@ export function ChatWorkspace({ sessionId, onSessionAccepted }: ChatWorkspacePro
       return;
     }
     updateSession.mutate({ sessionId, patch: { ragEnabled: enabled } });
+  }
+
+  function changeKnowledgeBaseIds(nextIds: string[]) {
+    if (!sessionId) {
+      setNewKnowledgeBaseIds(nextIds);
+      return;
+    }
+    updateSession.mutate({ sessionId, patch: { knowledgeBaseIds: nextIds } });
+  }
+
+  function findCandidate(messageId: string) {
+    return messages.find((message) => message.id === messageId)?.memoryCandidate;
+  }
+
+  async function updateMemoryCandidate(
+    messageId: string,
+    memoryId: string,
+    patch: MemoryPatch
+  ) {
+    setMemoryBusyIds((current) => new Set(current).add(messageId));
+    setMemoryError('');
+    try {
+      const memory = await memoryApi.update(memoryId, patch);
+      const projected = {
+        ...findCandidate(messageId),
+        ...memory
+      } as ChatMemoryCandidate;
+      const message = await chatApi.updateMessageMemoryCandidate(messageId, projected);
+      cacheCanonicalMessage(queryClient, message);
+    } catch (error) {
+      setMemoryError(error instanceof Error ? error.message : '更新长期记忆失败');
+    } finally {
+      setMemoryBusyIds((current) => {
+        const next = new Set(current);
+        next.delete(messageId);
+        return next;
+      });
+    }
   }
 
   if (sessionId && (sessionQuery.isLoading || messagesQuery.isLoading)) {
@@ -208,7 +301,24 @@ export function ChatWorkspace({ sessionId, onSessionAccepted }: ChatWorkspacePro
         loadingEarlierMessages={messagesQuery.isFetchingNextPage}
         loadEarlierMessages={() => messagesQuery.fetchNextPage()}
         streamAssistantMessageId={streamSnapshot.assistantMessageId}
+        memoryBusyIds={memoryBusyIds}
+        onStartResearch={(seed) => onStartResearch?.({
+          ...seed,
+          sourceSessionId: sessionId,
+          knowledgeBaseIds
+        })}
+        onStartBugInvestigation={(seed) => onStartBugInvestigation?.({
+          ...seed,
+          sourceSessionId: sessionId
+        })}
+        onReviewMemory={(messageId, memoryId, decision) => {
+          void updateMemoryCandidate(messageId, memoryId, { status: decision });
+        }}
+        onCorrectMemory={(messageId, memoryId, patch) => {
+          void updateMemoryCandidate(messageId, memoryId, patch);
+        }}
       />
+      {memoryError ? <InlineError role="alert">{memoryError}</InlineError> : null}
       <ComposerPanel
         isActive={stream.isActive}
         statusLabel={streamStatusLabel(stream.status)}
@@ -217,9 +327,12 @@ export function ChatWorkspace({ sessionId, onSessionAccepted }: ChatWorkspacePro
         }]}
         presetId={presetId}
         ragEnabled={ragEnabled}
+        knowledgeBases={knowledgeBasesQuery.data || []}
+        knowledgeBaseIds={knowledgeBaseIds}
         controlsDisabled={updateSession.isPending}
         onPresetChange={changePreset}
         onRagChange={changeRag}
+        onKnowledgeBaseIdsChange={changeKnowledgeBaseIds}
         onSend={send}
         onStop={stream.stop}
       />

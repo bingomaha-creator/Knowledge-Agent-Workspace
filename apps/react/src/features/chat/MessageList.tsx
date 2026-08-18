@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import styled from 'styled-components';
-import type { ChatMessage } from './chat.types';
+import type { ChatMessage, MemoryStatus, MemoryType } from './chat.types';
 import { MessageCard } from './MessageCard';
 
 type MessageListProps = {
@@ -10,6 +10,19 @@ type MessageListProps = {
   loadingEarlierMessages: boolean;
   loadEarlierMessages: () => Promise<unknown>;
   streamAssistantMessageId?: string | null;
+  memoryBusyIds?: Set<string>;
+  onStartResearch?: (seed: { question: string; sourceMessageId: string }) => void;
+  onStartBugInvestigation?: (seed: { content: string; sourceMessageId: string }) => void;
+  onReviewMemory?: (
+    messageId: string,
+    memoryId: string,
+    decision: Extract<MemoryStatus, 'confirmed' | 'rejected'>
+  ) => void;
+  onCorrectMemory?: (
+    messageId: string,
+    memoryId: string,
+    patch: { type: MemoryType; title: string; content: string; status: 'corrected' }
+  ) => void;
 };
 
 const ListRegion = styled.section`
@@ -73,7 +86,12 @@ export function MessageList({
   hasEarlierMessages,
   loadingEarlierMessages,
   loadEarlierMessages,
-  streamAssistantMessageId
+  streamAssistantMessageId,
+  memoryBusyIds = new Set(),
+  onStartResearch,
+  onStartBugInvestigation,
+  onReviewMemory,
+  onCorrectMemory
 }: MessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
@@ -114,7 +132,17 @@ export function MessageList({
         firstItemIndex={firstItemIndex}
         initialTopMostItemIndex={{ index: messages.length - 1, align: 'end' }}
         computeItemKey={(_index, message) => message.id}
-        itemContent={(_index, message) => <MessageCard message={message} />}
+        itemContent={(_index, message) => (
+          <MessageCard
+            message={message}
+            memoryBusy={memoryBusyIds.has(message.id)}
+            onStartResearch={onStartResearch}
+            onStartBugInvestigation={onStartBugInvestigation}
+            onReviewMemory={onReviewMemory}
+            onCorrectMemory={onCorrectMemory}
+            onReadingStart={() => setIsAtBottom(false)}
+          />
+        )}
         increaseViewportBy={{ top: 240, bottom: 240 }}
         followOutput={(atBottom) => atBottom ? 'auto' : false}
         atBottomStateChange={setIsAtBottom}

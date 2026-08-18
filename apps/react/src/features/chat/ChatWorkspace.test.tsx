@@ -74,6 +74,9 @@ describe('ChatWorkspace', () => {
           id: 'general', name: '通用助手', description: '日常协作', defaultKnowledgeBaseIds: []
         }] }), { status: 200 });
       }
+      if (url === '/api/knowledge-bases') {
+        return new Response(JSON.stringify({ knowledgeBases: [] }), { status: 200 });
+      }
       if (url === '/api/chat/messages/stream' && init?.method === 'POST') return sseResponse();
       if (url === '/api/chat/sessions') {
         return new Response(JSON.stringify({ sessions: [] }), { status: 200 });
@@ -111,6 +114,9 @@ describe('ChatWorkspace', () => {
       const url = String(input);
       if (url === '/api/presets') {
         return new Response(JSON.stringify({ presets: [] }), { status: 200 });
+      }
+      if (url === '/api/knowledge-bases') {
+        return new Response(JSON.stringify({ knowledgeBases: [] }), { status: 200 });
       }
       if (url === '/api/chat/messages/stream') {
         return new Promise<Response>((_resolve, reject) => {

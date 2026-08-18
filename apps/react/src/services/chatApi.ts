@@ -172,6 +172,18 @@ export function createChatApi(fetcher: Fetcher = fetch) {
       return data.run;
     },
 
+    async updateMessageMemoryCandidate(
+      messageId: string,
+      memoryCandidate: Partial<ChatMemoryCandidate>
+    ) {
+      const data = await readJson<{ message: ChatMessage }>(
+        `/api/chat/messages/${encodeURIComponent(messageId)}/memory-candidate`,
+        jsonInit('PATCH', { memoryCandidate }),
+        fetcher
+      );
+      return data.message;
+    },
+
     async *openReply(
       input: OpenChatReplyInput,
       signal?: AbortSignal

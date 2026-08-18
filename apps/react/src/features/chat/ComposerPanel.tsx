@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import styled from 'styled-components';
-import type { AgentPreset } from './chat.types';
+import type { AgentPreset, KnowledgeBaseSummary } from './chat.types';
+import { useSpeechRecognition } from './useSpeechRecognition';
 
 type ComposerPanelProps = {
   isActive: boolean;
@@ -8,9 +9,12 @@ type ComposerPanelProps = {
   presets: AgentPreset[];
   presetId: string;
   ragEnabled: boolean;
+  knowledgeBases: KnowledgeBaseSummary[];
+  knowledgeBaseIds: string[];
   controlsDisabled?: boolean;
   onPresetChange: (presetId: string) => void;
   onRagChange: (enabled: boolean) => void;
+  onKnowledgeBaseIdsChange: (knowledgeBaseIds: string[]) => void;
   onSend: (content: string) => Promise<boolean>;
   onStop: () => void;
 };
@@ -51,6 +55,50 @@ const RagControl = styled.label`
   border-radius: 0.75rem;
   color: var(--color-text-muted);
   font-size: 0.8125rem;
+`;
+
+const ScopeControl = styled.details`
+  position: relative;
+
+  > summary {
+    min-height: 2.25rem;
+    padding: 0.45rem 0.65rem;
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    font-size: 0.8125rem;
+    list-style: none;
+  }
+
+  > summary::-webkit-details-marker { display: none; }
+`;
+
+const ScopeMenu = styled.div`
+  position: absolute;
+  z-index: 5;
+  bottom: calc(100% + var(--space-2));
+  left: 0;
+  display: grid;
+  width: min(20rem, calc(100vw - 2rem));
+  max-height: 16rem;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: 0.9rem;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-soft);
+
+  label {
+    display: flex;
+    align-items: flex-start;
+    gap: var(--space-2);
+    color: var(--color-text);
+    font-size: 0.8125rem;
+  }
+
+  small { display: block; color: var(--color-text-subtle); }
 `;
 
 const InputRow = styled.div`
@@ -103,6 +151,26 @@ const ActionButton = styled.button`
   }
 `;
 
+const VoiceButton = styled.button`
+  flex: 0 0 auto;
+  min-width: 3.25rem;
+  min-height: 3.25rem;
+  padding: 0.65rem;
+  border: 1px solid var(--color-border);
+  border-radius: 1rem;
+  color: var(--color-text-muted);
+  background: var(--color-surface);
+  font-size: 1rem;
+
+  &[data-recording='true'] {
+    border-color: var(--color-danger-border);
+    color: var(--color-danger);
+    background: var(--color-danger-surface);
+  }
+
+  &:disabled { opacity: 0.45; }
+`;
+
 const Hint = styled.p`
   margin: 0;
   color: var(--color-text-subtle);
@@ -115,13 +183,19 @@ export function ComposerPanel({
   presets,
   presetId,
   ragEnabled,
+  knowledgeBases,
+  knowledgeBaseIds,
   controlsDisabled,
   onPresetChange,
   onRagChange,
+  onKnowledgeBaseIdsChange,
   onSend,
   onStop
 }: ComposerPanelProps) {
   const [draft, setDraft] = useState('');
+  const speech = useSpeechRecognition((transcript) => {
+    setDraft((current) => `${current}${current.trim() ? ' ' : ''}${transcript}`);
+  });
 
   async function submit(event?: FormEvent) {
     event?.preventDefault();
@@ -159,6 +233,27 @@ export function ComposerPanel({
           />
           使用资料检索
         </RagControl>
+        <ScopeControl>
+          <summary>资料范围 {knowledgeBaseIds.length}</summary>
+          <ScopeMenu>
+            {knowledgeBases.length ? knowledgeBases.map((knowledgeBase) => (
+              <label key={knowledgeBase.id}>
+                <input
+                  type="checkbox"
+                  checked={knowledgeBaseIds.includes(knowledgeBase.id)}
+                  disabled={controlsDisabled || isActive}
+                  onChange={(event) => onKnowledgeBaseIdsChange(event.target.checked
+                    ? [...knowledgeBaseIds, knowledgeBase.id]
+                    : knowledgeBaseIds.filter((id) => id !== knowledgeBase.id))}
+                />
+                <span>
+                  {knowledgeBase.name}
+                  <small>{knowledgeBase.publishedDocumentCount} 份可检索</small>
+                </span>
+              </label>
+            )) : <Hint>暂无可用资料库</Hint>}
+          </ScopeMenu>
+        </ScopeControl>
         {isActive && statusLabel ? <Hint role="status">{statusLabel}</Hint> : null}
       </Controls>
       <InputRow>
@@ -170,6 +265,16 @@ export function ComposerPanel({
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={handleKeyDown}
         />
+        <VoiceButton
+          type="button"
+          aria-label={speech.status === 'recording' ? '停止语音输入' : '语音输入'}
+          title={speech.supported ? '语音输入只会填入草稿，不会自动发送' : '当前浏览器不支持语音输入'}
+          disabled={!speech.supported || isActive}
+          data-recording={speech.status === 'recording'}
+          onClick={speech.status === 'recording' ? speech.stop : speech.start}
+        >
+          {speech.status === 'recording' ? '■' : '🎙'}
+        </VoiceButton>
         {isActive ? (
           <ActionButton type="button" data-stop="true" aria-label="停止生成" onClick={onStop}>
             停止

@@ -303,12 +303,24 @@ export function createChatService({
     };
   }
 
+  function updateMessageMemoryCandidate(messageId, memoryCandidate) {
+    const message = store.getMessage(messageId);
+    if (!message) {
+      throw createServiceError('CHAT_MESSAGE_NOT_FOUND', '消息不存在', 404);
+    }
+    return store.updateAssistantMessage(messageId, {
+      status: message.status,
+      memoryCandidate
+    });
+  }
+
   return {
     openReply,
     listSessions: (options) => store.listSessions(options),
     getSession: (id) => store.getSession(id),
     listMessages: (id, options) => store.listMessages(id, options),
     getMessage: (id) => store.getMessage(id),
+    updateMessageMemoryCandidate,
     updateSession: (id, patch) => store.updateSession(id, patch),
     deleteSession: (id) => store.deleteSession(id)
   };

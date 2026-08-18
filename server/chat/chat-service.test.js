@@ -103,6 +103,13 @@ test('persisted reply loads canonical history and enriches the terminal done eve
   const done = events.find((event) => event.type === 'done');
   assert.equal(done.data.message.id, finalMessage.id);
   assert.equal(done.data.message.status, 'done');
+
+  const reviewedMemory = service.updateMessageMemoryCandidate('assistant-3', {
+    ...finalMessage.memoryCandidate,
+    status: 'confirmed'
+  });
+  assert.equal(reviewedMemory.status, 'done');
+  assert.equal(reviewedMemory.memoryCandidate.status, 'confirmed');
   store.close();
 });
 

@@ -113,6 +113,19 @@ export function createChatRouter({ orchestrator, chatService }) {
     }
   });
 
+  router.patch('/api/chat/messages/:messageId/memory-candidate', (req, res) => {
+    try {
+      return res.json({
+        message: chatService.updateMessageMemoryCandidate(
+          req.params.messageId,
+          req.body?.memoryCandidate ?? null
+        )
+      });
+    } catch (error) {
+      return sendError(res, error, '无法更新消息中的记忆候选');
+    }
+  });
+
   router.post('/api/chat/messages/stream', async (req, res) => {
     let reply;
     try {

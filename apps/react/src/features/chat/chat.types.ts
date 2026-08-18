@@ -22,13 +22,43 @@ export type ChatToolInvocation = {
   result?: unknown;
 };
 
+export type MemoryType = 'profile' | 'preference' | 'fact' | 'event' | 'pitfall';
+export type MemoryStatus = 'candidate' | 'confirmed' | 'corrected' | 'rejected';
+
 export type ChatMemoryCandidate = Record<string, unknown> & {
-  id?: string;
+  id: string;
+  type: MemoryType;
+  title: string;
+  content: string;
+  confidence: number;
+  status: MemoryStatus;
+  sourceConversationId: string;
+  sourceMessageIds: string[];
+  sourceExcerpt: string;
+  sourceExcerptTruncated?: boolean;
+};
+
+export type AgentSpan = Record<string, unknown> & {
+  id: string;
+  name: string;
+  kind: string;
+  status: 'running' | 'success' | 'error' | 'cancelled' | 'interrupted';
+  inputTokens?: number;
+  outputTokens?: number;
+  estimatedCost?: number;
+  durationMs?: number | null;
+  errorMessage?: string;
 };
 
 export type AgentRun = Record<string, unknown> & {
   id: string;
   status: 'running' | 'success' | 'error' | 'cancelled' | 'interrupted';
+  inputTokens?: number;
+  outputTokens?: number;
+  estimatedCost?: number;
+  createdAt?: number;
+  finishedAt?: number | null;
+  spans?: AgentSpan[];
 };
 
 export type ChatSession = {
@@ -58,6 +88,7 @@ export type ChatMessage = {
   errorMessage: string;
   createdAt: number;
   updatedAt: number;
+  run?: AgentRun | null;
 };
 
 export type ChatMessagePage = {
@@ -118,4 +149,16 @@ export type AgentPreset = {
   description: string;
   defaultKnowledgeBaseIds: string[];
   [key: string]: unknown;
+};
+
+export type KnowledgeBaseSummary = {
+  id: string;
+  name: string;
+  description?: string;
+  isDefault: boolean;
+  documentCount: number;
+  publishedDocumentCount: number;
+  draftDocumentCount: number;
+  createdAt: number;
+  updatedAt: number;
 };
