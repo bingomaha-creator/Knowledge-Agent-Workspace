@@ -170,6 +170,15 @@ test('error and cancellation paths preserve partial output in distinct terminal 
   assert.equal(failedMessage.errorCode, 'MODEL_FAILED');
   assert.equal(failedEvents.find((event) => event.type === 'error').data.message.status, 'error');
 
+  const failedReplay = service.openReply(input({ content: '失败问题' }));
+  const replayEvents = [];
+  await failedReplay.run({
+    signal: new AbortController().signal,
+    emit: (event) => replayEvents.push(event)
+  });
+  assert.equal(replayEvents[0].type, 'error');
+  assert.equal(replayEvents[0].data.message.status, 'error');
+
   const cancelled = service.openReply(input({
     sessionId: failed.accepted.session.id,
     requestId: 'request-2',

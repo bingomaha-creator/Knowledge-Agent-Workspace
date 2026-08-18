@@ -48,7 +48,7 @@ function replayEvent(message) {
         code: message.errorCode || 'CHAT_REPLY_FAILED',
         message: message.errorMessage || '回答生成失败',
         details: '',
-        messageRecord: message
+        message
       }
     };
   }
