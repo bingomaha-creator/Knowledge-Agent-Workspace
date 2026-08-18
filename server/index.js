@@ -7,6 +7,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
 import { createChatOrchestrator } from './chat/chat-orchestrator.js';
+import { createChatService } from './chat/chat-service.js';
+import { createChatStore } from './chat-store.js';
 import { createRouteMcpCaller } from './http-utils.js';
 import { createMcpGateway } from './infrastructure/mcp-gateway.js';
 import { createMcpSessionManager } from './infrastructure/mcp-session.js';
@@ -96,6 +98,7 @@ const mcpSessionManager = createMcpSessionManager({
 const mcpGateway = createMcpGateway({ sessionManager: mcpSessionManager });
 const toolExecutor = createToolExecutor({ gateway: mcpGateway });
 const runStore = createRunStore();
+const chatStore = createChatStore();
 const researchStore = createResearchStore();
 const bugInvestigationStore = createBugInvestigationStore();
 const researchKnowledgeStore = createKnowledgeStore();
@@ -147,6 +150,10 @@ const chatOrchestrator = createChatOrchestrator({
   modelRetries: config.modelRetries,
   contextWindowTokens: config.contextWindowTokens
 });
+const chatService = createChatService({
+  store: chatStore,
+  orchestrator: chatOrchestrator
+});
 
 void researchWorker.resume().catch((error) => {
   console.error('[research] startup recovery failed:', error?.message || error);
@@ -180,7 +187,10 @@ const app = createApp({
   bugKnowledgeRouter: createBugKnowledgeRouter({ callMcpTool: callBugMcpTool }),
   bugInvestigationRouter: createBugInvestigationRouter({ investigationService: bugInvestigationService }),
   memoryRouter: createMemoryRouter({ callMcpTool }),
-  chatRouter: createChatRouter({ orchestrator: chatOrchestrator }),
+  chatRouter: createChatRouter({
+    orchestrator: chatOrchestrator,
+    chatService
+  }),
   frontendDir: path.resolve(__dirname, '../dist')
 });
 
@@ -191,6 +201,7 @@ const httpServer = app.listen(config.port, config.host, () => {
 async function shutdown(signal) {
   console.log(`[server] received ${signal}, shutting down`);
   httpServer.close();
+  chatStore.close();
   bugInvestigationStore.close();
   researchStore.close();
   await mcpSessionManager.close();
