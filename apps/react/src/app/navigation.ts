@@ -1,11 +1,11 @@
 export type WorkspaceModule = {
-  path: string;
+  path: 'chat' | 'knowledge' | 'memory' | 'bugs' | 'research';
   label: string;
   eyebrow: string;
   description: string;
 };
 
-export const workspaceModules: WorkspaceModule[] = [
+export const workspaceModules: readonly WorkspaceModule[] = [
   {
     path: 'chat',
     label: '对话',
@@ -37,3 +37,19 @@ export const workspaceModules: WorkspaceModule[] = [
     description: '研究计划、证据装配与报告生成。'
   }
 ];
+
+export function findWorkspaceModule(pathname: string) {
+  return workspaceModules.find((module) =>
+    pathname === `/${module.path}` || pathname.startsWith(`/${module.path}/`)
+  );
+}
+
+export function getWorkspaceModule(path: WorkspaceModule['path']) {
+  const module = workspaceModules.find((item) => item.path === path);
+
+  if (!module) {
+    throw new Error(`Unknown workspace module: ${path}`);
+  }
+
+  return module;
+}

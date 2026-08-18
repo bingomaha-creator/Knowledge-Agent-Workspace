@@ -3,7 +3,6 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';
 import { AppProviders } from '@/app/providers';
 import { createWorkspaceRouter } from '@/app/router';
-import '@/styles.css';
 
 const rootElement = document.getElementById('root');
 

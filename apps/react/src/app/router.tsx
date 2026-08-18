@@ -1,11 +1,15 @@
 import {
   createBrowserRouter,
+  Navigate,
   type RouteObject
 } from 'react-router';
 import { App } from './App';
-import { workspaceModules } from './modules';
-import { MigrationOverviewPage } from '@/pages/MigrationOverviewPage';
-import { ModulePlaceholderPage } from '@/pages/ModulePlaceholderPage';
+import { BugAgent } from '@/pages/BugAgent';
+import { Chat } from '@/pages/Chat';
+import { Knowledge } from '@/pages/Knowledge';
+import { Memory } from '@/pages/Memory';
+import { PageNotFound } from '@/pages/PageNotFound';
+import { Research } from '@/pages/Research';
 
 export const workspaceRoutes: RouteObject[] = [
   {
@@ -14,12 +18,32 @@ export const workspaceRoutes: RouteObject[] = [
     children: [
       {
         index: true,
-        element: <MigrationOverviewPage />
+        element: <Navigate replace to="/chat" />
       },
-      ...workspaceModules.map((module) => ({
-        path: module.path,
-        element: <ModulePlaceholderPage module={module} />
-      }))
+      {
+        path: 'chat',
+        element: <Chat />
+      },
+      {
+        path: 'knowledge',
+        element: <Knowledge />
+      },
+      {
+        path: 'memory',
+        element: <Memory />
+      },
+      {
+        path: 'research',
+        element: <Research />
+      },
+      {
+        path: 'bugs',
+        element: <BugAgent />
+      },
+      {
+        path: '*',
+        element: <PageNotFound />
+      },
     ]
   }
 ];

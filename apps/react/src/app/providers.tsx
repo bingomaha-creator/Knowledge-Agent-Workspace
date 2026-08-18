@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { useState, type ReactNode } from 'react';
+import { GlobalStyles } from '@/styles/GlobalStyles';
 
 export function createWorkspaceQueryClient() {
   return new QueryClient({
@@ -25,8 +26,11 @@ export function AppProviders({ children, queryClient }: AppProvidersProps) {
   const [client] = useState(() => queryClient ?? createWorkspaceQueryClient());
 
   return (
-    <QueryClientProvider client={client}>
-      {children}
-    </QueryClientProvider>
+    <>
+      <GlobalStyles />
+      <QueryClientProvider client={client}>
+        {children}
+      </QueryClientProvider>
+    </>
   );
 }

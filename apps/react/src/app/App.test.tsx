@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { describe, expect, it } from 'vitest';
 import { AppProviders } from './providers';
@@ -24,19 +24,30 @@ function renderRoute(path: string) {
 }
 
 describe('React workspace shell', () => {
-  it('renders the migration overview without replacing the Vue baseline', () => {
+  it('redirects the workspace root to the Chat page', async () => {
     renderRoute('/');
 
-    expect(screen.getByRole('heading', { name: '双版本迁移基线' })).toBeInTheDocument();
-    expect(screen.getByText('Vue baseline remains active')).toBeInTheDocument();
-    expect(screen.getAllByRole('link')).toHaveLength(10);
+    expect(await screen.findByRole('heading', { level: 1, name: '对话' })).toBeInTheDocument();
+    expect(screen.getByText('历史会话将在这里恢复')).toBeInTheDocument();
   });
 
-  it('routes to a module placeholder through the shared workspace layout', () => {
+  it('routes to an explicit Page through the shared workspace layout', () => {
     renderRoute('/knowledge');
 
-    expect(screen.getByRole('heading', { name: '资料库' })).toBeInTheDocument();
-    expect(screen.getByText('Vue parity pending')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: '资料库' })).toBeInTheDocument();
+    expect(screen.getByText('Knowledge 模块等待迁移')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Workspace modules' })).toBeInTheDocument();
+  });
+
+  it('opens and closes the mobile workspace sidebar', () => {
+    renderRoute('/chat');
+
+    fireEvent.click(screen.getByLabelText('打开工作区侧栏'));
+    expect(screen.getByRole('dialog', { name: '工作区侧栏' })).toBeInTheDocument();
+    expect(document.body).toHaveStyle({ overflow: 'hidden' });
+
+    fireEvent.keyDown(window, { key: 'Escape' });
+    expect(screen.queryByRole('dialog', { name: '工作区侧栏' })).not.toBeInTheDocument();
+    expect(document.body).not.toHaveStyle({ overflow: 'hidden' });
   });
 });
