@@ -1,7 +1,7 @@
 import { QueryClient } from '@tanstack/react-query';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppProviders } from './providers';
 import { workspaceRoutes } from './router';
 
@@ -23,12 +23,30 @@ function renderRoute(path: string) {
   );
 }
 
+beforeEach(() => {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+    const url = String(input);
+    if (url === '/api/chat/sessions') {
+      return new Response(JSON.stringify({ sessions: [] }), { status: 200 });
+    }
+    if (url === '/api/presets') {
+      return new Response(JSON.stringify({ presets: [] }), { status: 200 });
+    }
+    throw new Error(`Unexpected request: ${url}`);
+  }));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 describe('React workspace shell', () => {
   it('redirects the workspace root to the Chat page', async () => {
     renderRoute('/');
 
-    expect(await screen.findByRole('heading', { level: 1, name: '对话' })).toBeInTheDocument();
-    expect(screen.getByText('历史会话将在这里恢复')).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 1, name: '新对话' })).toBeInTheDocument();
+    expect(await screen.findByText('还没有历史会话。发送第一条消息后，会话会保存到这里。'))
+      .toBeInTheDocument();
   });
 
   it('routes to an explicit Page through the shared workspace layout', () => {

@@ -189,7 +189,8 @@ export function createChatApi(fetcher: Fetcher = fetch) {
 }
 
 export type ChatApi = ReturnType<typeof createChatApi>;
-export const chatApi = createChatApi();
+// Resolve the browser fetch at call time so tests, service workers, and runtime wrappers can replace it.
+export const chatApi = createChatApi((input, init) => fetch(input, init));
 
 export function toChatProtocolError(error: unknown): ChatProtocolError {
   if (error instanceof ApiError) {

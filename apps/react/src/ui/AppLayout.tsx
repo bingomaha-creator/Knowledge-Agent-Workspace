@@ -65,6 +65,7 @@ const Main = styled.main`
 const MainContent = styled.div`
   display: grid;
   width: min(100%, var(--content-max));
+  min-height: 100%;
   min-width: 0;
   gap: var(--space-7);
   margin: 0 auto;

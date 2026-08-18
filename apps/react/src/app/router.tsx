@@ -21,7 +21,7 @@ export const workspaceRoutes: RouteObject[] = [
         element: <Navigate replace to="/chat" />
       },
       {
-        path: 'chat',
+        path: 'chat/:sessionId?',
         element: <Chat />
       },
       {

@@ -12,6 +12,14 @@ export function useChatSession(sessionId?: string) {
   });
 }
 
+export function useChatPresets() {
+  return useQuery({
+    queryKey: chatQueryKeys.presets(),
+    queryFn: () => chatApi.listPresets(),
+    staleTime: 5 * 60_000
+  });
+}
+
 export function useChatMessages(sessionId?: string) {
   const query = useInfiniteQuery({
     queryKey: chatQueryKeys.messages(sessionId || ''),

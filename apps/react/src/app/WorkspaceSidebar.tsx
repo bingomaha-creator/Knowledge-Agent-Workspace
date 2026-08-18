@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { NavLink } from 'react-router';
 import styled from 'styled-components';
+import { ChatSidebarSection } from '@/features/chat/ChatSidebarSection';
 import type { WorkspaceModule } from './navigation';
 
 type WorkspaceSidebarProps = {
@@ -134,21 +135,6 @@ const CloseButton = styled.button`
 
   @media (max-width: 63.9375rem) {
     display: grid;
-  }
-`;
-
-const NewConversationButton = styled.button`
-  width: 100%;
-  min-height: 2.875rem;
-  padding: 0.6875rem 0.875rem;
-  border: 1px solid var(--color-primary-border);
-  border-radius: var(--radius-control);
-  color: var(--color-primary);
-  background: var(--color-primary-surface);
-  font-weight: 750;
-
-  &:disabled {
-    opacity: 0.68;
   }
 `;
 
@@ -301,20 +287,7 @@ export function WorkspaceSidebar({ modules, open, onClose }: WorkspaceSidebarPro
           ))}
         </MobileNavigation>
 
-        <NewConversationButton type="button" disabled>
-          发起新对话 · 待 Chat 迁移
-        </NewConversationButton>
-
-        <SidebarSection aria-labelledby="recent-conversations-title">
-          <SectionHeader>
-            <h2 id="recent-conversations-title">最近对话</h2>
-            <span>Chat</span>
-          </SectionHeader>
-          <SidebarCard>
-            <strong>历史会话将在这里恢复</strong>
-            <MutedText>Chat 模块迁移后接入真实会话，不在 Foundation 中伪造数据。</MutedText>
-          </SidebarCard>
-        </SidebarSection>
+        <ChatSidebarSection onNavigate={onClose} />
 
         <SidebarSection aria-labelledby="workspace-summary-title">
           <SectionHeader>
