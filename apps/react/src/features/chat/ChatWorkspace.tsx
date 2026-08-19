@@ -41,16 +41,13 @@ const Workspace = styled.section`
   min-height: 0;
   flex-direction: column;
   overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-panel);
+  border: 0;
+  border-radius: 0;
   background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
+  box-shadow: none;
 
   @media (max-width: 40rem) {
-    min-height: calc(100dvh - 8rem);
-    border-right: 0;
-    border-left: 0;
-    border-radius: 0;
+    min-height: calc(100dvh - 4.5rem);
   }
 `;
 

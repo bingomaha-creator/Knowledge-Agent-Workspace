@@ -50,7 +50,7 @@ const Main = styled.main`
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  padding: clamp(2rem, 4vw, 4rem) clamp(1.25rem, 5vw, 6rem);
+  padding: 0;
 
   @media (max-width: 63.9375rem) {
     min-height: calc(100dvh - 4.5rem);
@@ -58,17 +58,17 @@ const Main = styled.main`
   }
 
   @media (max-width: 40rem) {
-    padding: 1.5rem 1rem 2rem;
+    padding: 0;
   }
 `;
 
 const MainContent = styled.div`
   display: grid;
-  width: min(100%, var(--content-max));
+  width: 100%;
   min-height: 100%;
   min-width: 0;
-  gap: var(--space-7);
-  margin: 0 auto;
+  gap: 0;
+  margin: 0;
 `;
 
 export function AppLayout({ sidebar, header, children }: AppLayoutProps) {
