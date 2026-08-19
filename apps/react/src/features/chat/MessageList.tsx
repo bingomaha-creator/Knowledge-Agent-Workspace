@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import styled from 'styled-components';
-import type { ChatMessage, MemoryStatus, MemoryType } from './chat.types';
+import type { MemoryStatus, MemoryType } from '@/services/memoryApi';
+import type { ChatMessage } from './chat.types';
 import { MessageCard } from './MessageCard';
 
 type MessageListProps = {

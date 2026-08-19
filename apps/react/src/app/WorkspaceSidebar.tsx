@@ -3,6 +3,7 @@ import { NavLink } from 'react-router';
 import styled from 'styled-components';
 import { ChatSidebarSection } from '@/features/chat/ChatSidebarSection';
 import { KnowledgeSidebarSummary } from '@/features/knowledge/KnowledgeSidebarSummary';
+import { MemorySidebarSummary } from '@/features/memory/MemorySidebarSummary';
 import type { WorkspaceModule } from './navigation';
 
 type WorkspaceSidebarProps = {
@@ -197,21 +198,6 @@ const SectionHeader = styled.div`
   }
 `;
 
-const SidebarCard = styled.div`
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: 1.125rem;
-  background: var(--color-surface);
-  box-shadow: 0 10px 30px rgba(77, 102, 144, 0.06);
-
-  strong {
-    display: block;
-    margin-bottom: 0.25rem;
-    color: var(--color-text);
-    font-size: 0.8125rem;
-  }
-`;
-
 const SidebarFooter = styled.div`
   margin-top: auto;
   padding-top: var(--space-2);
@@ -296,10 +282,7 @@ export function WorkspaceSidebar({ modules, open, onClose }: WorkspaceSidebarPro
             <span>Overview</span>
           </SectionHeader>
           <KnowledgeSidebarSummary onNavigate={onClose} />
-          <SidebarCard>
-            <strong>记忆中心</strong>
-            <MutedText>模块待迁移</MutedText>
-          </SidebarCard>
+          <MemorySidebarSummary onNavigate={onClose} />
         </SidebarSection>
 
         <SidebarFooter>

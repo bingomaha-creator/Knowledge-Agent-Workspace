@@ -1,3 +1,5 @@
+import type { MemoryCandidate } from '@/services/memoryApi';
+
 export type ChatMessageRole = 'user' | 'assistant';
 export type ChatMessageStatus = 'streaming' | 'done' | 'error' | 'cancelled' | 'interrupted';
 export type ChatToolStatus = 'pending' | 'running' | 'success' | 'error';
@@ -22,21 +24,7 @@ export type ChatToolInvocation = {
   result?: unknown;
 };
 
-export type MemoryType = 'profile' | 'preference' | 'fact' | 'event' | 'pitfall';
-export type MemoryStatus = 'candidate' | 'confirmed' | 'corrected' | 'rejected';
-
-export type ChatMemoryCandidate = Record<string, unknown> & {
-  id: string;
-  type: MemoryType;
-  title: string;
-  content: string;
-  confidence: number;
-  status: MemoryStatus;
-  sourceConversationId: string;
-  sourceMessageIds: string[];
-  sourceExcerpt: string;
-  sourceExcerptTruncated?: boolean;
-};
+export type ChatMemoryCandidate = MemoryCandidate;
 
 export type AgentSpan = Record<string, unknown> & {
   id: string;

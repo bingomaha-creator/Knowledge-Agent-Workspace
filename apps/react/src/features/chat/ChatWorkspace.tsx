@@ -6,6 +6,7 @@ import { chatApi } from '@/services/chatApi';
 import { knowledgeApi } from '@/services/knowledgeApi';
 import { memoryApi, type MemoryPatch } from '@/services/memoryApi';
 import { knowledgeQueryKeys } from '@/features/knowledge/knowledgeQueries';
+import { memoryQueryKeys } from '@/features/memory/memoryQueries';
 import { ComposerPanel } from './ComposerPanel';
 import { MessageList } from './MessageList';
 import { useChatStreamStore } from './chatStreamStore';
@@ -253,6 +254,7 @@ export function ChatWorkspace({
     setMemoryError('');
     try {
       const memory = await memoryApi.update(memoryId, patch);
+      void queryClient.invalidateQueries({ queryKey: memoryQueryKeys.all });
       const projected = {
         ...findCandidate(messageId),
         ...memory

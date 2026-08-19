@@ -80,6 +80,7 @@ export function registerMemoryTools(server, { memoryService }) {
     {
       description: description('list_memories'),
       inputSchema: z.object({
+        ids: z.array(z.string().min(1).max(160)).max(100).optional(),
         statuses: z.array(z.enum(['candidate', 'confirmed', 'corrected', 'rejected'])).optional(),
         types: z.array(z.enum(['profile', 'preference', 'fact', 'event', 'pitfall'])).optional(),
         query: z.string().max(500).optional(),

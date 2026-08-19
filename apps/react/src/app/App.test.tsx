@@ -42,6 +42,12 @@ beforeEach(() => {
     if (url === '/api/knowledge?knowledgeBaseId=kb-default') {
       return new Response(JSON.stringify({ documents: [] }), { status: 200 });
     }
+    if (url === '/api/memories?limit=50&offset=0' || url === '/api/memories?limit=1&offset=0') {
+      return new Response(JSON.stringify({ memories: [], total: 0 }), { status: 200 });
+    }
+    if (url === '/api/memories?status=candidate&limit=1&offset=0') {
+      return new Response(JSON.stringify({ memories: [], total: 0 }), { status: 200 });
+    }
     throw new Error(`Unexpected request: ${url}`);
   }));
 });
@@ -66,6 +72,14 @@ describe('React workspace shell', () => {
     expect(await screen.findByRole('heading', { level: 2, name: '默认知识库' })).toBeInTheDocument();
     expect(await screen.findByText('这个资料库还是空的')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Workspace modules' })).toBeInTheDocument();
+  });
+
+  it('routes to Memory without selecting a record implicitly', async () => {
+    renderRoute('/memory');
+
+    expect(screen.getByRole('heading', { level: 1, name: 'Memory' })).toBeInTheDocument();
+    expect(await screen.findByText('没有符合当前条件的记忆。')).toBeInTheDocument();
+    expect(screen.getByText('从左侧选择一条记忆查看详情。')).toBeInTheDocument();
   });
 
   it('opens and closes the mobile workspace sidebar', () => {

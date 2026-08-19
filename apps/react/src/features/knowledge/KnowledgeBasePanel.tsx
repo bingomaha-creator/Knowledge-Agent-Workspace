@@ -4,7 +4,6 @@ import type { KnowledgeBase } from '@/services/knowledgeApi';
 const Panel = styled.aside`
   min-height: 0;
   overflow-y: auto;
-  border-right: 1px solid var(--color-border);
   background: var(--color-background);
 
   @media (max-width: 48rem) { display: none; }

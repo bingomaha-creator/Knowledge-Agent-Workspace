@@ -8,6 +8,7 @@ import {
 } from 'react';
 import styled from 'styled-components';
 import type { KnowledgeBase, KnowledgeDocument } from '@/services/knowledgeApi';
+import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
 import {
   resolveKnowledgeBaseId,
   useKnowledgeBases,
@@ -48,18 +49,6 @@ const WorkspaceHeader = styled.header`
 
   @media (max-width: 48rem) {
     > button { display: none; }
-  }
-`;
-
-const WorkspaceBody = styled.div`
-  display: grid;
-  grid-template-columns: 18rem minmax(0, 1fr);
-  flex: 1;
-  min-height: 0;
-
-  @media (max-width: 48rem) {
-    display: block;
-    overflow: hidden;
   }
 `;
 
@@ -452,10 +441,9 @@ export function KnowledgeWorkspace({
       )}
       {(notice || error) && <Notice $error={Boolean(error)}>{error || notice}</Notice>}
 
-      <WorkspaceBody>
-        <KnowledgeBasePanel bases={bases} activeBaseId={activeBaseId} onSelectBase={onSelectBase} />
-
-        <MainPanel aria-label="知识文档工作区">
+      <MasterDetailLayout
+        master={<KnowledgeBasePanel bases={bases} activeBaseId={activeBaseId} onSelectBase={onSelectBase} />}
+        detail={<MainPanel aria-label="知识文档工作区">
           {showingPreview ? (
             <KnowledgeDocumentPreview
               baseId={activeBaseId}
@@ -522,8 +510,12 @@ export function KnowledgeWorkspace({
               </ScrollArea>
             </>
           )}
-        </MainPanel>
-      </WorkspaceBody>
+        </MainPanel>}
+        masterWidth="18rem"
+        mobilePane="detail"
+        masterLabel="资料库列表"
+        detailLabel="知识文档工作区"
+      />
 
       {manageOpen && (
         <Overlay onMouseDown={(event) => event.target === event.currentTarget && closeManager()}>

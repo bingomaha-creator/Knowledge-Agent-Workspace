@@ -14,7 +14,7 @@ function bodyText(value) {
   return typeof value === 'string' ? value.trim() : '';
 }
 
-export function createMemoryRouter({ callMcpTool }) {
+export function createMemoryRouter({ callMcpTool, syncMemoryProjection = () => {} }) {
   const router = Router();
 
   router.post('/api/memories', async (req, res) => {
@@ -67,6 +67,26 @@ export function createMemoryRouter({ callMcpTool }) {
     }
   });
 
+  router.get('/api/memories/:id', async (req, res) => {
+    try {
+      const structured = await callMcpTool(
+        'list_memories',
+        { ids: [req.params.id], limit: 1, offset: 0 },
+        { fallbackMessage: '加载长期记忆失败' }
+      );
+      const memory = structured.memories?.[0];
+      if (!memory) {
+        throw Object.assign(new Error('记忆不存在'), {
+          code: 'MEMORY_NOT_FOUND',
+          status: 404
+        });
+      }
+      res.json({ memory });
+    } catch (error) {
+      sendRouteError(res, error, '加载长期记忆失败');
+    }
+  });
+
   router.patch('/api/memories/:id', async (req, res) => {
     try {
       const allowed = ['type', 'title', 'content', 'details', 'confidence', 'status'];
@@ -80,6 +100,7 @@ export function createMemoryRouter({ callMcpTool }) {
         { id: req.params.id, ...patch },
         { fallbackMessage: '更新长期记忆失败' }
       );
+      await syncMemoryProjection(req.params.id, structured.memory);
       res.json({ memory: structured.memory });
     } catch (error) {
       sendRouteError(res, error, '更新长期记忆失败');
@@ -93,6 +114,7 @@ export function createMemoryRouter({ callMcpTool }) {
         { id: req.params.id },
         { fallbackMessage: '删除长期记忆失败' }
       );
+      await syncMemoryProjection(req.params.id, null);
       res.json({ ok: true });
     } catch (error) {
       sendRouteError(res, error, '删除长期记忆失败');

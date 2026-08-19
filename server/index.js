@@ -186,7 +186,10 @@ const app = createApp({
   knowledgeRouter: createKnowledgeRouter({ callMcpTool }),
   bugKnowledgeRouter: createBugKnowledgeRouter({ callMcpTool: callBugMcpTool }),
   bugInvestigationRouter: createBugInvestigationRouter({ investigationService: bugInvestigationService }),
-  memoryRouter: createMemoryRouter({ callMcpTool }),
+  memoryRouter: createMemoryRouter({
+    callMcpTool,
+    syncMemoryProjection: (id, memory) => chatStore.syncMemoryCandidateProjection(id, memory)
+  }),
   chatRouter: createChatRouter({
     orchestrator: chatOrchestrator,
     chatService

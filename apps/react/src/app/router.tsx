@@ -29,7 +29,7 @@ export const workspaceRoutes: RouteObject[] = [
         element: <Knowledge />
       },
       {
-        path: 'memory',
+        path: 'memory/:memoryId?',
         element: <Memory />
       },
       {

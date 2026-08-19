@@ -498,6 +498,34 @@ export function createChatStore(dbPath = DEFAULT_DB_PATH, options = {}) {
     return Boolean(result.changes);
   }
 
+  function syncMemoryCandidateProjection(memoryId, memory) {
+    const normalizedMemoryId = normalizeId(memoryId, 'Memory ID');
+    const rows = db.prepare(`
+      SELECT id, memory_candidate_json
+      FROM chat_messages
+      WHERE role = 'assistant' AND memory_candidate_json != 'null'
+    `).all();
+    const matches = rows.filter((row) => (
+      normalizeObject(parseJson(row.memory_candidate_json, null))?.id === normalizedMemoryId
+    ));
+    if (!matches.length) return 0;
+
+    const updateProjection = db.prepare(`
+      UPDATE chat_messages SET memory_candidate_json = ? WHERE id = ?
+    `);
+    db.exec('BEGIN');
+    try {
+      for (const row of matches) {
+        updateProjection.run(serializeJson(memory ? normalizeObject(memory) : null, null), row.id);
+      }
+      db.exec('COMMIT');
+      return matches.length;
+    } catch (error) {
+      db.exec('ROLLBACK');
+      throw error;
+    }
+  }
+
   return {
     startTurn,
     listSessions,
@@ -506,6 +534,7 @@ export function createChatStore(dbPath = DEFAULT_DB_PATH, options = {}) {
     getMessage,
     updateSession,
     updateAssistantMessage,
+    syncMemoryCandidateProjection,
     deleteSession,
     recoverInterrupted,
     close() {

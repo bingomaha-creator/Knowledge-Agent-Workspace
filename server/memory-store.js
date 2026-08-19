@@ -424,6 +424,14 @@ export function createMemoryStore(dbPath = DEFAULT_DB_PATH) {
     // LIKE 查询会转义 %/_/\\，使用户输入始终按字面子串匹配，不意外变成通配符。
     const clauses = [];
     const params = [];
+    if (filters.ids !== undefined) {
+      const ids = (Array.isArray(filters.ids) ? filters.ids : [filters.ids])
+        .map((id) => String(id || '').trim())
+        .filter(Boolean);
+      if (!ids.length) return { empty: true, where: '', params: [] };
+      clauses.push(`id IN (${ids.map(() => '?').join(', ')})`);
+      params.push(...ids);
+    }
     if (filters.statuses !== undefined) {
       const statuses = (Array.isArray(filters.statuses) ? filters.statuses : [filters.statuses])
         .map((status) => normalizeStatus(status));

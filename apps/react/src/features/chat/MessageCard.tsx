@@ -2,13 +2,12 @@ import { useQuery } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
 import styled from 'styled-components';
 import { chatApi } from '@/services/chatApi';
+import type { MemoryStatus, MemoryType } from '@/services/memoryApi';
 import { chatQueryKeys } from './chatQueries';
 import { renderChatMarkdown } from './chatMarkdown';
 import type {
   AgentRun,
-  ChatMessage,
-  MemoryStatus,
-  MemoryType
+  ChatMessage
 } from './chat.types';
 
 type MemoryCorrection = {

@@ -214,3 +214,24 @@ test('damaged JSON attachments degrade independently without hiding message cont
   assert.equal(message.memoryCandidate, null);
   fixture.store.close();
 });
+
+test('memory projection synchronization updates and removes every matching candidate', () => {
+  const { store } = createFixture();
+  const started = startTurn(store);
+  store.updateAssistantMessage(started.assistantMessage.id, {
+    status: 'done',
+    content: '好的。',
+    memoryCandidate: { id: 'memory-1', title: '旧标题', status: 'candidate' }
+  });
+
+  assert.equal(store.syncMemoryCandidateProjection('memory-1', {
+    id: 'memory-1', title: '新标题', status: 'confirmed'
+  }), 1);
+  assert.deepEqual(store.getMessage(started.assistantMessage.id).memoryCandidate, {
+    id: 'memory-1', title: '新标题', status: 'confirmed'
+  });
+
+  assert.equal(store.syncMemoryCandidateProjection('memory-1', null), 1);
+  assert.equal(store.getMessage(started.assistantMessage.id).memoryCandidate, null);
+  store.close();
+});
