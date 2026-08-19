@@ -150,15 +150,3 @@ export type AgentPreset = {
   defaultKnowledgeBaseIds: string[];
   [key: string]: unknown;
 };
-
-export type KnowledgeBaseSummary = {
-  id: string;
-  name: string;
-  description?: string;
-  isDefault: boolean;
-  documentCount: number;
-  publishedDocumentCount: number;
-  draftDocumentCount: number;
-  createdAt: number;
-  updatedAt: number;
-};

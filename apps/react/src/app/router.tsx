@@ -25,7 +25,7 @@ export const workspaceRoutes: RouteObject[] = [
         element: <Chat />
       },
       {
-        path: 'knowledge',
+        path: 'knowledge/:documentId?',
         element: <Knowledge />
       },
       {

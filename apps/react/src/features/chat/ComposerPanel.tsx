@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import styled from 'styled-components';
-import type { AgentPreset, KnowledgeBaseSummary } from './chat.types';
+import type { KnowledgeBase } from '@/services/knowledgeApi';
+import type { AgentPreset } from './chat.types';
 import { useSpeechRecognition } from './useSpeechRecognition';
 
 type ComposerPanelProps = {
@@ -9,7 +10,7 @@ type ComposerPanelProps = {
   presets: AgentPreset[];
   presetId: string;
   ragEnabled: boolean;
-  knowledgeBases: KnowledgeBaseSummary[];
+  knowledgeBases: KnowledgeBase[];
   knowledgeBaseIds: string[];
   controlsDisabled?: boolean;
   onPresetChange: (presetId: string) => void;

@@ -32,6 +32,16 @@ beforeEach(() => {
     if (url === '/api/presets') {
       return new Response(JSON.stringify({ presets: [] }), { status: 200 });
     }
+    if (url === '/api/knowledge-bases') {
+      return new Response(JSON.stringify({ knowledgeBases: [{
+        id: 'kb-default', name: '默认知识库', isDefault: true,
+        documentCount: 0, publishedDocumentCount: 0, draftDocumentCount: 0,
+        createdAt: 1, updatedAt: 1
+      }] }), { status: 200 });
+    }
+    if (url === '/api/knowledge?knowledgeBaseId=kb-default') {
+      return new Response(JSON.stringify({ documents: [] }), { status: 200 });
+    }
     throw new Error(`Unexpected request: ${url}`);
   }));
 });
@@ -49,11 +59,12 @@ describe('React workspace shell', () => {
       .toBeInTheDocument();
   });
 
-  it('routes to an explicit Page through the shared workspace layout', () => {
+  it('routes to Knowledge through the shared workspace layout', async () => {
     renderRoute('/knowledge');
 
-    expect(screen.getByRole('heading', { level: 1, name: '资料库' })).toBeInTheDocument();
-    expect(screen.getByText('Knowledge 模块等待迁移')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: 'Knowledge' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { level: 2, name: '默认知识库' })).toBeInTheDocument();
+    expect(await screen.findByText('这个资料库还是空的')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Workspace modules' })).toBeInTheDocument();
   });
 

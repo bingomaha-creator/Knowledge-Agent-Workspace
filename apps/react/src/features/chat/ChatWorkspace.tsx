@@ -3,8 +3,9 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useShallow } from 'zustand/react/shallow';
 import styled from 'styled-components';
 import { chatApi } from '@/services/chatApi';
-import { knowledgeCatalogApi } from '@/services/knowledgeCatalogApi';
+import { knowledgeApi } from '@/services/knowledgeApi';
 import { memoryApi, type MemoryPatch } from '@/services/memoryApi';
+import { knowledgeQueryKeys } from '@/features/knowledge/knowledgeQueries';
 import { ComposerPanel } from './ComposerPanel';
 import { MessageList } from './MessageList';
 import { useChatStreamStore } from './chatStreamStore';
@@ -130,8 +131,8 @@ export function ChatWorkspace({
   const messagesQuery = useChatMessages(sessionId);
   const presetsQuery = useChatPresets();
   const knowledgeBasesQuery = useQuery({
-    queryKey: chatQueryKeys.knowledgeBases(),
-    queryFn: () => knowledgeCatalogApi.list(),
+    queryKey: knowledgeQueryKeys.bases(),
+    queryFn: () => knowledgeApi.listBases(),
     staleTime: 60_000
   });
   const updateSession = useUpdateChatSession();

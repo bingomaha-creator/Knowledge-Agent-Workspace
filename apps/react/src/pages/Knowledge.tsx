@@ -1,25 +1,31 @@
-import { getWorkspaceModule } from '@/app/navigation';
-import { Empty } from '@/ui/Empty';
-import { PageHeader } from '@/ui/PageHeader';
-import { Panel } from '@/ui/Panel';
-
-const knowledgeModule = getWorkspaceModule('knowledge');
+import { useNavigate, useParams, useSearchParams } from 'react-router';
+import { KnowledgeWorkspace } from '@/features/knowledge/KnowledgeWorkspace';
 
 export function Knowledge() {
+  const navigate = useNavigate();
+  const { documentId } = useParams();
+  const [searchParams] = useSearchParams();
+  const activeBaseId = searchParams.get('base') || undefined;
+
+  function knowledgeUrl(baseId: string, nextDocumentId?: string) {
+    const path = nextDocumentId
+      ? `/knowledge/${encodeURIComponent(nextDocumentId)}`
+      : '/knowledge';
+    return `${path}?base=${encodeURIComponent(baseId)}`;
+  }
+
   return (
-    <>
-      <PageHeader
-        eyebrow={knowledgeModule.eyebrow}
-        title={knowledgeModule.label}
-        description={knowledgeModule.description}
-      />
-      <Panel>
-        <Empty
-          icon="↗"
-          title="Knowledge 模块等待迁移"
-          description="资料库、文档生命周期和预览将在对应 Feature 中实现，Page 继续只负责路由级组装。"
-        />
-      </Panel>
-    </>
+    <KnowledgeWorkspace
+      activeBaseId={activeBaseId}
+      documentId={documentId}
+      onSelectBase={(baseId) => navigate(knowledgeUrl(baseId))}
+      onOpenDocument={(nextDocumentId) => {
+        if (activeBaseId) navigate(knowledgeUrl(activeBaseId, nextDocumentId));
+      }}
+      onCloseDocument={() => {
+        if (activeBaseId) navigate(knowledgeUrl(activeBaseId));
+        else navigate('/knowledge');
+      }}
+    />
   );
 }

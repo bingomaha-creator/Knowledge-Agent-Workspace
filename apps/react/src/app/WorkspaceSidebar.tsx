@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { NavLink } from 'react-router';
 import styled from 'styled-components';
 import { ChatSidebarSection } from '@/features/chat/ChatSidebarSection';
+import { KnowledgeSidebarSummary } from '@/features/knowledge/KnowledgeSidebarSummary';
 import type { WorkspaceModule } from './navigation';
 
 type WorkspaceSidebarProps = {
@@ -294,10 +295,7 @@ export function WorkspaceSidebar({ modules, open, onClose }: WorkspaceSidebarPro
             <h2 id="workspace-summary-title">Workspace 摘要</h2>
             <span>Overview</span>
           </SectionHeader>
-          <SidebarCard>
-            <strong>资料库</strong>
-            <MutedText>模块待迁移</MutedText>
-          </SidebarCard>
+          <KnowledgeSidebarSummary onNavigate={onClose} />
           <SidebarCard>
             <strong>记忆中心</strong>
             <MutedText>模块待迁移</MutedText>

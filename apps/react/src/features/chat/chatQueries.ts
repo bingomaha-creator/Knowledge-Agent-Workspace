@@ -12,8 +12,7 @@ export const chatQueryKeys = {
   session: (sessionId: string) => ['chat', 'session', sessionId] as const,
   messages: (sessionId: string) => ['chat', 'messages', sessionId] as const,
   presets: () => ['chat', 'presets'] as const,
-  run: (runId: string) => ['chat', 'run', runId] as const,
-  knowledgeBases: () => ['knowledge', 'bases'] as const
+  run: (runId: string) => ['chat', 'run', runId] as const
 };
 
 export function messagesFromPages(
