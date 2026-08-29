@@ -37,7 +37,7 @@ export const workspaceRoutes: RouteObject[] = [
         element: <Research />
       },
       {
-        path: 'bugs',
+        path: 'bugs/:section?/:recordId?',
         element: <BugAgent />
       },
       {

@@ -15,7 +15,17 @@ export function Chat() {
         navigate('/research', { state: { chatSeed } });
       }}
       onStartBugInvestigation={(chatSeed) => {
-        navigate('/bugs', { state: { chatSeed } });
+        const firstLine = chatSeed.content.split('\n').find((line) => line.trim())?.trim() || '';
+        navigate('/bugs/investigations/new', {
+          state: {
+            bugInvestigationSeed: {
+              title: firstLine.slice(0, 120),
+              evidence: { type: 'error', content: chatSeed.content },
+              sourceMessageId: chatSeed.sourceMessageId,
+              sourceSessionId: chatSeed.sourceSessionId
+            }
+          }
+        });
       }}
     />
   );

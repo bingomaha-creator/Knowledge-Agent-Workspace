@@ -48,6 +48,12 @@ beforeEach(() => {
     if (url === '/api/memories?status=candidate&limit=1&offset=0') {
       return new Response(JSON.stringify({ memories: [], total: 0 }), { status: 200 });
     }
+    if (url === '/api/bug-projects') {
+      return Response.json({ projects: [{
+        projectRef: 'project-a', knowledgeBaseId: 'kb-a', name: '结算系统', description: '',
+        kind: 'project_bugs', bugCaseCount: 0, createdAt: 1, updatedAt: 1
+      }] });
+    }
     throw new Error(`Unexpected request: ${url}`);
   }));
 });
@@ -80,6 +86,13 @@ describe('React workspace shell', () => {
     expect(screen.getByRole('heading', { level: 1, name: 'Memory' })).toBeInTheDocument();
     expect(await screen.findByText('没有符合当前条件的记忆。')).toBeInTheDocument();
     expect(screen.getByText('从左侧选择一条记忆查看详情。')).toBeInTheDocument();
+  });
+
+  it('restores a deep Bug Agent work area from the URL', async () => {
+    renderRoute('/bugs/library/case-1?project=project-a');
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Bug Agent' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: '案例库' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it('opens and closes the mobile workspace sidebar', () => {

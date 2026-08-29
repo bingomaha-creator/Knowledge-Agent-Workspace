@@ -1,25 +1,39 @@
-import { getWorkspaceModule } from '@/app/navigation';
-import { Empty } from '@/ui/Empty';
-import { PageHeader } from '@/ui/PageHeader';
-import { Panel } from '@/ui/Panel';
-
-const bugAgentModule = getWorkspaceModule('bugs');
+import { useCallback, useEffect, useMemo } from 'react';
+import { useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
+import { BugWorkspace, type BugInvestigationSeed } from '@/features/bug-agent/BugWorkspace';
+import type { BugWorkspaceLocation } from '@/features/bug-agent/bugViewState';
+import { buildBugUrl, parseBugLocation } from './bugRoute';
 
 export function BugAgent() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const params = useParams();
+  const [searchParams] = useSearchParams();
+  const bugLocation = useMemo(
+    () => parseBugLocation(params, searchParams),
+    [params, searchParams]
+  );
+  const urlNeedsNormalization =
+    params.section !== bugLocation.section ||
+    (params.recordId === 'new' && !bugLocation.creating);
+
+  useEffect(() => {
+    if (!urlNeedsNormalization) return;
+    navigate(buildBugUrl(bugLocation), { replace: true });
+  }, [bugLocation, navigate, urlNeedsNormalization]);
+
+  const onLocationChange = useCallback(
+    (next: BugWorkspaceLocation, options?: { replace?: boolean }) => {
+      navigate(buildBugUrl(next), { replace: options?.replace });
+    },
+    [navigate]
+  );
+
   return (
-    <>
-      <PageHeader
-        eyebrow={bugAgentModule.eyebrow}
-        title={bugAgentModule.label}
-        description={bugAgentModule.description}
-      />
-      <Panel>
-        <Empty
-          icon="↗"
-          title="Bug Agent 模块等待迁移"
-          description="Bug 案例库和问题调查工作区将在对应 Feature 中接入。"
-        />
-      </Panel>
-    </>
+    <BugWorkspace
+      location={bugLocation}
+      seed={(location.state as { bugInvestigationSeed?: BugInvestigationSeed } | null)?.bugInvestigationSeed}
+      onLocationChange={onLocationChange}
+    />
   );
 }
