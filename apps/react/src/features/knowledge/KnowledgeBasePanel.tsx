@@ -1,29 +1,24 @@
 import styled from 'styled-components';
 import type { KnowledgeBase } from '@/services/knowledgeApi';
+import { PaneHeader } from './PaneHeader';
 
 const Panel = styled.aside`
+  display: flex;
   min-height: 0;
-  overflow-y: auto;
+  flex-direction: column;
   background: var(--color-background);
 
   @media (max-width: 48rem) { display: none; }
 `;
 
-const Heading = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-4);
-  border-bottom: 1px solid var(--color-border);
-
-  h2 { margin: 0; font-size: 0.875rem; }
-`;
-
 const List = styled.div`
   display: grid;
+  flex: 1;
+  align-content: start;
   gap: 0.25rem;
+  min-height: 0;
   padding: var(--space-2);
+  overflow-y: auto;
 `;
 
 const BaseButton = styled.button<{ $active?: boolean }>`
@@ -52,7 +47,7 @@ export function KnowledgeBasePanel({
 }) {
   return (
     <Panel aria-label="资料库列表">
-      <Heading><h2>资料库管理</h2><span>{bases.length}</span></Heading>
+      <PaneHeader title="资料库管理" description={`共 ${bases.length} 个资料库`} />
       <List>
         {bases.map((base) => (
           <BaseButton

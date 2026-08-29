@@ -54,13 +54,13 @@ export const GlobalStyles = createGlobalStyle`
 
   html,
   #root {
-    min-width: 320px;
+    min-width: 0;
     min-height: 100%;
   }
 
   body {
     margin: 0;
-    min-width: 320px;
+    min-width: 0;
     min-height: 100vh;
     background:
       radial-gradient(circle at 30% 0%, rgba(213, 228, 255, 0.72), transparent 32rem),

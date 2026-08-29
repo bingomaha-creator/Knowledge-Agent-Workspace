@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import type { MemoryRecord, MemoryStatus, MemoryType } from '@/services/memoryApi';
 import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
+import { WorkspaceControlBar } from '@/ui/WorkspaceControlBar';
 import { MemoryCreateDialog } from './MemoryCreateDialog';
 import { MemoryDetail } from './MemoryDetail';
 import { MemoryList } from './MemoryList';
@@ -55,32 +56,40 @@ const Button = styled.button<{ $primary?: boolean }>`
   background: ${({ $primary }) => $primary ? 'var(--color-primary)' : 'var(--color-surface)'};
 `;
 
-const Filters = styled.div<{ $hiddenOnMobile: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
+const MemoryControlBar = styled(WorkspaceControlBar)<{ $hiddenOnMobile: boolean }>`
+  input {
+    flex: 1 1 12rem;
+  }
 
-  input { min-width: 12rem; flex: 1; }
-  input, select { padding: 0.6rem 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); background: var(--color-background); }
+  select {
+    flex: 0 0 auto;
+  }
 
   @media (max-width: 48rem) {
-    display: ${({ $hiddenOnMobile }) => $hiddenOnMobile ? 'none' : 'grid'};
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    padding: var(--space-3);
-    input { grid-column: 1 / -1; min-width: 0; width: 100%; }
-    button { grid-column: 1 / -1; }
+    display: ${({ $hiddenOnMobile }) => ($hiddenOnMobile ? 'none' : 'flex')};
+
+    input {
+      flex-basis: 100%;
+    }
+
+    select {
+      flex: 1 1 8rem;
+    }
+
+    button {
+      flex-basis: 100%;
+    }
   }
 `;
 
 const QuickFilter = styled.button<{ $active: boolean }>`
-  padding: 0.6rem 0.75rem;
+  min-height: 2.5rem;
+  padding: 0.45rem 0.75rem;
   border: 1px solid ${({ $active }) => $active ? 'var(--color-primary-border)' : 'var(--color-border)'};
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   color: ${({ $active }) => $active ? 'var(--color-primary)' : 'var(--color-text-muted)'};
   background: ${({ $active }) => $active ? 'var(--color-primary-surface)' : 'var(--color-surface)'};
+  font-size: 0.875rem;
 `;
 
 const Feedback = styled.p<{ $error?: boolean }>`
@@ -166,7 +175,7 @@ export function MemoryWorkspace({
       </Header>
       {notice && <Feedback>{notice}</Feedback>}
       {error && <Feedback $error>{error}</Feedback>}
-      <Filters $hiddenOnMobile={Boolean(memoryId)}>
+      <MemoryControlBar $hiddenOnMobile={Boolean(memoryId)}>
         <input aria-label="搜索记忆" value={queryDraft} placeholder="搜索标题、内容或来源" onChange={(event) => setQueryDraft(event.target.value)} />
         <select aria-label="记忆状态筛选" value={filters.status || ''} onChange={(event) => changeFilter({ status: (event.target.value || undefined) as MemoryStatus | undefined })}>
           <option value="">全部状态</option>{memoryStatuses.map((status) => <option key={status} value={status}>{memoryStatusLabel(status)}</option>)}
@@ -177,7 +186,7 @@ export function MemoryWorkspace({
         <QuickFilter $active={filters.status === 'candidate'} onClick={() => changeFilter({ status: filters.status === 'candidate' ? undefined : 'candidate' })}>
           待审查 {counts.candidates}
         </QuickFilter>
-      </Filters>
+      </MemoryControlBar>
       <MasterDetailLayout
         master={<MemoryList
           memories={list.data?.memories || []}

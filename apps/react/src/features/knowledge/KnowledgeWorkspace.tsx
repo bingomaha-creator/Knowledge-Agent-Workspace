@@ -17,6 +17,7 @@ import {
 import { useKnowledgeMutations } from './useKnowledgeMutations';
 import { KnowledgeBasePanel } from './KnowledgeBasePanel';
 import { KnowledgeDocumentPreview } from './KnowledgeDocumentPreview';
+import { PaneHeader } from './PaneHeader';
 
 type KnowledgeWorkspaceProps = {
   activeBaseId?: string;
@@ -60,55 +61,14 @@ const MainPanel = styled.main`
   overflow: hidden;
 `;
 
-const MainToolbar = styled.div`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-5);
-  border-bottom: 1px solid var(--color-border);
-
-  @media (max-width: 48rem) {
-    flex-direction: column;
-    align-items: stretch;
-    padding: var(--space-3);
-
-    > div:last-child {
-      width: 100%;
-
-      > * {
-        flex: 1;
-        text-align: center;
-      }
-    }
-  }
-`;
-
-const MobileBaseControls = styled.div`
-  display: none;
-  min-width: 0;
-  flex: 1;
-  gap: var(--space-2);
-
-  @media (max-width: 48rem) { display: flex; }
-`;
-
 const Select = styled.select`
   min-width: 0;
   flex: 1;
   padding: 0.55rem 0.7rem;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   color: var(--color-text);
   background: var(--color-surface);
-`;
-
-const ToolbarCopy = styled.div`
-  min-width: 0;
-  h2 { margin: 0; overflow: hidden; font-size: 1rem; text-overflow: ellipsis; white-space: nowrap; }
-  p { margin: 0.2rem 0 0; color: var(--color-text-muted); font-size: 0.75rem; }
-
-  @media (max-width: 48rem) { display: none; }
 `;
 
 const Actions = styled.div`
@@ -121,7 +81,7 @@ const Actions = styled.div`
 const Button = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   padding: 0.55rem 0.8rem;
   border: 1px solid ${({ $danger }) => $danger ? 'var(--color-danger)' : 'var(--color-border)'};
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   color: ${({ $primary, $danger }) => $primary ? 'white' : $danger ? 'var(--color-danger)' : 'var(--color-text)'};
   background: ${({ $primary }) => $primary ? 'var(--color-primary)' : 'var(--color-surface)'};
   font: inherit;
@@ -133,7 +93,7 @@ const Button = styled.button<{ $primary?: boolean; $danger?: boolean }>`
 
 const UploadLabel = styled.label`
   padding: 0.55rem 0.8rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   color: white;
   background: var(--color-primary);
   font-size: 0.8125rem;
@@ -459,30 +419,32 @@ export function KnowledgeWorkspace({
             />
           ) : (
             <>
-              <MainToolbar>
-                <MobileBaseControls>
-                  <Select
-                    aria-label="当前资料库"
-                    value={activeBaseId || ''}
-                    onChange={(event) => onSelectBase(event.target.value)}
-                  >
-                    {bases.map((base) => <option key={base.id} value={base.id}>{base.name}</option>)}
-                  </Select>
-                  <Button onClick={openManager}>管理</Button>
-                </MobileBaseControls>
-                <ToolbarCopy>
-                  <h2>{activeBase?.name || '资料库'}</h2>
-                  <p>{documents.length} 个文档 · 上传后先处理为草稿，再手动发布</p>
-                </ToolbarCopy>
-                <Actions>
-                  <Button onClick={() => documentsQuery.refetch()} disabled={!activeBaseId || documentsQuery.isFetching}>刷新</Button>
-                  <Button $danger onClick={clearDocuments} disabled={!documents.length || mutations.clearDocuments.isPending}>清空</Button>
-                  <UploadLabel>
-                    上传文件
-                    <input aria-label="上传知识文件" type="file" multiple accept=".md,.markdown,.txt,.json" disabled={mutations.uploadDocuments.isPending} onChange={upload} />
-                  </UploadLabel>
-                </Actions>
-              </MainToolbar>
+              <PaneHeader
+                title={activeBase?.name || '资料库'}
+                description={`${documents.length} 个文档 · 上传后先处理为草稿，再手动发布`}
+                mobileControls={
+                  <>
+                    <Select
+                      aria-label="当前资料库"
+                      value={activeBaseId || ''}
+                      onChange={(event) => onSelectBase(event.target.value)}
+                    >
+                      {bases.map((base) => <option key={base.id} value={base.id}>{base.name}</option>)}
+                    </Select>
+                    <Button onClick={openManager}>管理</Button>
+                  </>
+                }
+                actions={
+                  <Actions>
+                    <Button onClick={() => documentsQuery.refetch()} disabled={!activeBaseId || documentsQuery.isFetching}>刷新</Button>
+                    <Button $danger onClick={clearDocuments} disabled={!documents.length || mutations.clearDocuments.isPending}>清空</Button>
+                    <UploadLabel>
+                      上传文件
+                      <input aria-label="上传知识文件" type="file" multiple accept=".md,.markdown,.txt,.json" disabled={mutations.uploadDocuments.isPending} onChange={upload} />
+                    </UploadLabel>
+                  </Actions>
+                }
+              />
               <ScrollArea>
                 {documentsQuery.isLoading && <State>正在加载文档…</State>}
                 {documentsQuery.isError && (

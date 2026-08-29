@@ -14,9 +14,9 @@ const StyledHeader = styled.header`
   align-items: center;
   justify-content: space-between;
   min-width: 0;
-  min-height: 5.25rem;
+  min-height: 3.75rem;
   gap: var(--space-6);
-  padding: 0.875rem clamp(1.25rem, 4vw, 3rem);
+  padding: 0.5rem clamp(1.25rem, 4vw, 3rem);
   border-bottom: 1px solid var(--color-border);
   background: rgba(255, 255, 255, 0.88);
   backdrop-filter: blur(16px);
@@ -28,22 +28,28 @@ const StyledHeader = styled.header`
   }
 `;
 
+const MobileHeaderGroup = styled.div`
+  display: none;
+  flex: 1;
+  align-items: center;
+  min-width: 0;
+  gap: var(--space-3);
+
+  @media (max-width: 63.9375rem) {
+    display: flex;
+  }
+`;
+
 const HeaderCopy = styled.div`
   min-width: 0;
 `;
 
 const WorkspaceName = styled.p`
   margin: 0;
+  overflow: hidden;
   color: var(--color-text);
   font-size: 1rem;
   font-weight: 750;
-`;
-
-const WorkspaceDescription = styled.p`
-  margin: 0.25rem 0 0;
-  overflow: hidden;
-  color: var(--color-text-muted);
-  font-size: 0.8125rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 `;
@@ -53,6 +59,7 @@ const DesktopNavigation = styled.nav`
   align-items: center;
   justify-content: flex-end;
   min-width: 0;
+  margin-left: auto;
   gap: var(--space-2);
 
   @media (max-width: 63.9375rem) {
@@ -102,17 +109,6 @@ const MobileMenuButton = styled.button`
   }
 `;
 
-const MobileHeaderGroup = styled.div`
-  display: contents;
-
-  @media (max-width: 63.9375rem) {
-    display: flex;
-    align-items: center;
-    min-width: 0;
-    gap: var(--space-3);
-  }
-`;
-
 const MobileHeaderSpacer = styled.span`
   display: none;
   width: 2.625rem;
@@ -141,8 +137,7 @@ export function WorkspaceHeader({
           <span aria-hidden="true">☰</span>
         </MobileMenuButton>
         <HeaderCopy>
-          <WorkspaceName>Matthew&apos;s Workspace · {activeModule.label}</WorkspaceName>
-          <WorkspaceDescription>{activeModule.description}</WorkspaceDescription>
+          <WorkspaceName>{activeModule.label}</WorkspaceName>
         </HeaderCopy>
       </MobileHeaderGroup>
 

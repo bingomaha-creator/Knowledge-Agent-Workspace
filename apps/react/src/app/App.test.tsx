@@ -78,6 +78,7 @@ describe('React workspace shell', () => {
     expect(await screen.findByRole('heading', { level: 2, name: '默认知识库' })).toBeInTheDocument();
     expect(await screen.findByText('这个资料库还是空的')).toBeInTheDocument();
     expect(screen.getByRole('navigation', { name: 'Workspace modules' })).toBeInTheDocument();
+    expect(screen.queryByText(/Matthew's Workspace ·/)).not.toBeInTheDocument();
   });
 
   it('routes to Memory without selecting a record implicitly', async () => {
