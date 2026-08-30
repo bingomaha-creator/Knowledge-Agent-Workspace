@@ -12,7 +12,7 @@ export function Chat() {
         navigate(`/chat/${encodeURIComponent(acceptedSessionId)}`, { replace: true });
       }}
       onStartResearch={(chatSeed) => {
-        navigate('/research', { state: { chatSeed } });
+        navigate('/research/new', { state: { researchDraftSeed: chatSeed } });
       }}
       onStartBugInvestigation={(chatSeed) => {
         const firstLine = chatSeed.content.split('\n').find((line) => line.trim())?.trim() || '';

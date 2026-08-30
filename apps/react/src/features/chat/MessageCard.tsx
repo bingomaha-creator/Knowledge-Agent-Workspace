@@ -3,8 +3,8 @@ import { useState, type SyntheticEvent } from 'react';
 import styled from 'styled-components';
 import { chatApi } from '@/services/chatApi';
 import type { MemoryStatus, MemoryType } from '@/services/memoryApi';
+import { SafeMarkdown } from '@/ui/SafeMarkdown';
 import { chatQueryKeys } from './chatQueries';
-import { renderChatMarkdown } from './chatMarkdown';
 import type {
   AgentRun,
   ChatMessage
@@ -71,7 +71,7 @@ const Bubble = styled.div`
   ${Article}[data-role='assistant'] & { border-bottom-left-radius: 0.35rem; }
 `;
 
-const Markdown = styled.div`
+const Markdown = styled(SafeMarkdown)`
   min-width: 0;
   overflow-wrap: anywhere;
 
@@ -299,9 +299,6 @@ export function MessageCard({
   });
   const run: AgentRun | null | undefined = message.run || runQuery.data;
   const label = statusLabel(message.status);
-  const markdown = renderChatMarkdown(
-    message.content || (message.status === 'streaming' ? '正在思考…' : '暂无内容')
-  );
   const detailsToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
     if (event.currentTarget.open) onReadingStart?.();
   };
@@ -314,7 +311,9 @@ export function MessageCard({
         {label ? <span>{label}</span> : null}
       </MessageMeta>
       <Bubble>
-        <Markdown dangerouslySetInnerHTML={{ __html: markdown }} />
+        <Markdown
+          content={message.content || (message.status === 'streaming' ? '正在思考…' : '暂无内容')}
+        />
       </Bubble>
 
       {message.role === 'user' && message.content.trim() ? (

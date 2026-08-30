@@ -1,6 +1,6 @@
 import styled from 'styled-components';
 import type { KnowledgeBase } from '@/services/knowledgeApi';
-import { PaneHeader } from './PaneHeader';
+import { PaneHeader } from '@/ui/PaneHeader';
 
 const Panel = styled.aside`
   display: flex;

@@ -17,7 +17,7 @@ import {
 import { useKnowledgeMutations } from './useKnowledgeMutations';
 import { KnowledgeBasePanel } from './KnowledgeBasePanel';
 import { KnowledgeDocumentPreview } from './KnowledgeDocumentPreview';
-import { PaneHeader } from './PaneHeader';
+import { PaneHeader } from '@/ui/PaneHeader';
 
 type KnowledgeWorkspaceProps = {
   activeBaseId?: string;

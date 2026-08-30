@@ -33,7 +33,7 @@ export const workspaceRoutes: RouteObject[] = [
         element: <Memory />
       },
       {
-        path: 'research',
+        path: 'research/:taskId?/:action?',
         element: <Research />
       },
       {
