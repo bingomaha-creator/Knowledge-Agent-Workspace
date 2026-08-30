@@ -328,9 +328,10 @@ export function KnowledgeWorkspace({
   }
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
-    const files = event.target.files;
+    // FileList 是活引用：浏览器清空 value 会同时清空已选文件，必须先做数组快照。
+    const files = Array.from(event.target.files ?? []);
     event.target.value = '';
-    if (!files?.length || !activeBaseId) return;
+    if (!files.length || !activeBaseId) return;
     setError('');
     try {
       await mutations.uploadDocuments.mutateAsync({ files, baseId: activeBaseId });
