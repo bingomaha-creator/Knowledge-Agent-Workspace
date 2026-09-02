@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import type { MemoryRecord, MemoryType } from '@/services/memoryApi';
+import { Select } from '@/ui/Select';
 import { memoryTypeDescription, memoryTypeLabel, memoryTypes } from './memoryDisplay';
 import { useMemoryMutations } from './useMemoryMutations';
 
@@ -18,15 +19,15 @@ const Dialog = styled.section`
   width: min(34rem, 100%);
   max-height: calc(100dvh - 2rem);
   overflow-y: auto;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-soft);
 
   header { display: flex; align-items: center; justify-content: space-between; padding: var(--space-4); border-bottom: 1px solid var(--color-border); }
   h2 { margin: 0; font-size: 1rem; }
   form { display: grid; gap: var(--space-4); padding: var(--space-4); }
   label { display: grid; gap: var(--space-2); color: var(--color-text-muted); font-size: 0.75rem; }
-  input, textarea, select { width: 100%; padding: 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); background: var(--color-background); font: inherit; }
+  input, textarea { width: 100%; padding: 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); font: inherit; }
   small { color: var(--color-text-subtle); }
 `;
 
@@ -39,7 +40,7 @@ const Actions = styled.div`
 const Button = styled.button<{ $primary?: boolean }>`
   padding: 0.6rem 0.85rem;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   color: ${({ $primary }) => $primary ? 'white' : 'var(--color-text)'};
   background: ${({ $primary }) => $primary ? 'var(--color-primary)' : 'var(--color-surface)'};
   &:disabled { opacity: 0.55; }
@@ -77,7 +78,7 @@ export function MemoryCreateDialog({
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === 'Escape' && !mutations.create.isPending) onClose();
       if (event.key !== 'Tab') return;
-      const nodes = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input, textarea, select');
+      const nodes = dialogRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), input, textarea');
       if (!nodes?.length) return;
       const first = nodes[0];
       const last = nodes[nodes.length - 1];
@@ -114,9 +115,14 @@ export function MemoryCreateDialog({
         </header>
         <form onSubmit={submit}>
           <label>类型
-            <select autoFocus aria-label="新记忆类型" value={type} onChange={(event) => setType(event.target.value as MemoryType)}>
-              {memoryTypes.map((item) => <option key={item} value={item}>{memoryTypeLabel(item)}</option>)}
-            </select>
+            <Select
+              autoFocus
+              aria-label="新记忆类型"
+              popupHost={() => dialogRef.current}
+              value={type}
+              onChange={(value) => setType(value as MemoryType)}
+              options={memoryTypes.map((item) => ({ value: item, label: memoryTypeLabel(item) }))}
+            />
             <small>{memoryTypeDescription(type)}</small>
           </label>
           <label>标题

@@ -12,6 +12,7 @@ import {
 } from '@/services/bugAgentApi';
 import { Empty } from '@/ui/Empty';
 import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
+import { Select } from '@/ui/Select';
 import {
   defaultBugCaseFilters,
   type BugCaseFilters,
@@ -54,7 +55,7 @@ const Filters = styled.div`
   gap: var(--space-2);
 
   label { display: grid; gap: var(--space-1); color: var(--color-text-muted); font-size: 0.7rem; }
-  select, input, textarea { width: 100%; min-height: 2.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-surface); }
+  input, textarea { width: 100%; min-height: 2.5rem; padding: 0.55rem 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-surface); }
 `;
 
 const ListButton = styled.button`
@@ -110,7 +111,7 @@ const Form = styled.form`
   gap: var(--space-4);
 
   label { display: grid; gap: var(--space-2); color: var(--color-text-muted); font-size: 0.75rem; }
-  input, textarea, select { width: 100%; padding: 0.65rem 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); }
+  input, textarea { width: 100%; padding: 0.65rem 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); }
   textarea { min-height: 5.5rem; resize: vertical; line-height: 1.5; }
 `;
 
@@ -211,7 +212,7 @@ function BugCaseForm({ item, projectRef, busy, onSubmit }: {
     <Form onSubmit={(event) => { event.preventDefault(); void onSubmit(draftFrom(fields, projectRef)); }}>
       <FieldGrid>
         <label>标题<input value={fields.title} onChange={(event) => set('title', event.target.value)} /></label>
-        <label>解决类型<select value={fields.resolutionType} onChange={(event) => set('resolutionType', event.target.value)}><option value="root_cause_fix">根因修复</option><option value="verified_workaround">已验证临时方案</option></select></label>
+        <label>解决类型<Select value={fields.resolutionType} onChange={(value) => set('resolutionType', value)} options={[{ value: 'root_cause_fix', label: '根因修复' }, { value: 'verified_workaround', label: '已验证临时方案' }]} /></label>
       </FieldGrid>
       <label>症状<textarea value={fields.symptom} onChange={(event) => set('symptom', event.target.value)} /></label>
       <FieldGrid>
@@ -397,15 +398,14 @@ export function BugCaseWorkspace({
       <MasterDetailLayout
         masterLabel={mode === 'review' ? 'BugCase 审核列表' : '案例库列表'}
         detailLabel="BugCase 详情"
-        masterWidth="22rem"
         mobilePane={recordId || creating ? 'detail' : 'master'}
         master={(
           <Pane>
             <Header><div><h2>{mode === 'review' ? '审核队列' : query ? '检索结果' : '已确认案例'}</h2><p>{rows.length} 项</p></div><Actions><Button type="button" onClick={() => void (searchRequest ? searchQuery.refetch() : listQuery.refetch())}>刷新</Button>{mode === 'review' && <Button $primary type="button" onClick={() => onLocationChange({ ...freshLocation('review'), creating: true })}>手动新建</Button>}</Actions></Header>
             <Scroll>
               <Filters>
-                {mode === 'review' && <label>审核状态<select value={reviewStatus} onChange={(event) => onLocationChange(filteredLocation({ reviewStatus: event.target.value as BugReviewStatus }))}><option value="candidate">待审核</option><option value="confirmed">已确认</option><option value="rejected">已拒绝</option></select></label>}
-                {mode === 'review' && <label>范围<select value={scope || ''} onChange={(event) => onLocationChange(filteredLocation({ scope: (event.target.value || undefined) as BugScope | undefined }))}><option value="">全部</option><option value="project">当前项目</option><option value="common">公共库</option></select></label>}
+                {mode === 'review' && <label>审核状态<Select value={reviewStatus} onChange={(value) => onLocationChange(filteredLocation({ reviewStatus: value as BugReviewStatus }))} options={[{ value: 'candidate', label: '待审核' }, { value: 'confirmed', label: '已确认' }, { value: 'rejected', label: '已拒绝' }]} /></label>}
+                {mode === 'review' && <label>范围<Select value={scope || ''} onChange={(value) => onLocationChange(filteredLocation({ scope: (value || undefined) as BugScope | undefined }))} options={[{ value: '', label: '全部' }, { value: 'project', label: '当前项目' }, { value: 'common', label: '公共库' }]} /></label>}
                 {mode === 'library' && <label><span><input type="checkbox" checked={includeCommon} onChange={(event) => onLocationChange(filteredLocation({ includeCommon: event.target.checked }))} /> 包含公共库</span></label>}
                 <label>语言<input value={language} onChange={(event) => onLocationChange(filteredLocation({ language: event.target.value }))} placeholder="全部语言" /></label>
                 <label>框架<input value={framework} onChange={(event) => onLocationChange(filteredLocation({ framework: event.target.value }))} placeholder="全部框架" /></label>

@@ -1,6 +1,7 @@
 import { type RefObject } from 'react';
 import styled from 'styled-components';
 import { PaneHeader } from '@/ui/PaneHeader';
+import { Select } from '@/ui/Select';
 import type { ResearchSessionGroup } from './researchPresentation';
 import {
   formatResearchTime,
@@ -37,17 +38,6 @@ const Panel = styled.div`
 const FilterRow = styled.div`
   padding: var(--space-2) var(--space-4);
   border-bottom: 1px solid var(--color-border);
-
-  select {
-    width: 100%;
-    min-height: 2.25rem;
-    padding: 0.35rem 0.6rem;
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-control);
-    color: var(--color-text);
-    background: var(--color-surface);
-    font-size: 0.8125rem;
-  }
 `;
 
 const SessionList = styled.div`
@@ -178,17 +168,18 @@ export function ResearchSessionPanel({
         description={loading ? '正在同步研究记录…' : `${sessions.length} 个会话 · ${activeCount} 轮进行中`}
       />
       <FilterRow>
-        <select
+        <Select
           aria-label="研究状态筛选"
           value={statusFilter}
-          onChange={(event) => onStatusFilterChange(event.target.value as ResearchStatusFilter)}
-        >
-          <option value="all">全部状态</option>
-          <option value="active">进行中</option>
-          <option value="completed">已完成</option>
-          <option value="failed">失败</option>
-          <option value="cancelled">已取消</option>
-        </select>
+          onChange={(value) => onStatusFilterChange(value as ResearchStatusFilter)}
+          options={[
+            { value: 'all', label: '全部状态' },
+            { value: 'active', label: '进行中' },
+            { value: 'completed', label: '已完成' },
+            { value: 'failed', label: '失败' },
+            { value: 'cancelled', label: '已取消' }
+          ]}
+        />
       </FilterRow>
       {error && totalCount > 0 ? (
         <StaleNotice>研究记录同步失败，正在显示上一次成功结果。</StaleNotice>

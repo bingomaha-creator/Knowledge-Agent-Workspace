@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { MemoryRecord } from '@/services/memoryApi';
 import { MemoryWorkspace } from './MemoryWorkspace';
@@ -120,5 +120,46 @@ describe('MemoryWorkspace', () => {
     await userEvent.click(screen.getByRole('button', { name: '保存为已确认' }));
 
     await waitFor(() => expect(onCreated).toHaveBeenCalledWith('memory-new'));
+  });
+
+  it('lets the type filter be cleared back to 全部类型 after narrowing', async () => {
+    stubMemoryFetch();
+    const onFiltersChange = vi.fn();
+    // 用真实受控状态驱动：受控 value 必须随 onChange 更新，“选回全部”才会发出第二次回调。
+    function Harness() {
+      const [filters, setFilters] = useState(normalizeMemoryFilters({}));
+      return (
+        <MemoryWorkspace
+          filters={filters}
+          memoryId={undefined}
+          onFiltersChange={(next) => { onFiltersChange(next); setFilters(next); }}
+          onOpenMemory={vi.fn()}
+          onCloseMemory={vi.fn()}
+          onCreated={vi.fn()}
+          onOpenSourceConversation={vi.fn()}
+        />
+      );
+    }
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false }, mutations: { retry: false } }
+    });
+    render(
+      <QueryClientProvider client={queryClient}>
+        <Harness />
+      </QueryClientProvider>
+    );
+
+    const trigger = await screen.findByRole('combobox', { name: '记忆类型筛选' });
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole('option', { name: '事实' }));
+    await waitFor(() =>
+      expect(onFiltersChange).toHaveBeenLastCalledWith(expect.objectContaining({ type: 'fact' }))
+    );
+
+    fireEvent.click(trigger);
+    fireEvent.click(await screen.findByRole('option', { name: '全部类型' }));
+    await waitFor(() =>
+      expect(onFiltersChange).toHaveBeenLastCalledWith(expect.objectContaining({ type: undefined }))
+    );
   });
 });

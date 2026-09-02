@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import styled from 'styled-components';
 import type { MemoryRecord, MemoryStatus, MemoryType } from '@/services/memoryApi';
+import { Button } from '@/ui/Button';
+import { Feedback } from '@/ui/Feedback';
+import { FeatureHeader } from '@/ui/FeatureHeader';
 import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
+import { Select } from '@/ui/Select';
 import { WorkspaceControlBar } from '@/ui/WorkspaceControlBar';
 import { MemoryCreateDialog } from './MemoryCreateDialog';
 import { MemoryDetail } from './MemoryDetail';
@@ -29,40 +33,9 @@ const Workspace = styled.section`
   background: var(--color-surface);
 `;
 
-const Header = styled.header`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-border);
-  h1 { margin: 0; font-size: 1.125rem; }
-  p { margin: 0.25rem 0 0; color: var(--color-text-muted); font-size: 0.75rem; }
-`;
-
-const HeaderActions = styled.div`
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-`;
-
-const Button = styled.button<{ $primary?: boolean }>`
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  color: ${({ $primary }) => $primary ? 'white' : 'var(--color-text)'};
-  background: ${({ $primary }) => $primary ? 'var(--color-primary)' : 'var(--color-surface)'};
-`;
-
 const MemoryControlBar = styled(WorkspaceControlBar)<{ $hiddenOnMobile: boolean }>`
   input {
     flex: 1 1 12rem;
-  }
-
-  select {
-    flex: 0 0 auto;
   }
 
   @media (max-width: 48rem) {
@@ -71,14 +44,15 @@ const MemoryControlBar = styled(WorkspaceControlBar)<{ $hiddenOnMobile: boolean 
     input {
       flex-basis: 100%;
     }
+  }
+`;
 
-    select {
-      flex: 1 1 8rem;
-    }
+const FilterSelect = styled(Select)`
+  flex: 0 0 auto;
+  width: auto;
 
-    button {
-      flex-basis: 100%;
-    }
+  @media (max-width: 48rem) {
+    flex: 1 1 8rem;
   }
 `;
 
@@ -90,14 +64,10 @@ const QuickFilter = styled.button<{ $active: boolean }>`
   color: ${({ $active }) => $active ? 'var(--color-primary)' : 'var(--color-text-muted)'};
   background: ${({ $active }) => $active ? 'var(--color-primary-surface)' : 'var(--color-surface)'};
   font-size: 0.875rem;
-`;
 
-const Feedback = styled.p<{ $error?: boolean }>`
-  margin: 0;
-  padding: var(--space-2) var(--space-5);
-  color: ${({ $error }) => $error ? 'var(--color-danger)' : 'var(--color-text)'};
-  background: ${({ $error }) => $error ? 'var(--color-danger-surface)' : 'var(--color-background)'};
-  font-size: 0.75rem;
+  @media (max-width: 48rem) {
+    flex-basis: 100%;
+  }
 `;
 
 export function MemoryWorkspace({
@@ -166,23 +136,28 @@ export function MemoryWorkspace({
 
   return (
     <Workspace>
-      <Header>
-        <div><h1>Memory</h1><p>创建、审查并纠正可由 Workspace 长期召回的记忆。</p></div>
-        <HeaderActions>
-          <span>{counts.total} 条 · {counts.candidates} 条待审查</span>
-          <Button ref={createButtonRef} $primary onClick={openCreate}>新建记忆</Button>
-        </HeaderActions>
-      </Header>
+      <FeatureHeader
+        title="Memory"
+        description="创建、审查并纠正可由 Workspace 长期召回的记忆。"
+        meta={<span>{counts.total} 条 · {counts.candidates} 条待审查</span>}
+        actions={<Button variant="primary" ref={createButtonRef} onClick={openCreate}>新建记忆</Button>}
+      />
       {notice && <Feedback>{notice}</Feedback>}
-      {error && <Feedback $error>{error}</Feedback>}
+      {error && <Feedback tone="danger">{error}</Feedback>}
       <MemoryControlBar $hiddenOnMobile={Boolean(memoryId)}>
         <input aria-label="搜索记忆" value={queryDraft} placeholder="搜索标题、内容或来源" onChange={(event) => setQueryDraft(event.target.value)} />
-        <select aria-label="记忆状态筛选" value={filters.status || ''} onChange={(event) => changeFilter({ status: (event.target.value || undefined) as MemoryStatus | undefined })}>
-          <option value="">全部状态</option>{memoryStatuses.map((status) => <option key={status} value={status}>{memoryStatusLabel(status)}</option>)}
-        </select>
-        <select aria-label="记忆类型筛选" value={filters.type || ''} onChange={(event) => changeFilter({ type: (event.target.value || undefined) as MemoryType | undefined })}>
-          <option value="">全部类型</option>{memoryTypes.map((type) => <option key={type} value={type}>{memoryTypeLabel(type)}</option>)}
-        </select>
+        <FilterSelect
+          aria-label="记忆状态筛选"
+          value={filters.status || ''}
+          onChange={(value) => changeFilter({ status: (value || undefined) as MemoryStatus | undefined })}
+          options={[{ value: '', label: '全部状态' }, ...memoryStatuses.map((status) => ({ value: status, label: memoryStatusLabel(status) }))]}
+        />
+        <FilterSelect
+          aria-label="记忆类型筛选"
+          value={filters.type || ''}
+          onChange={(value) => changeFilter({ type: (value || undefined) as MemoryType | undefined })}
+          options={[{ value: '', label: '全部类型' }, ...memoryTypes.map((type) => ({ value: type, label: memoryTypeLabel(type) }))]}
+        />
         <QuickFilter $active={filters.status === 'candidate'} onClick={() => changeFilter({ status: filters.status === 'candidate' ? undefined : 'candidate' })}>
           待审查 {counts.candidates}
         </QuickFilter>
@@ -208,7 +183,6 @@ export function MemoryWorkspace({
           onNotice={(message) => { setError(''); setNotice(message); }}
           onError={(message) => { setNotice(''); setError(message); }}
         />}
-        masterWidth="22rem"
         mobilePane={memoryId ? 'detail' : 'master'}
         masterLabel="记忆列表"
         detailLabel="记忆详情"

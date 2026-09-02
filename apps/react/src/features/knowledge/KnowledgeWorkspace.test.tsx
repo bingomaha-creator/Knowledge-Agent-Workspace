@@ -43,6 +43,23 @@ function renderWorkspace(props: Partial<Parameters<typeof KnowledgeWorkspace>[0]
 afterEach(() => vi.unstubAllGlobals());
 
 describe('KnowledgeWorkspace', () => {
+  it('shows the catalog error with a working retry button', async () => {
+    let catalogCalls = 0;
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/knowledge-bases') {
+        catalogCalls += 1;
+        return Response.json({ error: '目录服务不可用' }, { status: 500 });
+      }
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    renderWorkspace();
+
+    expect(await screen.findByText('无法加载资料库目录。')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: '重试' }));
+    await waitFor(() => expect(catalogCalls).toBeGreaterThanOrEqual(2));
+  });
+
   it('renders the catalog and publishes stable navigation intents', async () => {
     vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

@@ -44,6 +44,7 @@ export const GlobalStyles = createGlobalStyle`
     --shadow-drawer: 18px 0 48px rgba(30, 49, 80, 0.16);
     --content-max: 1180px;
     --sidebar-width: 320px;
+    --pane-master-width: 21rem;
   }
 
   *,

@@ -8,7 +8,11 @@ import {
 } from 'react';
 import styled from 'styled-components';
 import type { KnowledgeBase, KnowledgeDocument } from '@/services/knowledgeApi';
+import { Button } from '@/ui/Button';
+import { Feedback } from '@/ui/Feedback';
+import { FeatureHeader } from '@/ui/FeatureHeader';
 import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
+import { Select } from '@/ui/Select';
 import {
   resolveKnowledgeBaseId,
   useKnowledgeBases,
@@ -37,19 +41,10 @@ const Workspace = styled.section`
   background: var(--color-surface);
 `;
 
-const WorkspaceHeader = styled.header`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-border);
-
-  h1 { margin: 0; font-size: 1.125rem; }
-  p { margin: 0.25rem 0 0; color: var(--color-text-muted); font-size: 0.75rem; }
-
+// 手机端 Pane 选择器已包含“管理”入口，Feature Header 的主按钮在此断点隐藏。
+const KnowledgeHeader = styled(FeatureHeader)`
   @media (max-width: 48rem) {
-    > button { display: none; }
+    > [data-slot='actions'] { display: none; }
   }
 `;
 
@@ -61,14 +56,10 @@ const MainPanel = styled.main`
   overflow: hidden;
 `;
 
-const Select = styled.select`
+const MobileBaseSelect = styled(Select)`
   min-width: 0;
   flex: 1;
-  padding: 0.55rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  color: var(--color-text);
-  background: var(--color-surface);
+  width: auto;
 `;
 
 const Actions = styled.div`
@@ -78,26 +69,26 @@ const Actions = styled.div`
   gap: var(--space-2);
 `;
 
-const Button = styled.button<{ $primary?: boolean; $danger?: boolean }>`
-  padding: 0.55rem 0.8rem;
-  border: 1px solid ${({ $danger }) => $danger ? 'var(--color-danger)' : 'var(--color-border)'};
-  border-radius: var(--radius-control);
-  color: ${({ $primary, $danger }) => $primary ? 'white' : $danger ? 'var(--color-danger)' : 'var(--color-text)'};
-  background: ${({ $primary }) => $primary ? 'var(--color-primary)' : 'var(--color-surface)'};
-  font: inherit;
-  font-size: 0.8125rem;
-  cursor: pointer;
-
-  &:disabled { cursor: not-allowed; opacity: 0.55; }
-`;
-
-const UploadLabel = styled.label`
-  padding: 0.55rem 0.8rem;
+const UploadLabel = styled.label<{ $disabled: boolean }>`
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+  min-height: 2.25rem;
+  padding: 0.35rem 0.7rem;
   border-radius: var(--radius-control);
   color: white;
   background: var(--color-primary);
-  font-size: 0.8125rem;
-  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 650;
+  line-height: 1.2;
+  cursor: ${({ $disabled }) => ($disabled ? 'not-allowed' : 'pointer')};
+  opacity: ${({ $disabled }) => ($disabled ? 0.55 : 1)};
+
+  /* 隐藏的 file input 获得键盘焦点时，在可见的 label 上呈现焦点环。 */
+  &:focus-within {
+    outline: 3px solid rgba(23, 100, 216, 0.42);
+    outline-offset: 3px;
+  }
 
   input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 `;
@@ -164,23 +155,6 @@ const State = styled.div`
   strong { color: var(--color-text); }
 `;
 
-const Notice = styled.p<{ $error?: boolean }>`
-  margin: 0;
-  padding: var(--space-2) var(--space-5);
-  color: ${({ $error }) => $error ? 'var(--color-danger)' : 'var(--color-text)'};
-  background: ${({ $error }) => $error ? 'var(--color-danger-surface)' : 'var(--color-background)'};
-  font-size: 0.75rem;
-
-  button {
-    margin-left: var(--space-2);
-    border: 0;
-    color: inherit;
-    background: transparent;
-    text-decoration: underline;
-    cursor: pointer;
-  }
-`;
-
 const Overlay = styled.div`
   position: fixed;
   z-index: 50;
@@ -195,16 +169,16 @@ const Dialog = styled.section`
   width: min(30rem, 100%);
   max-height: min(42rem, calc(100dvh - 2rem));
   overflow-y: auto;
-  border-radius: var(--radius-lg);
+  border-radius: var(--radius-card);
   background: var(--color-surface);
-  box-shadow: var(--shadow-lg);
+  box-shadow: var(--shadow-soft);
 
   header, form, section { padding: var(--space-4); }
   header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-border); }
   h2, h3 { margin: 0; font-size: 1rem; }
   form { display: grid; gap: var(--space-3); border-bottom: 1px solid var(--color-border); }
   label { display: grid; gap: var(--space-2); color: var(--color-text-muted); font-size: 0.75rem; }
-  input { padding: 0.65rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); background: var(--color-background); }
+  input { padding: 0.65rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); }
 `;
 
 const DialogBase = styled.div`
@@ -386,21 +360,21 @@ export function KnowledgeWorkspace({
 
   return (
     <Workspace>
-      <WorkspaceHeader>
-        <div>
-          <h1>Knowledge</h1>
-          <p>整理、处理并发布可供 AI 检索的工作区资料。</p>
-        </div>
-        <Button onClick={openManager}>新建资料库</Button>
-      </WorkspaceHeader>
+      <KnowledgeHeader
+        title="Knowledge"
+        description="整理、处理并发布可供 AI 检索的工作区资料。"
+        actions={<Button variant="primary" onClick={openManager}>新建资料库</Button>}
+      />
 
       {basesQuery.isError && (
-        <Notice $error>
+        <Feedback
+          tone="danger"
+          action={<button type="button" onClick={() => basesQuery.refetch()}>重试</button>}
+        >
           无法加载资料库目录。
-          <button type="button" onClick={() => basesQuery.refetch()}>重试</button>
-        </Notice>
+        </Feedback>
       )}
-      {(notice || error) && <Notice $error={Boolean(error)}>{error || notice}</Notice>}
+      {(notice || error) && <Feedback tone={error ? 'danger' : 'neutral'}>{error || notice}</Feedback>}
 
       <MasterDetailLayout
         master={<KnowledgeBasePanel bases={bases} activeBaseId={activeBaseId} onSelectBase={onSelectBase} />}
@@ -425,21 +399,20 @@ export function KnowledgeWorkspace({
                 description={`${documents.length} 个文档 · 上传后先处理为草稿，再手动发布`}
                 mobileControls={
                   <>
-                    <Select
+                    <MobileBaseSelect
                       aria-label="当前资料库"
                       value={activeBaseId || ''}
-                      onChange={(event) => onSelectBase(event.target.value)}
-                    >
-                      {bases.map((base) => <option key={base.id} value={base.id}>{base.name}</option>)}
-                    </Select>
-                    <Button onClick={openManager}>管理</Button>
+                      onChange={(value) => onSelectBase(value)}
+                      options={bases.map((base) => ({ value: base.id, label: base.name }))}
+                    />
+                    <Button size="sm" onClick={openManager}>管理</Button>
                   </>
                 }
                 actions={
                   <Actions>
-                    <Button onClick={() => documentsQuery.refetch()} disabled={!activeBaseId || documentsQuery.isFetching}>刷新</Button>
-                    <Button $danger onClick={clearDocuments} disabled={!documents.length || mutations.clearDocuments.isPending}>清空</Button>
-                    <UploadLabel>
+                    <Button size="sm" onClick={() => documentsQuery.refetch()} disabled={!activeBaseId || documentsQuery.isFetching}>刷新</Button>
+                    <Button size="sm" variant="danger" onClick={clearDocuments} disabled={!documents.length || mutations.clearDocuments.isPending}>清空</Button>
+                    <UploadLabel $disabled={mutations.uploadDocuments.isPending}>
                       上传文件
                       <input aria-label="上传知识文件" type="file" multiple accept=".md,.markdown,.txt,.json" disabled={mutations.uploadDocuments.isPending} onChange={upload} />
                     </UploadLabel>
@@ -452,7 +425,7 @@ export function KnowledgeWorkspace({
                   <State>
                     <strong>无法加载文档</strong><br />
                     {errorMessage(documentsQuery.error)}<br />
-                    <Button onClick={() => documentsQuery.refetch()}>重试</Button>
+                    <Button size="sm" onClick={() => documentsQuery.refetch()}>重试</Button>
                   </State>
                 )}
                 {!documentsQuery.isLoading && !documentsQuery.isError && !documents.length && (
@@ -474,7 +447,6 @@ export function KnowledgeWorkspace({
             </>
           )}
         </MainPanel>}
-        masterWidth="18rem"
         mobilePane="detail"
         masterLabel="资料库列表"
         detailLabel="知识文档工作区"
@@ -485,7 +457,7 @@ export function KnowledgeWorkspace({
           <Dialog ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="knowledge-manager-title">
             <header>
               <h2 id="knowledge-manager-title">资料库管理</h2>
-              <Button aria-label="关闭资料库管理" onClick={closeManager}>关闭</Button>
+              <Button size="sm" aria-label="关闭资料库管理" onClick={closeManager}>关闭</Button>
             </header>
             <form onSubmit={createBase}>
               <label>
@@ -498,7 +470,7 @@ export function KnowledgeWorkspace({
                   onChange={(event) => setNewBaseName(event.target.value)}
                 />
               </label>
-              <Button $primary type="submit" disabled={!newBaseName.trim() || mutations.createBase.isPending}>创建并打开</Button>
+              <Button variant="primary" type="submit" disabled={!newBaseName.trim() || mutations.createBase.isPending}>创建并打开</Button>
             </form>
             <section>
               <h3>现有资料库</h3>
@@ -507,7 +479,7 @@ export function KnowledgeWorkspace({
                   <div><strong>{base.name}</strong><div>{base.documentCount} 个文档</div></div>
                   {base.isDefault
                     ? <Status>默认资料库</Status>
-                    : <Button $danger onClick={() => deleteBase(base)}>永久删除</Button>}
+                    : <Button variant="danger" size="sm" onClick={() => deleteBase(base)}>永久删除</Button>}
                 </DialogBase>
               ))}
             </section>

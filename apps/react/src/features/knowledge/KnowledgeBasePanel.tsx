@@ -24,8 +24,8 @@ const List = styled.div`
 const BaseButton = styled.button<{ $active?: boolean }>`
   width: 100%;
   padding: var(--space-3);
-  border: 1px solid ${({ $active }) => $active ? 'var(--color-border-strong)' : 'transparent'};
-  border-radius: var(--radius-md);
+  border: 1px solid ${({ $active }) => $active ? 'var(--color-primary-border)' : 'transparent'};
+  border-radius: var(--radius-control);
   color: var(--color-text);
   background: ${({ $active }) => $active ? 'var(--color-surface)' : 'transparent'};
   text-align: left;

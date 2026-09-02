@@ -7,6 +7,7 @@ import {
 } from '@/services/bugAgentApi';
 import { Empty } from '@/ui/Empty';
 import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
+import { Select } from '@/ui/Select';
 import type { BugInvestigationSeed } from './BugWorkspace';
 import {
   defaultBugCaseFilters,
@@ -91,7 +92,7 @@ const Form = styled.form`
   max-width: 56rem;
 
   label { display: grid; gap: var(--space-2); color: var(--color-text-muted); font-size: 0.76rem; }
-  input, textarea, select { width: 100%; padding: 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); }
+  input, textarea { width: 100%; padding: 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); }
   textarea { min-height: 9rem; resize: vertical; line-height: 1.55; }
 `;
 
@@ -286,7 +287,6 @@ export function InvestigationWorkspace({
     <MasterDetailLayout
       masterLabel="调查列表"
       detailLabel="调查详情"
-      masterWidth="21rem"
       mobilePane={recordId || creating ? 'detail' : 'master'}
       master={(
         <Pane>
@@ -314,7 +314,7 @@ export function InvestigationWorkspace({
               <Scroll>
                 <Form onSubmit={create}>
                   <label>标题<input value={title} onChange={(event) => setTitle(event.target.value)} placeholder="例如：支付回调持续返回 500" /></label>
-                  <label>首条证据类型<select value={evidenceType} onChange={(event) => setEvidenceType(event.target.value as BugEvidenceType)}>{evidenceTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                  <label>首条证据类型<Select value={evidenceType} onChange={(value) => setEvidenceType(value as BugEvidenceType)} options={evidenceTypes.map(({ value, label }) => ({ value, label }))} /></label>
                   <label>证据内容<textarea value={evidenceContent} onChange={(event) => setEvidenceContent(event.target.value)} placeholder="粘贴错误、日志、复现步骤或相关代码" /></label>
                   {error && <Alert $danger role="alert">{error}</Alert>}
                   <Actions><Button $primary type="submit" disabled={!evidenceContent.trim() || mutations.createInvestigation.isPending}>{mutations.createInvestigation.isPending ? '正在创建调查…' : '创建并分析'}</Button></Actions>
@@ -345,7 +345,7 @@ export function InvestigationWorkspace({
                   <Card>
                     <h3>补充现场并重新分析</h3>
                     <Form onSubmit={appendAndAnalyze}>
-                      <label>证据类型<select value={appendType} onChange={(event) => setAppendType(event.target.value as BugEvidenceType)}>{evidenceTypes.map((item) => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
+                      <label>证据类型<Select value={appendType} onChange={(value) => setAppendType(value as BugEvidenceType)} options={evidenceTypes.map(({ value, label }) => ({ value, label }))} /></label>
                       <label>证据内容<textarea value={appendContent} onChange={(event) => setAppendContent(event.target.value)} /></label>
                       <Actions>
                         <Button $primary type="submit" disabled={!appendContent.trim() || busy}>{busy ? '处理中…' : '保存证据并分析'}</Button>

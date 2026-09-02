@@ -7,6 +7,8 @@ import { knowledgeApi } from '@/services/knowledgeApi';
 import { memoryApi, type MemoryPatch } from '@/services/memoryApi';
 import { knowledgeQueryKeys } from '@/features/knowledge/knowledgeQueries';
 import { memoryQueryKeys } from '@/features/memory/memoryQueries';
+import { Feedback } from '@/ui/Feedback';
+import { FeatureHeader } from '@/ui/FeatureHeader';
 import { ComposerPanel } from './ComposerPanel';
 import { MessageList } from './MessageList';
 import { useChatStreamStore } from './chatStreamStore';
@@ -53,35 +55,6 @@ const Workspace = styled.section`
   }
 `;
 
-const ChatHeader = styled.header`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  min-width: 0;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-border);
-  background: var(--color-surface);
-`;
-
-const HeaderCopy = styled.div`
-  min-width: 0;
-
-  h1 {
-    margin: 0;
-    overflow: hidden;
-    font-size: 1.125rem;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-
-  p {
-    margin: 0.25rem 0 0;
-    color: var(--color-text-muted);
-    font-size: 0.75rem;
-  }
-`;
-
 const HeaderStatus = styled.span`
   flex: 0 0 auto;
   padding: 0.35rem 0.6rem;
@@ -104,14 +77,6 @@ const WorkspaceState = styled.div`
   strong {
     color: var(--color-text);
   }
-`;
-
-const InlineError = styled.p`
-  margin: 0;
-  padding: var(--space-2) var(--space-5);
-  color: var(--color-danger);
-  background: var(--color-danger-surface);
-  font-size: 0.75rem;
 `;
 
 function streamStatusLabel(status: ReturnType<typeof useChatStreamStore.getState>['status']) {
@@ -288,13 +253,11 @@ export function ChatWorkspace({
 
   return (
     <Workspace>
-      <ChatHeader>
-        <HeaderCopy>
-          <h1>{session?.title || '新对话'}</h1>
-          <p>{session ? `${session.messageCount} 条消息` : '首次发送后保存到历史会话'}</p>
-        </HeaderCopy>
-        <HeaderStatus>{stream.isActive ? streamStatusLabel(stream.status) : '已就绪'}</HeaderStatus>
-      </ChatHeader>
+      <FeatureHeader
+        title={session?.title || '新对话'}
+        description={session ? `${session.messageCount} 条消息` : '首次发送后保存到历史会话'}
+        meta={<HeaderStatus>{stream.isActive ? streamStatusLabel(stream.status) : '已就绪'}</HeaderStatus>}
+      />
       <MessageList
         messages={messages}
         hasEarlierMessages={Boolean(messagesQuery.hasNextPage)}
@@ -318,7 +281,7 @@ export function ChatWorkspace({
           void updateMemoryCandidate(messageId, memoryId, patch);
         }}
       />
-      {memoryError ? <InlineError role="alert">{memoryError}</InlineError> : null}
+      {memoryError ? <Feedback role="alert" tone="danger">{memoryError}</Feedback> : null}
       <ComposerPanel
         isActive={stream.isActive}
         statusLabel={streamStatusLabel(stream.status)}

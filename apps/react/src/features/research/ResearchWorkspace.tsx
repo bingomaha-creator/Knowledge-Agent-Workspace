@@ -3,6 +3,9 @@ import styled from 'styled-components';
 import { useKnowledgeBases } from '@/features/knowledge/knowledgeQueries';
 import { isResearchNotFound } from '@/services/researchApi';
 import type { ResearchSearchMode } from '@/services/researchApi';
+import { Button } from '@/ui/Button';
+import { Feedback } from '@/ui/Feedback';
+import { FeatureHeader } from '@/ui/FeatureHeader';
 import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
 import { PaneHeader } from '@/ui/PaneHeader';
 import { ResearchDraftForm } from './ResearchDraftForm';
@@ -57,39 +60,6 @@ const Workspace = styled.section`
   background: var(--color-surface);
 `;
 
-const Header = styled.header`
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
-  border-bottom: 1px solid var(--color-border);
-
-  h1 { margin: 0; font-size: 1.125rem; }
-  p { margin: 0.25rem 0 0; color: var(--color-text-muted); font-size: 0.75rem; }
-`;
-
-const HeaderButton = styled.button`
-  min-height: 2.5rem;
-  padding: 0.55rem 0.9rem;
-  border: 1px solid var(--color-primary);
-  border-radius: var(--radius-control);
-  color: white;
-  background: var(--color-primary);
-  font-size: 0.875rem;
-  font-weight: 650;
-
-  &:disabled { cursor: not-allowed; opacity: 0.55; }
-`;
-
-const Feedback = styled.p<{ $error?: boolean }>`
-  margin: 0;
-  padding: var(--space-2) var(--space-5);
-  color: ${({ $error }) => ($error ? 'var(--color-danger)' : 'var(--color-text)')};
-  background: ${({ $error }) => ($error ? 'var(--color-danger-surface)' : 'var(--color-background)')};
-  font-size: 0.75rem;
-`;
-
 const MobileBack = styled.button`
   display: none;
   margin: var(--space-3) var(--space-4) 0;
@@ -116,23 +86,6 @@ const PaneActions = styled.div`
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--space-2);
-`;
-
-const PaneActionButton = styled.button`
-  min-height: 2.25rem;
-  padding: 0.4rem 0.7rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-control);
-  color: var(--color-text);
-  background: var(--color-surface);
-  font-size: 0.78rem;
-
-  &:disabled { cursor: not-allowed; opacity: 0.55; }
-`;
-
-const DangerActionButton = styled(PaneActionButton)`
-  color: var(--color-danger);
-  border-color: var(--color-danger-border);
 `;
 
 const ViewContainer = styled.div`
@@ -383,7 +336,7 @@ export function ResearchWorkspace({ location, draftSeed, onLocationChange }: Res
           <CenterState>
             <h2>研究任务不存在</h2>
             <p>无法基于不存在的任务继续研究。</p>
-            <HeaderButton type="button" onClick={openList}>返回研究记录</HeaderButton>
+            <Button type="button" onClick={openList}>返回研究记录</Button>
           </CenterState>
         );
       }
@@ -392,7 +345,7 @@ export function ResearchWorkspace({ location, draftSeed, onLocationChange }: Res
           <CenterState>
             <h2>暂时无法打开原研究</h2>
             <p>{errorMessage(taskQuery.error, '网络异常，请稍后重试。')}</p>
-            <HeaderButton type="button" onClick={() => void taskQuery.refetch()}>重新加载</HeaderButton>
+            <Button type="button" onClick={() => void taskQuery.refetch()}>重新加载</Button>
           </CenterState>
         );
       }
@@ -438,7 +391,7 @@ export function ResearchWorkspace({ location, draftSeed, onLocationChange }: Res
           <CenterState>
             <h2>研究任务不存在</h2>
             <p>任务可能已被移除，或当前无法从服务端读取。左侧列表仍可继续使用。</p>
-            <HeaderButton type="button" onClick={openList}>返回研究记录</HeaderButton>
+            <Button type="button" onClick={openList}>返回研究记录</Button>
           </CenterState>
         );
       }
@@ -447,7 +400,7 @@ export function ResearchWorkspace({ location, draftSeed, onLocationChange }: Res
           <CenterState>
             <h2>暂时无法打开研究任务</h2>
             <p>{errorMessage(taskQuery.error, '网络异常，请稍后重试。')}</p>
-            <HeaderButton type="button" onClick={() => void taskQuery.refetch()}>重新加载</HeaderButton>
+            <Button type="button" onClick={() => void taskQuery.refetch()}>重新加载</Button>
           </CenterState>
         );
       }
@@ -468,7 +421,7 @@ export function ResearchWorkspace({ location, draftSeed, onLocationChange }: Res
       <CenterState>
         <h2>从一个问题开始</h2>
         <p>选择左侧研究会话继续阅读，或创建新的研究草稿。研究在后台执行，可以随时离开页面。</p>
-        <HeaderButton type="button" onClick={openNewDraft}>新建研究</HeaderButton>
+        <Button variant="primary" type="button" onClick={openNewDraft}>新建研究</Button>
       </CenterState>
     );
   }
@@ -501,20 +454,20 @@ export function ResearchWorkspace({ location, draftSeed, onLocationChange }: Res
           actions={(
             <PaneActions>
               {canCancelResearchTask(task) && (
-                <DangerActionButton type="button" disabled={cancel.isPending} onClick={() => void cancelCurrentTask()}>
+                <Button size="sm" variant="danger" type="button" disabled={cancel.isPending} onClick={() => void cancelCurrentTask()}>
                   {cancel.isPending ? '取消中…' : '取消任务'}
-                </DangerActionButton>
+                </Button>
               )}
               {canRetryResearchTask(task) && (
-                <PaneActionButton type="button" disabled={retry.isPending} onClick={() => void retryCurrentTask()}>
+                <Button size="sm" type="button" disabled={retry.isPending} onClick={() => void retryCurrentTask()}>
                   {retry.isPending ? '重新排队中…' : '重试'}
-                </PaneActionButton>
+                </Button>
               )}
               {task.status === 'completed' && (
-                <PaneActionButton type="button" onClick={openFollowUp}>继续研究</PaneActionButton>
+                <Button size="sm" type="button" onClick={openFollowUp}>继续研究</Button>
               )}
               {(task.status === 'completed' || task.status === 'failed' || task.status === 'cancelled') && (
-                <PaneActionButton type="button" onClick={reseedFromTask}>重新研究</PaneActionButton>
+                <Button size="sm" type="button" onClick={reseedFromTask}>重新研究</Button>
               )}
             </PaneActions>
           )}
@@ -526,16 +479,14 @@ export function ResearchWorkspace({ location, draftSeed, onLocationChange }: Res
 
   return (
     <Workspace>
-      <Header>
-        <div>
-          <h1>深度研究</h1>
-          <p>以项目资料为背景，识别知识缺口并生成带引用的研究报告。</p>
-        </div>
-        <HeaderButton type="button" onClick={openNewDraft}>新建研究</HeaderButton>
-      </Header>
+      <FeatureHeader
+        title="深度研究"
+        description="以项目资料为背景，识别知识缺口并生成带引用的研究报告。"
+        actions={<Button variant="primary" type="button" onClick={openNewDraft}>新建研究</Button>}
+      />
 
       {notice ? <Feedback role="status">{notice}</Feedback> : null}
-      {actionError ? <Feedback role="alert" $error>{actionError}</Feedback> : null}
+      {actionError ? <Feedback role="alert" tone="danger">{actionError}</Feedback> : null}
 
       <MasterDetailLayout
         master={(
@@ -562,7 +513,6 @@ export function ResearchWorkspace({ location, draftSeed, onLocationChange }: Res
             <ViewContainer>{renderDetail()}</ViewContainer>
           </MainPanel>
         )}
-        masterWidth="21rem"
         mobilePane={location.view === 'list' ? 'master' : 'detail'}
         masterLabel="研究记录"
         detailLabel="研究详情工作区"

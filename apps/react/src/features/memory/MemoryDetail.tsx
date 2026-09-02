@@ -1,6 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import type { MemoryRecord, MemoryType } from '@/services/memoryApi';
+import { Select } from '@/ui/Select';
 import { memoryStatusLabel, memoryTypeLabel, memoryTypes } from './memoryDisplay';
 import { useMemoryDetail } from './memoryQueries';
 import { useMemoryMutations } from './useMemoryMutations';
@@ -34,7 +35,7 @@ const Actions = styled.div`
 const Button = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   padding: 0.55rem 0.75rem;
   border: 1px solid ${({ $danger }) => $danger ? 'var(--color-danger)' : 'var(--color-border)'};
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-control);
   color: ${({ $primary, $danger }) => $primary ? 'white' : $danger ? 'var(--color-danger)' : 'var(--color-text)'};
   background: ${({ $primary }) => $primary ? 'var(--color-primary)' : 'var(--color-surface)'};
   &:disabled { opacity: 0.55; }
@@ -52,7 +53,7 @@ const Body = styled.div`
   overflow-y: auto;
   h3 { margin: var(--space-6) 0 var(--space-2); font-size: 0.8rem; }
   p { max-width: 60rem; margin: 0; line-height: 1.7; overflow-wrap: anywhere; white-space: pre-wrap; }
-  pre { max-width: 60rem; padding: var(--space-4); overflow: auto; border-radius: var(--radius-md); background: var(--color-background); font: inherit; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
+  pre { max-width: 60rem; padding: var(--space-4); overflow: auto; border-radius: var(--radius-control); background: var(--color-background); font: inherit; line-height: 1.6; white-space: pre-wrap; overflow-wrap: anywhere; }
 `;
 
 const Meta = styled.div`
@@ -77,7 +78,7 @@ const Form = styled.form`
   max-width: 50rem;
   gap: var(--space-4);
   label { display: grid; gap: var(--space-2); color: var(--color-text-muted); font-size: 0.75rem; }
-  input, textarea, select { width: 100%; padding: 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); background: var(--color-background); font: inherit; }
+  input, textarea { width: 100%; padding: 0.7rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); font: inherit; }
 `;
 
 type Props = {
@@ -151,7 +152,7 @@ export function MemoryDetail({ memoryId, onClose, onChanged, onDeleted, onOpenSo
       <Body>
         {editing ? (
           <Form onSubmit={save}>
-            <label>类型<select aria-label="记忆类型" value={draft.type} onChange={(event) => setDraft((current) => ({ ...current, type: event.target.value as MemoryType }))}>{memoryTypes.map((type) => <option key={type} value={type}>{memoryTypeLabel(type)}</option>)}</select></label>
+            <label>类型<Select aria-label="记忆类型" value={draft.type} onChange={(value) => setDraft((current) => ({ ...current, type: value as MemoryType }))} options={memoryTypes.map((type) => ({ value: type, label: memoryTypeLabel(type) }))} /></label>
             <label>标题<input aria-label="记忆标题" maxLength={160} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
             <label>内容<textarea aria-label="记忆内容" rows={8} maxLength={8000} value={draft.content} onChange={(event) => setDraft((current) => ({ ...current, content: event.target.value }))} /></label>
             <label>置信度 {Math.round(draft.confidence * 100)}%<input aria-label="记忆置信度" type="range" min="0" max="1" step="0.05" value={draft.confidence} onChange={(event) => setDraft((current) => ({ ...current, confidence: Number(event.target.value) }))} /></label>

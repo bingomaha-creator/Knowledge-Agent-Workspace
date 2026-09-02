@@ -4,6 +4,7 @@ import styled from 'styled-components';
 import { chatApi } from '@/services/chatApi';
 import type { MemoryStatus, MemoryType } from '@/services/memoryApi';
 import { SafeMarkdown } from '@/ui/SafeMarkdown';
+import { Select } from '@/ui/Select';
 import { chatQueryKeys } from './chatQueries';
 import type {
   AgentRun,
@@ -228,7 +229,7 @@ const MemoryForm = styled.form`
   gap: var(--space-3);
 
   label { display: grid; gap: var(--space-1); color: var(--color-text-muted); font-size: 0.75rem; }
-  input, textarea, select {
+  input, textarea {
     width: 100%;
     padding: 0.6rem 0.7rem;
     border: 1px solid var(--color-success-border);
@@ -396,16 +397,15 @@ export function MessageCard({
               setEditingMemory(false);
             }}>
               <label>类型
-                <select
+                <Select
                   aria-label="候选记忆类型"
                   value={memoryDraft.type}
-                  onChange={(event) => setMemoryDraft((draft) => ({
-                    ...draft, type: event.target.value as MemoryType
+                  onChange={(value) => setMemoryDraft((draft) => ({
+                    ...draft, type: value as MemoryType
                   }))}
-                >
-                  {(['profile', 'preference', 'fact', 'event', 'pitfall'] as MemoryType[])
-                    .map((type) => <option key={type} value={type}>{memoryTypeLabel(type)}</option>)}
-                </select>
+                  options={( ['profile', 'preference', 'fact', 'event', 'pitfall'] as MemoryType[])
+                    .map((type) => ({ value: type, label: memoryTypeLabel(type) }))}
+                />
               </label>
               <label>标题
                 <input

@@ -1,6 +1,7 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import styled from 'styled-components';
 import type { KnowledgeBase } from '@/services/knowledgeApi';
+import { Select } from '@/ui/Select';
 import type { AgentPreset } from './chat.types';
 import { useSpeechRecognition } from './useSpeechRecognition';
 
@@ -35,15 +36,10 @@ const Controls = styled.div`
   gap: var(--space-2);
 `;
 
-const Select = styled.select`
-  min-height: 2.25rem;
-  max-width: 12rem;
-  padding: 0.35rem 2rem 0.35rem 0.65rem;
-  border: 1px solid var(--color-border);
-  border-radius: 0.75rem;
-  color: var(--color-text);
-  background: var(--color-surface);
-  font-size: 0.8125rem;
+const PresetSelect = styled(Select)`
+  flex: 0 1 12rem;
+  min-width: 8rem;
+  width: auto;
 `;
 
 const RagControl = styled.label`
@@ -215,16 +211,13 @@ export function ComposerPanel({
   return (
     <Composer onSubmit={submit}>
       <Controls>
-        <Select
+        <PresetSelect
           aria-label="角色预设"
           value={presetId}
           disabled={controlsDisabled || isActive}
-          onChange={(event) => onPresetChange(event.target.value)}
-        >
-          {presets.map((preset) => (
-            <option key={preset.id} value={preset.id}>{preset.name}</option>
-          ))}
-        </Select>
+          onChange={(value) => onPresetChange(value)}
+          options={presets.map((preset) => ({ value: preset.id, label: preset.name }))}
+        />
         <RagControl>
           <input
             type="checkbox"

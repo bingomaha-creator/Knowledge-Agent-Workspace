@@ -65,7 +65,7 @@ const Empty = styled.div`
     margin-top: var(--space-3);
     padding: 0.5rem 0.75rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-control);
     color: var(--color-text);
     background: var(--color-surface);
   }
@@ -84,7 +84,7 @@ const Pagination = styled.nav`
   button {
     padding: 0.45rem 0.65rem;
     border: 1px solid var(--color-border);
-    border-radius: var(--radius-md);
+    border-radius: var(--radius-control);
     color: var(--color-text);
     background: var(--color-surface);
   }

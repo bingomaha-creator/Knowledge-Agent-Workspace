@@ -40,7 +40,7 @@ const Pane = styled.section<{ $kind: 'master' | 'detail'; $mobilePane: 'master' 
 export function MasterDetailLayout({
   master,
   detail,
-  masterWidth = '22rem',
+  masterWidth = 'var(--pane-master-width)',
   mobilePane,
   masterLabel,
   detailLabel

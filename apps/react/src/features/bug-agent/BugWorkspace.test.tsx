@@ -73,7 +73,11 @@ describe('BugWorkspace', () => {
     const { props } = renderWorkspace();
 
     expect(screen.getByRole('heading', { level: 1, name: 'Bug Agent' })).toBeInTheDocument();
-    expect(await screen.findByRole('option', { name: '结算系统' })).toBeInTheDocument();
+    const projectTrigger = await screen.findByRole('combobox', { name: '当前 Bug 项目' });
+    await waitFor(() => expect(projectTrigger).toHaveTextContent('结算系统'));
+    fireEvent.click(projectTrigger);
+    expect(await screen.findByRole('option', { name: '结算系统' })).toHaveAttribute('aria-selected', 'true');
+    fireEvent.keyDown(projectTrigger, { key: 'Escape' });
     expect(screen.getByRole('tab', { name: /调查/ })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: /审核/ })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: /案例库/ })).toBeInTheDocument();
@@ -219,7 +223,8 @@ describe('BugWorkspace', () => {
     });
     const { props } = renderWorkspace({ location: bugLocation({ section: 'review' }) });
 
-    fireEvent.change(await screen.findByLabelText('审核状态'), { target: { value: 'confirmed' } });
+    fireEvent.click(await screen.findByRole('combobox', { name: '审核状态' }));
+    fireEvent.click(await screen.findByRole('option', { name: '已确认' }));
 
     expect(props.onLocationChange).toHaveBeenCalledWith(
       bugLocation({ section: 'review', caseFilters: { ...defaultBugCaseFilters(), reviewStatus: 'confirmed' } })
@@ -236,7 +241,9 @@ describe('BugWorkspace', () => {
       })
     });
 
-    await screen.findByRole('option', { name: '结算系统' });
+    await waitFor(() => {
+      expect(screen.getByRole('combobox', { name: '当前 Bug 项目' })).toHaveTextContent('结算系统');
+    });
     fireEvent.click(screen.getByRole('tab', { name: /审核/ }));
 
     expect(props.onLocationChange).toHaveBeenCalledWith(bugLocation({ section: 'review' }));
@@ -261,11 +268,41 @@ describe('BugWorkspace', () => {
       })
     });
 
-    await screen.findByRole('option', { name: '网关服务' });
-    fireEvent.change(screen.getByLabelText('当前 Bug 项目'), { target: { value: 'project-b' } });
+    const projectTrigger = await screen.findByRole('combobox', { name: '当前 Bug 项目' });
+    await waitFor(() => expect(projectTrigger).toHaveTextContent('结算系统'));
+    fireEvent.click(projectTrigger);
+    fireEvent.click(await screen.findByRole('option', { name: '网关服务' }));
 
     expect(props.onLocationChange).toHaveBeenCalledWith(
       bugLocation({ section: 'review', projectRef: 'project-b', creating: true })
     );
+  });
+
+  it('restores focus to the project select after cancelling creation', async () => {
+    renderWorkspace({ location: bugLocation({ section: 'review' }) });
+    const trigger = await screen.findByRole('combobox', { name: '当前 Bug 项目' });
+    await waitFor(() => expect(trigger).toHaveTextContent('结算系统'));
+
+    fireEvent.click(screen.getByRole('button', { name: '新建项目' }));
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+
+    // 取消后选择区重新挂载，需要以新节点断言焦点
+    const restored = screen.getByRole('combobox', { name: '当前 Bug 项目' });
+    await waitFor(() => expect(document.activeElement).toBe(restored));
+  });
+
+  it('falls back to the empty-state CTA focus when cancelling without projects', async () => {
+    vi.mocked(fetch).mockImplementation(async () => Response.json({ projects: [] }));
+    renderWorkspace({ location: bugLocation() });
+
+    await screen.findByRole('heading', { name: '创建第一个 Bug 项目' });
+    // 工具栏按钮与空态 CTA 同名，以工具栏（包含项目选择器的那一层）排除后取空态里的那个
+    const toolbar = screen.getByRole('combobox', { name: '当前 Bug 项目' }).closest('div') as HTMLElement;
+    const cta = (await screen.findAllByRole('button', { name: '新建项目' }))
+      .find((button) => !toolbar.contains(button))!;
+    fireEvent.click(cta);
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+
+    await waitFor(() => expect(document.activeElement).toBe(cta));
   });
 });
