@@ -48,6 +48,7 @@ export function createFixtureAdapters(testCase) {
         const payload = { local: entry.local || [], web: entry.web || [] };
         const status = entry.webSearchStatus
           ?? (searchMode === 'local' ? 'not_requested' : payload.web.length ? 'available' : 'unavailable');
+        if (searchMode !== 'local' && status !== 'available') counters.webSearchDegradedQueries += 1;
         return { ...payload, webSearchStatus: status };
       },
 
@@ -127,6 +128,7 @@ export async function runEvalCase({ testCase, adapters, mode, dbPath }) {
       writerCalls: 0,
       searchCalls: 0,
       webSearchRequests: 0,
+      webSearchDegradedQueries: 0,
       localSearchCalls: 0,
       readAttempts: 0,
       readerSuccesses: 0,

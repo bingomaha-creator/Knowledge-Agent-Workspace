@@ -35,14 +35,23 @@ function citationMetrics(artifacts) {
   const invalidNumbers = Array.isArray(verification.invalidCitationNumbers)
     ? verification.invalidCitationNumbers
     : [];
-  const totalReferences = referencedIds.length + invalidNumbers.length;
+  const invalidMarkers = Array.isArray(verification.invalidCitationMarkers)
+    ? verification.invalidCitationMarkers
+    : [];
+  // 有效性必须覆盖全部非法引用类型：越界数字引用与符号 marker（如 [q2]）都不得计入有效，
+  // 任何一类非法 marker 的存在都使 100% 可追溯门槛不可达。
+  const invalidReferenceCount = invalidNumbers.length + invalidMarkers.length;
+  const totalReferences = referencedIds.length + invalidReferenceCount;
   return {
     citationStructureValid: verification.valid === true,
     citationValidityRate: totalReferences > 0
       ? round4(referencedIds.length / totalReferences)
       : null,
-    evidenceUsageRate: ratio(referencedIds.length, citations.length),
+    // 零候选 citation 且零引用时"使用率"不适用：以 null 表达（摘要平均会排除 null），不得用 0 冒充。
+    evidenceUsageRate: citations.length > 0 ? ratio(referencedIds.length, citations.length) : null,
+    invalidReferenceCount,
     invalidCitationCount: invalidNumbers.length,
+    invalidMarkerCount: invalidMarkers.length,
     referencedCitationCount: referencedIds.length,
     citationCount: citations.length
   };
@@ -96,6 +105,11 @@ export function computeCaseMetrics({ testCase, task, latencyMs, counters, mode }
     writerFallbackReason: writer.fallbackReason || '',
     writerModelAttempted: Number(counters?.writerCalls || 0) > 0,
     readerFailures: readingFailures,
+    webSearch: {
+      // 计入"发出了 web 请求但未正常可用"的查询数（unavailable/error）；
+      // 部分降级即说明该 case 的外部证据可能不完整，与 valid=true 不冲突。
+      degradedQueries: Number(counters?.webSearchDegradedQueries || 0)
+    },
     latencyMs,
     externalCalls: { ...counters },
     tokens: { inputTokens, outputTokens }

@@ -131,6 +131,7 @@ function createLiveAdapters(counters) {
       const webSearchStatus = web.available
         ? 'available'
         : (web.status === 'error' ? 'error' : 'unavailable');
+      if (webSearchStatus !== 'available') counters.webSearchDegradedQueries += 1;
       return { local: evidence, web: web.results, webSearchStatus };
     }
   };
@@ -188,14 +189,18 @@ function summarize(metricsList) {
     fallbackReasonCodes[code] = (fallbackReasonCodes[code] || 0) + 1;
   }
 
+  // Partial Web Search 统计：valid=true 只表示基线整体可用于观察与对比，
+  // 不代表每次外部调用都成功——部分降级的 case/request 在此显式计数。
+  const partialCases = completed.filter((item) => (item.webSearch?.degradedQueries || 0) > 0);
+
   return {
     caseCount: metricsList.length,
     completedCount: completed.length,
     qualityDistribution,
     avgLatencyMs: completed.length ? Math.round(sum((item) => item.latencyMs) / completed.length) : null,
     citation: {
-      // 引用有效性与证据使用率是两个口径：前者要求被引用的引用全部有效（Ledger 验收口径），
-      // 后者允许候选 citation 不被全部使用，低于 1 不是缺陷。
+      // 引用有效性与证据使用率是两个口径：前者要求被引用的引用全部有效（Ledger 验收口径，
+      // 非法数字引用与符号 marker 都计入无效），后者允许候选 citation 不被全部使用。
       avgValidityRate: avg((item) => item.citationValidityRate),
       avgEvidenceUsageRate: avg((item) => item.evidenceUsageRate),
       structureValidCount: completed.filter((item) => item.citationStructureValid).length
@@ -206,6 +211,12 @@ function summarize(metricsList) {
       fallbackCount: fallbacks.length,
       fallbackRatio: attempted.length ? Number((fallbacks.length / attempted.length).toFixed(4)) : null,
       fallbackReasonCodes
+    },
+    webSearch: {
+      requestCount: sum((item) => item.externalCalls?.webSearchRequests),
+      degradedQueryCount: sum((item) => item.webSearch?.degradedQueries),
+      partialCaseCount: partialCases.length,
+      partialCaseIds: partialCases.map((item) => item.caseId)
     },
     totals: {
       inputTokens: sum((item) => item.tokens?.inputTokens),
@@ -239,20 +250,43 @@ const valid = invalidReasons.length === 0;
 function gitInfo() {
   try {
     return {
-      codeCommit: execSync('git rev-parse HEAD', { cwd: repoRoot }).toString().trim(),
+      sourceCommit: execSync('git rev-parse HEAD', { cwd: repoRoot }).toString().trim(),
       branch: execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoRoot }).toString().trim()
     };
   } catch {
-    return { codeCommit: 'unknown', branch: 'unknown' };
+    return { sourceCommit: 'unknown', branch: 'unknown' };
   }
 }
 
-const caseSetHash = crypto.createHash('sha256')
-  .update(caseFileNames
-    .map((name) => `${name}:${crypto.createHash('sha256').update(fs.readFileSync(path.join(casesDir, name))).digest('hex')}`)
-    .join('\n'))
-  .digest('hex')
-  .slice(0, 16);
+// 工作树 dirty 状态：排除 canonical baseline 自身——重跑并更新它正是本次运行的目的，
+// 不能因此把每次基线生成都标成 dirty。
+function worktreeStatus() {
+  const baselineRel = 'server/regression/research-eval/baselines/phase0-baseline.json';
+  try {
+    const lines = execSync('git status --porcelain', { cwd: repoRoot }).toString().split('\n').filter(Boolean);
+    const dirtyPaths = lines.filter((line) => !line.endsWith(baselineRel)).map((line) => line.slice(3));
+    return { worktreeDirty: dirtyPaths.length > 0, dirtyPaths: dirtyPaths.slice(0, 10) };
+  } catch {
+    return { worktreeDirty: null, dirtyPaths: [] };
+  }
+}
+
+const fileHash = (value) => crypto.createHash('sha256').update(value).digest('hex').slice(0, 16);
+const caseSetHash = fileHash(caseFileNames
+  .map((name) => `${name}:${crypto.createHash('sha256').update(fs.readFileSync(path.join(casesDir, name))).digest('hex')}`)
+  .join('\n'));
+// 实际执行的 case 子集：--case 单查时不得用完整 caseSetHash 描述本次运行。
+const selectedCaseIds = selectedCases.map((item) => item.id);
+const selectedCaseSetHash = fileHash(selectedCaseIds
+  .map((id) => {
+    const testCase = selectedCases.find((item) => item.id === id);
+    return `${id}:${crypto.createHash('sha256').update(JSON.stringify(testCase)).digest('hex')}`;
+  })
+  .sort()
+  .join('\n'));
+const runnerHash = fileHash(['harness.js', 'metrics.js', 'research-eval-live.js']
+  .map((name) => `${name}:${crypto.createHash('sha256').update(fs.readFileSync(path.join(here, name))).digest('hex')}`)
+  .join('\n'));
 
 const payload = {
   valid,
@@ -260,10 +294,15 @@ const payload = {
   generatedAt: new Date().toISOString(),
   provenance: {
     ...gitInfo(),
+    ...worktreeStatus(),
+    nodeVersion: process.version,
+    runnerHash,
+    caseSetHash,
+    selectedCaseIds,
+    selectedCaseSetHash,
     model,
     provider: 'bocha',
     providerConfigured: true,
-    caseSetHash,
     config: {
       topK: 6,
       concurrency: 1,
@@ -282,10 +321,19 @@ const payload = {
 
 const outputDir = path.join(here, 'baselines');
 fs.mkdirSync(outputDir, { recursive: true });
-const outputPath = path.join(outputDir, 'phase0-baseline.json');
+let outputPath;
+if (caseFilter) {
+  // --case 单查只写诊断文件，绝不覆盖 canonical baseline。
+  const diagDir = path.join(outputDir, 'diagnostics');
+  fs.mkdirSync(diagDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  outputPath = path.join(diagDir, `${stamp}_${selectedCaseIds.join('_')}.json`);
+} else {
+  outputPath = path.join(outputDir, 'phase0-baseline.json');
+}
 fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
 
-console.log(`\n基线已写入 ${outputPath}（valid=${valid}）`);
+console.log(`\n已写入 ${outputPath}（valid=${valid}${caseFilter ? '，诊断文件：不影响 canonical baseline' : '，canonical baseline 已更新'}）`);
 console.log(JSON.stringify(payload.summary, null, 2));
 if (!valid) {
   console.error(`\nbaseline invalid，不能作为校准依据：\n- ${invalidReasons.join('\n- ')}`);

@@ -13,7 +13,7 @@ import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createFixtureAdapters, runEvalCase } from './harness.js';
-import { stripTiming } from './metrics.js';
+import { computeCaseMetrics, stripTiming } from './metrics.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const casesDir = path.join(here, 'cases');
@@ -129,3 +129,56 @@ for (const testCase of testCases) {
     }
   });
 }
+
+// 引用口径单元测试（纯函数级）：worker 管线会把被拒的模型报告重建为合法最终报告，
+// 因此非法引用（尤其符号 marker）只能在这一层验证指标灵敏度——任何非法 marker
+// 都必须使 citationValidityRate < 1，不可能达到 Ledger 100% 可追溯门槛。
+test('metrics 引用口径：非法数字与符号 marker 都计入无效，零候选使用率为 not_applicable', () => {
+  const testCase = { id: 'unit-citation', searchMode: 'web' };
+  const run = (verification, citations) => computeCaseMetrics({
+    testCase,
+    task: {
+      searchMode: 'web',
+      status: 'completed',
+      artifacts: { citations, evidencePack: {}, verification }
+    },
+    latencyMs: 0,
+    counters: {},
+    mode: 'fixture'
+  });
+  const citation = (id, index) => ({ id, index });
+
+  const allValid = run(
+    { valid: true, referencedCitationIds: ['c1', 'c2'], invalidCitationNumbers: [], invalidCitationMarkers: [] },
+    [citation('c1', 1), citation('c2', 2)]
+  );
+  assert.equal(allValid.citationValidityRate, 1, '全部有效引用时有效性应为 1');
+  assert.equal(allValid.evidenceUsageRate, 1, '全部候选被使用时使用率应为 1');
+
+  const numericInvalid = run(
+    { valid: false, referencedCitationIds: ['c1'], invalidCitationNumbers: [99], invalidCitationMarkers: [] },
+    [citation('c1', 1), citation('c2', 2)]
+  );
+  assert.equal(numericInvalid.citationValidityRate, 0.5, '越界数字引用必须计入无效');
+
+  const symbolicInvalid = run(
+    { valid: false, referencedCitationIds: ['c1'], invalidCitationNumbers: [], invalidCitationMarkers: ['q2'] },
+    [citation('c1', 1), citation('c2', 2)]
+  );
+  assert.equal(symbolicInvalid.citationValidityRate, 0.5, '符号 marker（如 [q2]）必须计入无效');
+  assert.equal(symbolicInvalid.invalidMarkerCount, 1);
+
+  const mixedInvalid = run(
+    { valid: false, referencedCitationIds: ['c1'], invalidCitationNumbers: [98], invalidCitationMarkers: ['q2'] },
+    [citation('c1', 1)]
+  );
+  assert.equal(mixedInvalid.citationValidityRate, 0.3333, '数字与 marker 同时存在时都计入无效');
+
+  const zeroCandidates = run(
+    { valid: true, referencedCitationIds: [], invalidCitationNumbers: [], invalidCitationMarkers: [] },
+    []
+  );
+  assert.equal(zeroCandidates.citationValidityRate, null, '零引用时有效性不适用，应为 null');
+  assert.equal(zeroCandidates.evidenceUsageRate, null, '零候选且零引用时使用率不适用，应为 null 而非 0');
+  assert.equal(zeroCandidates.citationStructureValid, true);
+});
