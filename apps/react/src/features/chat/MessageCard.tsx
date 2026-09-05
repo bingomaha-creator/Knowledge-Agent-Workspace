@@ -99,9 +99,10 @@ const Markdown = styled(SafeMarkdown)`
     max-width: 100%;
     padding: var(--space-4);
     overflow: auto;
+    border: 1px solid var(--color-border);
     border-radius: 0.8rem;
-    background: #182235;
-    color: #e8eef8;
+    background: var(--color-surface-muted);
+    color: var(--color-text);
     white-space: pre;
   }
   pre code { padding: 0; background: transparent; color: inherit; }
@@ -259,6 +260,7 @@ function runStepLabel(name: string) {
     knowledge_scope_check: '检查资料范围',
     retrieve_memory: '检索长期记忆',
     retrieve_knowledge: '检索资料库',
+    read_knowledge_document: '读取知识文档',
     knowledge_evidence_gate: '评估资料证据',
     tool_planning: '规划工具调用',
     generation: '生成最终回答',
@@ -270,6 +272,17 @@ function runStepLabel(name: string) {
 function readableResult(result: unknown) {
   if (typeof result === 'string') return result;
   try { return JSON.stringify(result, null, 2); } catch { return String(result); }
+}
+
+// 工具卡片展示可读名称；未映射的工具回退为原始名。
+function toolNameLabel(name: string) {
+  const labels: Record<string, string> = {
+    retrieve_knowledge: '检索资料库',
+    read_knowledge_document: '读取知识文档',
+    list_knowledge_documents: '列出资料库文档',
+    get_current_time: '获取当前时间'
+  };
+  return labels[name] || name;
 }
 
 function memoryTypeLabel(type: MemoryType) {
@@ -334,7 +347,7 @@ export function MessageCard({
           <DetailBody>
             {message.tools.map((tool) => (
               <DetailCard key={tool.id}>
-                <strong>{tool.name}</strong> <Status>{tool.status}</Status>
+                <strong>{toolNameLabel(tool.name)}</strong> <Status>{tool.status}</Status>
                 <pre>{JSON.stringify(tool.args, null, 2)}</pre>
                 {tool.result !== undefined ? <pre>{readableResult(tool.result)}</pre> : null}
               </DetailCard>

@@ -23,6 +23,14 @@ const TOOL_SPECS = [
     forcedScopeArg: 'knowledgeBaseIds'
   }),
   spec({
+    name: 'read_knowledge_document',
+    description: '读取当前授权资料库中一份已发布知识文档的正文；仅在需要查看、分析或对比指定文档内容时使用，长文档按 nextOffset 继续读取',
+    effects: ['knowledge.read'],
+    autonomous: true,
+    allowedCallers: ['chat'],
+    forcedScopeArg: 'knowledgeBaseIds'
+  }),
+  spec({
     name: 'list_knowledge_documents',
     description: '列出当前后端知识库中的文档',
     effects: ['knowledge.read'],

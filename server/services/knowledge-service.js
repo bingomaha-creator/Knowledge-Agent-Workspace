@@ -332,6 +332,44 @@ export function createKnowledgeService({
     };
   }
 
+  // Chat 专用的正文读取：不经过 requireDocument，资格判断覆盖范围、类型、
+  // 处理态与发布态；所有不合格情况统一 404，避免泄露范围外文档是否存在。
+  function readPublishedDocument(documentId, { knowledgeBaseIds, offset = 0, limit = 12_000 } = {}) {
+    const scope = normalizeKnowledgeScope(knowledgeBaseIds);
+    if (!scope || !scope.length) {
+      throw createServiceError('DOCUMENT_NOT_FOUND', '知识文件不存在', '请确认传入的文档 ID 是否正确。', 404);
+    }
+    const document = store.getDocument(documentId);
+    const inScope = Boolean(document) && scope.includes(document.knowledgeBaseId || 'kb-default');
+    const isPublishedGenericReady = Boolean(document)
+      && document.documentType === 'generic'
+      && document.status === 'ready'
+      && document.publicationStatus === 'published';
+    if (!inScope || !isPublishedGenericReady) {
+      throw createServiceError('DOCUMENT_NOT_FOUND', '知识文件不存在', '请确认传入的文档 ID 是否正确。', 404);
+    }
+    const source = String(document.content || '');
+    const totalCharacters = source.length;
+    const safeOffset = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+    const safeLimit = Number.isFinite(limit) && limit > 0 ? Math.min(Math.floor(limit), 12_000) : 12_000;
+    const content = source.slice(safeOffset, safeOffset + safeLimit);
+    const returnedCharacters = content.length;
+    const truncated = safeOffset + returnedCharacters < totalCharacters;
+    return {
+      document: {
+        id: document.id,
+        name: document.name,
+        knowledgeBaseId: document.knowledgeBaseId || 'kb-default'
+      },
+      content,
+      offset: safeOffset,
+      returnedCharacters,
+      totalCharacters,
+      truncated,
+      nextOffset: truncated ? safeOffset + returnedCharacters : null
+    };
+  }
+
   function publishDocument(id, knowledgeBaseId) {
     requireDocument(id, knowledgeBaseId);
     return serializeKnowledgeDocument(store.publishDocument(id, now()));
@@ -448,6 +486,7 @@ export function createKnowledgeService({
     ingestDocuments,
     listDocuments,
     getDocumentPreview,
+    readPublishedDocument,
     publishDocument,
     withdrawDocument,
     deleteDocument,

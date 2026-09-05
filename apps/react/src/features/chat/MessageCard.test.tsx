@@ -91,4 +91,30 @@ describe('MessageCard', () => {
       content: '始终使用中文', status: 'corrected'
     }));
   });
+
+  it('maps read_knowledge_document to a readable label and keeps the summary summary-shaped', async () => {
+    renderCard(<MessageCard message={message({
+      tools: [{
+        id: 'tool-read',
+        name: 'read_knowledge_document',
+        args: { documentId: 'doc-1', offset: 0, limit: 12000 },
+        status: 'success',
+        result: {
+          document: { id: 'doc-1', name: 'probe.md', knowledgeBaseId: 'kb-default' },
+          offset: 0,
+          returnedCharacters: 12000,
+          totalCharacters: 18000,
+          truncated: true,
+          nextOffset: 12000
+        }
+      }]
+    })} />);
+
+    expect(screen.getByText('读取知识文档')).toBeInTheDocument();
+    const text = document.body.textContent || '';
+    expect(text).toContain('18000');
+    expect(text).toContain('12000');
+    // 摘要不包含正文内容字段
+    expect(text).not.toContain('SECRET-CONTENT');
+  });
 });

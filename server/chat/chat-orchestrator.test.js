@@ -564,3 +564,326 @@ test('a scoped project fact is retrieved before generation even without knowledg
   assert.equal(evidenceGate.metadata.evidence.reason, 'hybrid_match');
   assert.equal(modelBodies.length, 1);
 });
+
+test('read_knowledge_document backfills full content to the model and publishes only a summary', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yuan-chat-read-document-'));
+  const runStore = createRunStore(path.join(root, 'runs.sqlite'));
+  t.after(() => {
+    runStore.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const gatewayCalls = [];
+  const planningBodies = [];
+  const events = [];
+  let planningRound = 0;
+  const gateway = {
+    async callTool(name, args) {
+      gatewayCalls.push({ name, args });
+      if (name === 'retrieve_memory') return { structured: { memories: [] }, text: '', isError: false };
+      if (name === 'read_knowledge_document') {
+        return {
+          structured: {
+            document: { id: 'doc-1', name: 'probe.md', knowledgeBaseId: 'kb-default' },
+            content: 'SECRET-CONTENT-正文',
+            offset: 0,
+            returnedCharacters: 18,
+            totalCharacters: 18,
+            truncated: false,
+            nextOffset: null
+          },
+          text: '',
+          isError: false
+        };
+      }
+      throw new Error(`Gateway must not receive ${name}`);
+    },
+    async callToolOrThrow(name, args) {
+      gatewayCalls.push({ name, args });
+      if (name === 'list_knowledge_documents') {
+        return { structured: { documents: [{ id: 'doc-1' }] }, text: '', isError: false };
+      }
+      throw new Error(`Gateway must not receive ${name}`);
+    }
+  };
+  const orchestrator = createChatOrchestrator({
+    qwenClient: {
+      async chatCompletions(body, { stream }) {
+        if (stream) return new Response('data: {"choices":[{"delta":{"content":"摘要回答"}}]}\n\ndata: [DONE]\n\n');
+        planningBodies.push(body);
+        planningRound += 1;
+        return planningRound === 1
+          ? {
+              choices: [{ message: {
+                content: '',
+                tool_calls: [
+                  {
+                    id: 'call-read',
+                    type: 'function',
+                    function: {
+                      name: 'read_knowledge_document',
+                      arguments: '{"documentId":"doc-1","knowledgeBaseIds":["kb-evil"]}'
+                    }
+                  }
+                ]
+              } }],
+              usage: {}
+            }
+          : { choices: [{ message: { content: '', tool_calls: [] } }], usage: {} };
+      }
+    },
+    mcpGateway: {
+      async connect() {},
+      async listTools() {
+        return { tools: [{ name: 'read_knowledge_document' }, { name: 'retrieve_knowledge' }] };
+      }
+    },
+    toolExecutor: createToolExecutor({ gateway }),
+    runStore,
+    presets: loadPresets(''),
+    model: 'qwen-test',
+    pricing: {},
+    modelRetries: 0,
+    sleep: async () => {}
+  });
+  const result = await orchestrator.run({
+    conversationId: 'conversation-read-document',
+    messages: [{ role: 'user', content: '请读取 probe.md 的原文' }],
+    ragEnabled: true,
+    knowledgeBaseIds: ['kb-default']
+  }, {
+    signal: new AbortController().signal,
+    emit(event) { events.push(event); }
+  });
+
+  // 服务端覆盖模型提供的资料范围
+  const readCall = gatewayCalls.find((call) => call.name === 'read_knowledge_document');
+  assert.deepEqual(readCall.args, { documentId: 'doc-1', knowledgeBaseIds: ['kb-default'] });
+  const systemPrompt = planningBodies[0].messages.find((message) => message.role === 'system').content;
+  assert.match(systemPrompt, /只能调用本轮实际提供的工具/);
+  assert.match(systemPrompt, /不要编造工具名称/);
+
+  // 完整正文只回填给模型
+  const toolMessage = planningBodies[1].messages.find(
+    (message) => message.role === 'tool' && message.tool_call_id === 'call-read'
+  );
+  assert.match(toolMessage.content, /SECRET-CONTENT-正文/);
+
+  // SSE、gatheredTools 与持久化 tools 只保留摘要
+  const readToolEvent = events.find(
+    (event) => event.type === 'tool' && event.data.id === 'call-read' && event.data.status === 'success'
+  );
+  assert.equal(JSON.stringify(readToolEvent.data.result).includes('SECRET-CONTENT-正文'), false);
+  assert.equal(readToolEvent.data.result.totalCharacters, 18);
+
+  const doneEvent = events.find((event) => event.type === 'done');
+  const persistedTools = doneEvent.data.tools;
+  assert.equal(JSON.stringify(persistedTools).includes('SECRET-CONTENT-正文'), false);
+  assert.equal(
+    persistedTools.find((tool) => tool.name === 'read_knowledge_document').result.totalCharacters,
+    18
+  );
+  assert.match(
+    persistedTools.find((tool) => tool.name === 'read_knowledge_document').result.document.name,
+    /probe\.md/
+  );
+});
+
+test('read_knowledge_document enforces the per-run read budget without reaching the service', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yuan-chat-read-budget-'));
+  const runStore = createRunStore(path.join(root, 'runs.sqlite'));
+  t.after(() => {
+    runStore.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const gatewayCalls = [];
+  const planningBodies = [];
+  let planningRound = 0;
+  const gateway = {
+    async callTool(name, args) {
+      gatewayCalls.push({ name, args });
+      if (name === 'read_knowledge_document') {
+        return {
+          structured: {
+            document: { id: 'doc-1', name: 'probe.md', knowledgeBaseId: 'kb-default' },
+            content: 'C'.repeat(12000),
+            offset: 0,
+            returnedCharacters: 12000,
+            totalCharacters: 12000,
+            truncated: true,
+            nextOffset: 12000
+          },
+          text: '',
+          isError: false
+        };
+      }
+      if (name === 'retrieve_memory') return { structured: { memories: [] }, text: '', isError: false };
+      throw new Error(`Gateway must not receive ${name}`);
+    },
+    async callToolOrThrow(name) {
+      gatewayCalls.push({ name });
+      if (name === 'list_knowledge_documents') {
+        return { structured: { documents: [{ id: 'doc-1' }] }, text: '', isError: false };
+      }
+      throw new Error(`Gateway must not receive ${name}`);
+    }
+  };
+  const orchestrator = createChatOrchestrator({
+    qwenClient: {
+      async chatCompletions(body, { stream }) {
+        if (stream) return new Response('data: {"choices":[{"delta":{"content":"预算内回答"}}]}\n\ndata: [DONE]\n\n');
+        planningBodies.push(body);
+        planningRound += 1;
+        if (planningRound === 1) {
+          return {
+            choices: [{ message: {
+              content: '',
+              tool_calls: [1, 2, 3, 4, 5].map((index) => ({
+                id: `call-read-${index}`,
+                type: 'function',
+                function: {
+                  name: 'read_knowledge_document',
+                  arguments: '{"documentId":"doc-1"}'
+                }
+              }))
+            } }],
+            usage: {}
+          };
+        }
+        return { choices: [{ message: { content: '', tool_calls: [] } }], usage: {} };
+      }
+    },
+    mcpGateway: {
+      async connect() {},
+      async listTools() { return { tools: [{ name: 'read_knowledge_document' }] }; }
+    },
+    toolExecutor: createToolExecutor({ gateway }),
+    runStore,
+    presets: loadPresets(''),
+    model: 'qwen-test',
+    pricing: {},
+    modelRetries: 0,
+    sleep: async () => {}
+  });
+  const events = [];
+  const result = await orchestrator.run({
+    conversationId: 'conversation-read-budget',
+    messages: [{ role: 'user', content: '连续读取同一份文档' }],
+    ragEnabled: true,
+    knowledgeBaseIds: ['kb-default']
+  }, {
+    signal: new AbortController().signal,
+    emit(event) { events.push(event); }
+  });
+
+  // 前四次成功读取进入 Service，第五次在编排层被预算拦截
+  assert.equal(gatewayCalls.filter((call) => call.name === 'read_knowledge_document').length, 4);
+  const budgetMessages = planningBodies[1].messages.filter(
+    (message) => message.role === 'tool' && JSON.parse(message.content).code === 'READ_KNOWLEDGE_BUDGET_EXCEEDED'
+  );
+  assert.equal(budgetMessages.length, 1);
+  const budgetEvent = events.find(
+    (event) => event.type === 'tool' && event.data.id === 'call-read-5' && event.data.status === 'error'
+  );
+  assert.equal(budgetEvent.data.result.code, 'READ_KNOWLEDGE_BUDGET_EXCEEDED');
+  assert.equal(result.status, 'success');
+});
+
+test('auto RAG keeps read_knowledge_document in the planning tool set', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yuan-chat-read-planning-'));
+  const runStore = createRunStore(path.join(root, 'runs.sqlite'));
+  t.after(() => {
+    runStore.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const modelBodies = [];
+  const orchestrator = createChatOrchestrator({
+    qwenClient: {
+      async chatCompletions(body, { stream }) {
+        if (stream) return new Response('data: {"choices":[{"delta":{"content":"资料未覆盖"}}]}\n\ndata: [DONE]\n\n');
+        modelBodies.push(body);
+        return { choices: [{ message: { content: '', tool_calls: [] } }], usage: {} };
+      }
+    },
+    mcpGateway: {
+      async connect() {},
+      async listTools() {
+        return { tools: [{ name: 'retrieve_knowledge' }, { name: 'read_knowledge_document' }] };
+      }
+    },
+    toolExecutor: {
+      async callTool(name) {
+        if (name === 'retrieve_memory') return { structured: { memories: [] }, text: '', isError: false };
+        if (name === 'retrieve_knowledge') return { structured: { citations: [] }, text: '没有命中相关内容', isError: false };
+        throw new Error(`unexpected tool ${name}`);
+      },
+      async callToolOrThrow() {
+        return { structured: { documents: [{ id: 'doc-ready' }] }, text: '', isError: false };
+      }
+    },
+    runStore,
+    presets: loadPresets(''),
+    model: 'qwen-test',
+    pricing: {},
+    modelRetries: 0,
+    sleep: async () => {}
+  });
+  await orchestrator.run({
+    conversationId: 'conversation-read-planning',
+    messages: [{ role: 'user', content: '请根据知识库文档回答这个问题' }],
+    ragEnabled: true,
+    knowledgeBaseIds: ['kb-default']
+  }, { signal: new AbortController().signal, emit() {} });
+
+  const planningToolNames = modelBodies[0].tools.map((tool) => tool.function.name);
+  assert.deepEqual(planningToolNames, ['read_knowledge_document']);
+});
+
+test('a read-only knowledge preset keeps its tool visible and prompt enabled', async (t) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'yuan-chat-read-only-preset-'));
+  const runStore = createRunStore(path.join(root, 'runs.sqlite'));
+  t.after(() => {
+    runStore.close();
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const modelBodies = [];
+  const orchestrator = createChatOrchestrator({
+    qwenClient: {
+      async chatCompletions(body, { stream }) {
+        if (stream) return new Response('data: {"choices":[{"delta":{"content":"回答"}}]}\n\ndata: [DONE]\n\n');
+        modelBodies.push(body);
+        return { choices: [{ message: { content: '', tool_calls: [] } }], usage: {} };
+      }
+    },
+    mcpGateway: {
+      async connect() {},
+      async listTools() { return { tools: [{ name: 'read_knowledge_document' }] }; }
+    },
+    toolExecutor: {
+      async callTool(name) {
+        if (name === 'retrieve_memory') return { structured: { memories: [] }, text: '', isError: false };
+        throw new Error(`unexpected tool ${name}`);
+      },
+      async callToolOrThrow(name) { throw new Error(`unexpected required tool ${name}`); }
+    },
+    runStore,
+    presets: loadPresets(JSON.stringify({
+      general: { toolWhitelist: ['read_knowledge_document'] }
+    })),
+    model: 'qwen-test',
+    pricing: {},
+    modelRetries: 0,
+    sleep: async () => {}
+  });
+
+  await orchestrator.run({
+    conversationId: 'conversation-read-only-preset',
+    messages: [{ role: 'user', content: '请读取文档' }],
+    ragEnabled: true,
+    knowledgeBaseIds: ['kb-default']
+  }, { signal: new AbortController().signal, emit() {} });
+
+  assert.deepEqual(modelBodies[0].tools.map((tool) => tool.function.name), ['read_knowledge_document']);
+  const systemPrompt = modelBodies[0].messages.find((message) => message.role === 'system').content;
+  assert.match(systemPrompt, /你可以使用当前预设允许的只读 MCP 知识工具/);
+  assert.doesNotMatch(systemPrompt, /本轮未启用可用的知识库检索/);
+});

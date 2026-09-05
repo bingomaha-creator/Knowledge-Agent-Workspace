@@ -45,6 +45,30 @@ export function registerKnowledgeTools(server, { knowledgeService }) {
   );
 
   server.registerTool(
+    'read_knowledge_document',
+    {
+      description: description('read_knowledge_document'),
+      inputSchema: z.object({
+        documentId: z.string().min(1, 'documentId 不能为空'),
+        offset: z.number().int().min(0).optional(),
+        limit: z.number().int().min(1).max(12_000).optional(),
+        knowledgeBaseIds: z.array(z.string().min(1)).max(20).optional()
+      })
+    },
+    async ({ documentId, offset, limit, knowledgeBaseIds }) => {
+      try {
+        return toTextContent(knowledgeService.readPublishedDocument(documentId, {
+          knowledgeBaseIds,
+          offset,
+          limit
+        }));
+      } catch (error) {
+        return toErrorContent(error);
+      }
+    }
+  );
+
+  server.registerTool(
     'ingest_knowledge_documents',
     {
       description: description('ingest_knowledge_documents'),

@@ -13,6 +13,7 @@ test('built-in presets include four validated roles and safe server tool lists',
   for (const preset of presets) {
     assert.deepEqual(preset.toolWhitelist, [
       'retrieve_knowledge',
+      'read_knowledge_document',
       'list_knowledge_documents',
       'get_current_time'
     ]);

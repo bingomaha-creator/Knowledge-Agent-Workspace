@@ -15,6 +15,7 @@ import { registerSystemTools } from './mcp/register-system-tools.js';
 
 const EXPECTED_TOOL_NAMES = [
   'retrieve_knowledge',
+  'read_knowledge_document',
   'list_knowledge_documents',
   'ingest_knowledge_documents',
   'get_knowledge_document_preview',
@@ -87,6 +88,59 @@ test('unknown, write, and network tools default deny autonomous chat', () => {
   assert.equal(evaluateToolCall('retrieve_knowledge', context).allowed, true);
 });
 
+test('read_knowledge_document is chat-only, autonomous and scope-gated', () => {
+  const allowed = evaluateToolCall('read_knowledge_document', {
+    caller: 'chat',
+    invocation: 'autonomous',
+    knowledgeScopeEnabled: true
+  });
+  assert.equal(allowed.allowed, true);
+  assert.equal(allowed.spec.autonomous, true);
+  assert.equal(allowed.spec.allowedInResearch, false);
+  assert.equal(allowed.spec.requiresExplicitAction, false);
+  assert.deepEqual(allowed.spec.allowedCallers, ['chat']);
+  assert.equal(allowed.spec.forcedScopeArg, 'knowledgeBaseIds');
+
+  assert.equal(evaluateToolCall('read_knowledge_document', {
+    caller: 'chat',
+    invocation: 'autonomous',
+    knowledgeScopeEnabled: false
+  }).code, 'KNOWLEDGE_SCOPE_DISABLED');
+
+  for (const caller of ['research', 'internal', 'bug-ui', 'coding-agent']) {
+    assert.equal(evaluateToolCall('read_knowledge_document', {
+      caller,
+      invocation: caller === 'internal' ? 'orchestrated' : 'autonomous'
+    }).allowed, false, `${caller} must not read knowledge documents`);
+  }
+  assert.equal(evaluateToolCall('read_knowledge_document', {
+    caller: 'chat',
+    invocation: 'explicit',
+    knowledgeScopeEnabled: true
+  }).allowed, true);
+});
+
+test('read_knowledge_document overrides model-provided knowledge scope with the trusted range', () => {
+  assert.deepEqual(
+    applyTrustedToolArguments('read_knowledge_document', {
+      documentId: 'doc-1',
+      knowledgeBaseIds: ['kb-evil']
+    }, { knowledgeBaseIds: ['kb-default'] }),
+    { documentId: 'doc-1', knowledgeBaseIds: ['kb-default'] }
+  );
+  assert.deepEqual(
+    applyTrustedToolArguments('read_knowledge_document', {
+      documentId: 'doc-1',
+      knowledgeBaseIds: []
+    }, { knowledgeBaseIds: [] }),
+    { documentId: 'doc-1', knowledgeBaseIds: [] }
+  );
+  assert.deepEqual(
+    applyTrustedToolArguments('read_knowledge_document', { documentId: 'doc-1' }, {}),
+    { documentId: 'doc-1' }
+  );
+});
+
 test('chat visibility, preset intersection, and disabled knowledge scope share ToolSpec policy', () => {
   const discovered = EXPECTED_TOOL_NAMES.map((name) => ({ name }));
   assert.deepEqual(
@@ -95,7 +149,7 @@ test('chat visibility, preset intersection, and disabled knowledge scope share T
       invocation: 'autonomous',
       knowledgeScopeEnabled: true
     }).map((tool) => tool.name),
-    ['retrieve_knowledge', 'list_knowledge_documents', 'get_current_time']
+    ['retrieve_knowledge', 'read_knowledge_document', 'list_knowledge_documents', 'get_current_time']
   );
   assert.deepEqual(
     filterTools(discovered, {

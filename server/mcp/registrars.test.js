@@ -42,6 +42,7 @@ test('knowledge registrar exposes governance tools and only maps DTOs to service
     'list_knowledge_bases',
     'list_knowledge_documents',
     'publish_knowledge_document',
+    'read_knowledge_document',
     'retrieve_knowledge',
     'update_knowledge_base',
     'withdraw_knowledge_document'
@@ -62,13 +63,30 @@ test('knowledge registrar exposes governance tools and only maps DTOs to service
     trace: {}
   });
 
+  const readResult = await tools.get('read_knowledge_document').handler({
+    documentId: 'doc-1',
+    offset: 200,
+    limit: 1000,
+    knowledgeBaseIds: ['kb-default']
+  });
+  assert.deepEqual(calls[1], {
+    method: 'readPublishedDocument',
+    args: ['doc-1', { knowledgeBaseIds: ['kb-default'], offset: 200, limit: 1000 }]
+  });
+  const readSchema = tools.get('read_knowledge_document').config.inputSchema;
+  assert.equal(readSchema.safeParse({ documentId: 'doc-1' }).success, true);
+  assert.equal(readSchema.safeParse({ documentId: '' }).success, false);
+  assert.equal(readSchema.safeParse({ documentId: 'doc-1', offset: -1 }).success, false);
+  assert.equal(readSchema.safeParse({ documentId: 'doc-1', limit: 0 }).success, false);
+  assert.equal(readSchema.safeParse({ documentId: 'doc-1', limit: 12_001 }).success, false);
+
   await tools.get('get_knowledge_document_preview').handler({
     id: 'doc-1',
     knowledgeBaseId: 'kb-a'
   });
   await tools.get('publish_knowledge_document').handler({ id: 'doc-1', knowledgeBaseId: 'kb-a' });
   await tools.get('withdraw_knowledge_document').handler({ id: 'doc-1', knowledgeBaseId: 'kb-a' });
-  assert.deepEqual(calls.slice(1).map(({ method, args }) => ({ method, args })), [
+  assert.deepEqual(calls.slice(2).map(({ method, args }) => ({ method, args })), [
     { method: 'getDocumentPreview', args: ['doc-1', 'kb-a'] },
     { method: 'publishDocument', args: ['doc-1', 'kb-a'] },
     { method: 'withdrawDocument', args: ['doc-1', 'kb-a'] }

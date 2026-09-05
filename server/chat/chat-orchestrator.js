@@ -296,12 +296,27 @@ function parseToolCallArguments(toolCall) {
   return parsed;
 }
 
+// read_knowledge_document 的单次运行读取预算：成功次数与累计字符双上限。
+// 与单次 limit ≤ 12,000 组合后，最坏情况约 4 × 12,000 字进入模型上下文。
+const MAX_READ_KNOWLEDGE_DOCUMENT_CALLS = 4;
+const MAX_READ_KNOWLEDGE_DOCUMENT_CHARACTERS = 48_000;
+
 function getToolPreviewArguments(toolCall) {
   try {
     return parseToolCallArguments(toolCall);
   } catch {
     return { raw: String(toolCall.function?.arguments || "").slice(0, 500) };
   }
+}
+
+// read_knowledge_document 的公开结果：只保留读取范围与分页元数据，
+// 完整正文仅供 role=tool 回填模型，不进入 SSE、gatheredTools 或 tools_json。
+function summarizeReadKnowledgeDocument(resultPayload) {
+  if (!resultPayload || typeof resultPayload !== "object") {
+    return resultPayload;
+  }
+  const { content, ...summary } = resultPayload;
+  return summary;
 }
 
 function failedToolExecution(args, error) {
@@ -697,7 +712,7 @@ async function run(request, { signal, emit }) {
     const modelKnowledgeToolsEnabled =
       knowledgeScopeEnabled &&
       preset.toolWhitelist.some((name) =>
-        name === 'retrieve_knowledge' || name === 'list_knowledge_documents'
+        name === 'retrieve_knowledge' || name === 'list_knowledge_documents' || name === 'read_knowledge_document'
       );
     let hasReadyKnowledge = false;
     if (knowledgeRetrievalEnabled) {
@@ -726,6 +741,10 @@ async function run(request, { signal, emit }) {
     // 最终会通过 done 事件一次性发给前端，前端挂到当前 assistant 消息上。
     const gatheredCitations = [];
     const gatheredTools = [];
+    // read_knowledge_document 的单轮读取预算：成功次数与累计字符双上限。
+    // 预算在编排层拦截，超额调用不会进入 Knowledge Service。
+    let readKnowledgeSuccessfulReads = 0;
+    let readKnowledgeReturnedCharacters = 0;
     // 第一层白名单：只把当前已解析 preset 允许的工具定义发给模型。
     // executeToolCallWithMcp 还会做第二层执行校验，不盲信模型返回的 tool_call。
     // 这是本轮能力范围约束，不是身份/ACL 授权：请求方可以选择任一已发布 preset。
@@ -785,6 +804,7 @@ async function run(request, { signal, emit }) {
               ? "只使用当前已提供的知识工具，不要声称执行未开放的检索。"
               : "不要声称已经查询或引用知识库。",
           "最终回答需要清晰、结构化、简洁。",
+          "只能调用本轮实际提供的工具；不要编造工具名称，也不要承诺稍后调用当前未提供的能力。",
         ].join("\n"),
       }]
     };
@@ -956,17 +976,46 @@ async function run(request, { signal, emit }) {
         });
 
         // 根据模型返回的 tool_call，调用 MCP Server 执行真实工具。
-        const executed = await executeToolCallWithMcp(toolExecutor, toolCall, {
-          tracer,
-          signal,
-          toolContext: {
-            caller: 'chat',
-            invocation: 'autonomous',
-            allowedToolNames: planningToolNames,
-            knowledgeScopeEnabled,
-            knowledgeBaseIds,
-          },
-        });
+        let executed;
+        if (
+          toolCall.function?.name === 'read_knowledge_document'
+          && (readKnowledgeSuccessfulReads >= MAX_READ_KNOWLEDGE_DOCUMENT_CALLS
+            || readKnowledgeReturnedCharacters >= MAX_READ_KNOWLEDGE_DOCUMENT_CHARACTERS)
+        ) {
+          // 读取预算在编排层拦截：超额调用不进入 Service，但必须按 function-calling
+          // 协议回填结构化错误，让模型基于已读取内容继续回答。
+          executed = failedToolExecution(
+            getToolPreviewArguments(toolCall),
+            createAppError(
+              'READ_KNOWLEDGE_BUDGET_EXCEEDED',
+              '本次回答的文档正文读取额度已用尽；请基于已读取的内容继续回答，不要承诺继续读取。',
+              `已成功读取 ${readKnowledgeSuccessfulReads} 次，累计 ${readKnowledgeReturnedCharacters} 字。`,
+              429
+            ),
+          );
+        } else {
+          executed = await executeToolCallWithMcp(toolExecutor, toolCall, {
+            tracer,
+            signal,
+            toolContext: {
+              caller: 'chat',
+              invocation: 'autonomous',
+              allowedToolNames: planningToolNames,
+              knowledgeScopeEnabled,
+              knowledgeBaseIds,
+            },
+          });
+          if (toolCall.function?.name === 'read_knowledge_document' && !executed.isError) {
+            readKnowledgeSuccessfulReads += 1;
+            readKnowledgeReturnedCharacters += Number(executed.resultPayload?.returnedCharacters || 0);
+          }
+        }
+
+        // 完整正文只进入 role=tool 回填；前端工具卡片、gatheredTools 与持久化
+        // tools_json 只保留读取摘要，避免长文档重复占用消息与上下文。
+        const publicToolResult = toolCall.function?.name === 'read_knowledge_document' && !executed.isError
+          ? summarizeReadKnowledgeDocument(executed.resultPayload)
+          : executed.resultPayload;
 
         gatheredCitations.splice(
           0,
@@ -978,7 +1027,9 @@ async function run(request, { signal, emit }) {
           name: toolCall.function?.name,
           args: executed.args,
           status: executed.isError ? "error" : "success",
-          result: executed.resultText,
+          result: toolCall.function?.name === 'read_knowledge_document' && !executed.isError
+            ? publicToolResult
+            : executed.resultText,
         });
 
         // 通知前端：工具执行结束。
@@ -987,7 +1038,7 @@ async function run(request, { signal, emit }) {
           name: toolCall.function?.name,
           args: executed.args,
           status: executed.isError ? "error" : "success",
-          result: executed.resultPayload,
+          result: publicToolResult,
         });
 
         if (executed.citations.length) {
