@@ -29,6 +29,8 @@
       "expectations": {
         "minEvidence": 2,
         "writerMode": "fallback",
+        "writerReasonCode": "invalid_citations",
+        "finalReportValid": true,
         "quality": ["limited"],
         "webSearchStatus": "available"
       }

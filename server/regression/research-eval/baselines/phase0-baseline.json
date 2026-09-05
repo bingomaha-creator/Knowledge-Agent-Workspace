@@ -1,0 +1,730 @@
+{
+  "valid": true,
+  "invalidReasons": [],
+  "generatedAt": "2026-09-05T13:54:09.523Z",
+  "provenance": {
+    "codeCommit": "38ff792e1730c6af96bcd9fbfd09ce8df4a8d169",
+    "branch": "codex/research-harness",
+    "model": "qwen-plus",
+    "provider": "bocha",
+    "providerConfigured": true,
+    "caseSetHash": "e8925c9d8ca64bbe",
+    "config": {
+      "topK": 6,
+      "concurrency": 1,
+      "searchModes": [
+        "hybrid",
+        "local",
+        "web"
+      ],
+      "knowledgeBaseScope": "empty（本地检索为空 stub，见 deviations）"
+    },
+    "deviations": [
+      "web 检索直连 createWebSearchProvider，绕过生产 Search service 与 MCP transport",
+      "local 检索为空结果 stub（Phase 0 case 均为空知识库范围）"
+    ],
+    "scope": "web 为主的探索性基线：可观察真实链路的质量/时延/成本量级，不能单独满足 Phase 3 representative 校准前置（缺真实 local/hybrid 代表样本或等价脱敏回放）"
+  },
+  "summary": {
+    "caseCount": 12,
+    "completedCount": 12,
+    "qualityDistribution": {
+      "limited": 10,
+      "insufficient": 2
+    },
+    "avgLatencyMs": 33160,
+    "citation": {
+      "avgValidityRate": 1,
+      "avgEvidenceUsageRate": 0.8333,
+      "structureValidCount": 12
+    },
+    "writerFallback": {
+      "modelAttemptedCount": 10,
+      "modelAcceptedCount": 8,
+      "fallbackCount": 2,
+      "fallbackRatio": 0.2,
+      "fallbackReasonCodes": {
+        "invalid_citations": 2
+      }
+    },
+    "totals": {
+      "inputTokens": 18900,
+      "outputTokens": 16616,
+      "webSearchRequests": 30,
+      "readerReads": 13,
+      "readerFailures": 19
+    }
+  },
+  "cases": [
+    {
+      "caseId": "hybrid-mixed-channels",
+      "mode": "live",
+      "searchMode": "hybrid",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 1,
+      "evidence": {
+        "candidateCount": 20,
+        "acceptedCount": 8,
+        "includedCount": 8,
+        "citationCount": 4,
+        "passageCount": 8,
+        "readSourceCount": 4,
+        "totalCharacters": 1522,
+        "snippetFallbackCount": 0
+      },
+      "fullTextReadRate": 0.5,
+      "snippetFallbackRate": 0,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 4,
+      "citationCount": 4,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "public_source_provenance_unverified"
+      ],
+      "writerMode": "fallback",
+      "writerStatus": "degraded",
+      "writerReasonCode": "invalid_citations",
+      "writerFallbackReason": "模型报告缺少有效的证据引用，已使用确定性证据摘要",
+      "writerModelAttempted": true,
+      "readerFailures": 0,
+      "latencyMs": 48449,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 4,
+        "readerSuccesses": 4,
+        "readerFailures": 0
+      },
+      "tokens": {
+        "inputTokens": 2708,
+        "outputTokens": 1975
+      }
+    },
+    {
+      "caseId": "hybrid-web-error",
+      "mode": "live",
+      "searchMode": "hybrid",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 1,
+      "evidence": {
+        "candidateCount": 16,
+        "acceptedCount": 11,
+        "includedCount": 6,
+        "citationCount": 4,
+        "passageCount": 6,
+        "readSourceCount": 2,
+        "totalCharacters": 1073,
+        "snippetFallbackCount": 2
+      },
+      "fullTextReadRate": 0.1818,
+      "snippetFallbackRate": 0.3333,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 4,
+      "citationCount": 4,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "public_source_provenance_unverified"
+      ],
+      "writerMode": "fallback",
+      "writerStatus": "degraded",
+      "writerReasonCode": "invalid_citations",
+      "writerFallbackReason": "模型报告缺少有效的证据引用，已使用确定性证据摘要",
+      "writerModelAttempted": true,
+      "readerFailures": 2,
+      "latencyMs": 38647,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 4,
+        "readerSuccesses": 2,
+        "readerFailures": 2
+      },
+      "tokens": {
+        "inputTokens": 2263,
+        "outputTokens": 1624
+      }
+    },
+    {
+      "caseId": "local-full-coverage",
+      "mode": "live",
+      "searchMode": "local",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "insufficient",
+      "webSearchStatus": "not_requested",
+      "subquestionCount": 3,
+      "coverageRatio": 0,
+      "evidence": {
+        "candidateCount": 0,
+        "acceptedCount": 0,
+        "includedCount": 0,
+        "citationCount": 0,
+        "passageCount": 0,
+        "readSourceCount": 0,
+        "totalCharacters": 0,
+        "snippetFallbackCount": 0
+      },
+      "fullTextReadRate": 0,
+      "snippetFallbackRate": 0,
+      "citationStructureValid": true,
+      "citationValidityRate": null,
+      "evidenceUsageRate": 0,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 0,
+      "citationCount": 0,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "no_relevant_evidence"
+      ],
+      "writerMode": "fallback",
+      "writerStatus": "degraded",
+      "writerReasonCode": "model_unavailable",
+      "writerFallbackReason": "未接入受证据约束的报告写作者",
+      "writerModelAttempted": false,
+      "readerFailures": 0,
+      "latencyMs": 10619,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 0,
+        "searchCalls": 3,
+        "webSearchRequests": 0,
+        "localSearchCalls": 3,
+        "readAttempts": 0,
+        "readerSuccesses": 0,
+        "readerFailures": 0
+      },
+      "tokens": {
+        "inputTokens": 280,
+        "outputTokens": 405
+      }
+    },
+    {
+      "caseId": "local-empty-insufficient",
+      "mode": "live",
+      "searchMode": "local",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "insufficient",
+      "webSearchStatus": "not_requested",
+      "subquestionCount": 3,
+      "coverageRatio": 0,
+      "evidence": {
+        "candidateCount": 1,
+        "acceptedCount": 0,
+        "includedCount": 0,
+        "citationCount": 0,
+        "passageCount": 0,
+        "readSourceCount": 0,
+        "totalCharacters": 0,
+        "snippetFallbackCount": 0
+      },
+      "fullTextReadRate": 0,
+      "snippetFallbackRate": 0,
+      "citationStructureValid": true,
+      "citationValidityRate": null,
+      "evidenceUsageRate": 0,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 0,
+      "citationCount": 0,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "no_relevant_evidence"
+      ],
+      "writerMode": "fallback",
+      "writerStatus": "degraded",
+      "writerReasonCode": "model_unavailable",
+      "writerFallbackReason": "未接入受证据约束的报告写作者",
+      "writerModelAttempted": false,
+      "readerFailures": 0,
+      "latencyMs": 10200,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 0,
+        "searchCalls": 3,
+        "webSearchRequests": 0,
+        "localSearchCalls": 3,
+        "readAttempts": 0,
+        "readerSuccesses": 0,
+        "readerFailures": 0
+      },
+      "tokens": {
+        "inputTokens": 281,
+        "outputTokens": 390
+      }
+    },
+    {
+      "caseId": "web-full-coverage",
+      "mode": "live",
+      "searchMode": "web",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 1,
+      "evidence": {
+        "candidateCount": 15,
+        "acceptedCount": 6,
+        "includedCount": 3,
+        "citationCount": 3,
+        "passageCount": 3,
+        "readSourceCount": 0,
+        "totalCharacters": 238,
+        "snippetFallbackCount": 3
+      },
+      "fullTextReadRate": 0,
+      "snippetFallbackRate": 1,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 3,
+      "citationCount": 3,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "public_source_provenance_unverified",
+        "thin_evidence_pack"
+      ],
+      "writerMode": "model",
+      "writerStatus": "success",
+      "writerReasonCode": "",
+      "writerFallbackReason": "",
+      "writerModelAttempted": true,
+      "readerFailures": 3,
+      "latencyMs": 42371,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 3,
+        "readerSuccesses": 0,
+        "readerFailures": 3
+      },
+      "tokens": {
+        "inputTokens": 1538,
+        "outputTokens": 1790
+      }
+    },
+    {
+      "caseId": "web-partial-coverage",
+      "mode": "live",
+      "searchMode": "web",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 0.3333,
+      "evidence": {
+        "candidateCount": 15,
+        "acceptedCount": 2,
+        "includedCount": 2,
+        "citationCount": 2,
+        "passageCount": 2,
+        "readSourceCount": 0,
+        "totalCharacters": 199,
+        "snippetFallbackCount": 2
+      },
+      "fullTextReadRate": 0,
+      "snippetFallbackRate": 1,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 2,
+      "citationCount": 2,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "low_subquestion_coverage",
+        "public_source_provenance_unverified",
+        "thin_evidence_pack"
+      ],
+      "writerMode": "model",
+      "writerStatus": "success",
+      "writerReasonCode": "",
+      "writerFallbackReason": "",
+      "writerModelAttempted": true,
+      "readerFailures": 2,
+      "latencyMs": 35006,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 2,
+        "readerSuccesses": 0,
+        "readerFailures": 2
+      },
+      "tokens": {
+        "inputTokens": 1358,
+        "outputTokens": 1506
+      }
+    },
+    {
+      "caseId": "web-no-results",
+      "mode": "live",
+      "searchMode": "web",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 0.6667,
+      "evidence": {
+        "candidateCount": 18,
+        "acceptedCount": 2,
+        "includedCount": 4,
+        "citationCount": 2,
+        "passageCount": 4,
+        "readSourceCount": 2,
+        "totalCharacters": 476,
+        "snippetFallbackCount": 0
+      },
+      "fullTextReadRate": 1,
+      "snippetFallbackRate": 0,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 2,
+      "citationCount": 2,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "low_subquestion_coverage",
+        "public_source_provenance_unverified",
+        "thin_evidence_pack"
+      ],
+      "writerMode": "model",
+      "writerStatus": "success",
+      "writerReasonCode": "",
+      "writerFallbackReason": "",
+      "writerModelAttempted": true,
+      "readerFailures": 0,
+      "latencyMs": 33999,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 2,
+        "readerSuccesses": 2,
+        "readerFailures": 0
+      },
+      "tokens": {
+        "inputTokens": 1698,
+        "outputTokens": 1424
+      }
+    },
+    {
+      "caseId": "web-provider-unavailable",
+      "mode": "live",
+      "searchMode": "web",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 1,
+      "evidence": {
+        "candidateCount": 18,
+        "acceptedCount": 10,
+        "includedCount": 5,
+        "citationCount": 4,
+        "passageCount": 5,
+        "readSourceCount": 1,
+        "totalCharacters": 467,
+        "snippetFallbackCount": 3
+      },
+      "fullTextReadRate": 0.1,
+      "snippetFallbackRate": 0.6,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 4,
+      "citationCount": 4,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "public_source_provenance_unverified",
+        "thin_evidence_pack"
+      ],
+      "writerMode": "model",
+      "writerStatus": "success",
+      "writerReasonCode": "",
+      "writerFallbackReason": "",
+      "writerModelAttempted": true,
+      "readerFailures": 3,
+      "latencyMs": 31154,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 4,
+        "readerSuccesses": 1,
+        "readerFailures": 3
+      },
+      "tokens": {
+        "inputTokens": 1691,
+        "outputTokens": 1285
+      }
+    },
+    {
+      "caseId": "web-snippet-only",
+      "mode": "live",
+      "searchMode": "web",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 1,
+      "evidence": {
+        "candidateCount": 15,
+        "acceptedCount": 2,
+        "includedCount": 2,
+        "citationCount": 2,
+        "passageCount": 2,
+        "readSourceCount": 0,
+        "totalCharacters": 175,
+        "snippetFallbackCount": 2
+      },
+      "fullTextReadRate": 0,
+      "snippetFallbackRate": 1,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 2,
+      "citationCount": 2,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "public_source_provenance_unverified",
+        "thin_evidence_pack"
+      ],
+      "writerMode": "model",
+      "writerStatus": "success",
+      "writerReasonCode": "",
+      "writerFallbackReason": "",
+      "writerModelAttempted": true,
+      "readerFailures": 2,
+      "latencyMs": 36240,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 2,
+        "readerSuccesses": 0,
+        "readerFailures": 2
+      },
+      "tokens": {
+        "inputTokens": 1337,
+        "outputTokens": 1560
+      }
+    },
+    {
+      "caseId": "web-read-partial",
+      "mode": "live",
+      "searchMode": "web",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 1,
+      "evidence": {
+        "candidateCount": 16,
+        "acceptedCount": 10,
+        "includedCount": 8,
+        "citationCount": 5,
+        "passageCount": 8,
+        "readSourceCount": 3,
+        "totalCharacters": 794,
+        "snippetFallbackCount": 2
+      },
+      "fullTextReadRate": 0.3,
+      "snippetFallbackRate": 0.25,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 5,
+      "citationCount": 5,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "public_source_provenance_unverified"
+      ],
+      "writerMode": "model",
+      "writerStatus": "success",
+      "writerReasonCode": "",
+      "writerFallbackReason": "",
+      "writerModelAttempted": true,
+      "readerFailures": 2,
+      "latencyMs": 44105,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 5,
+        "readerSuccesses": 3,
+        "readerFailures": 2
+      },
+      "tokens": {
+        "inputTokens": 2423,
+        "outputTokens": 1857
+      }
+    },
+    {
+      "caseId": "web-github-primary",
+      "mode": "live",
+      "searchMode": "web",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 1,
+      "evidence": {
+        "candidateCount": 15,
+        "acceptedCount": 9,
+        "includedCount": 5,
+        "citationCount": 3,
+        "passageCount": 5,
+        "readSourceCount": 1,
+        "totalCharacters": 418,
+        "snippetFallbackCount": 3
+      },
+      "fullTextReadRate": 0.1111,
+      "snippetFallbackRate": 0.6,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 3,
+      "citationCount": 3,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "public_source_provenance_unverified",
+        "thin_evidence_pack"
+      ],
+      "writerMode": "model",
+      "writerStatus": "success",
+      "writerReasonCode": "",
+      "writerFallbackReason": "",
+      "writerModelAttempted": true,
+      "readerFailures": 2,
+      "latencyMs": 33826,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 3,
+        "readerSuccesses": 1,
+        "readerFailures": 2
+      },
+      "tokens": {
+        "inputTokens": 1774,
+        "outputTokens": 1377
+      }
+    },
+    {
+      "caseId": "writer-invalid-citations",
+      "mode": "live",
+      "searchMode": "web",
+      "status": "completed",
+      "failedStage": "",
+      "resultQuality": "limited",
+      "webSearchStatus": "available",
+      "subquestionCount": 3,
+      "coverageRatio": 0.6667,
+      "evidence": {
+        "candidateCount": 15,
+        "acceptedCount": 9,
+        "includedCount": 4,
+        "citationCount": 3,
+        "passageCount": 4,
+        "readSourceCount": 0,
+        "totalCharacters": 288,
+        "snippetFallbackCount": 4
+      },
+      "fullTextReadRate": 0,
+      "snippetFallbackRate": 1,
+      "citationStructureValid": true,
+      "citationValidityRate": 1,
+      "evidenceUsageRate": 1,
+      "invalidCitationCount": 0,
+      "referencedCitationCount": 3,
+      "citationCount": 3,
+      "claimSupportRate": null,
+      "claimSupportStatus": "not_evaluated",
+      "limitationCodes": [
+        "low_subquestion_coverage",
+        "public_source_provenance_unverified",
+        "thin_evidence_pack"
+      ],
+      "writerMode": "model",
+      "writerStatus": "success",
+      "writerReasonCode": "",
+      "writerFallbackReason": "",
+      "writerModelAttempted": true,
+      "readerFailures": 3,
+      "latencyMs": 33306,
+      "externalCalls": {
+        "plannerCalls": 1,
+        "writerCalls": 1,
+        "searchCalls": 3,
+        "webSearchRequests": 3,
+        "localSearchCalls": 3,
+        "readAttempts": 3,
+        "readerSuccesses": 0,
+        "readerFailures": 3
+      },
+      "tokens": {
+        "inputTokens": 1549,
+        "outputTokens": 1423
+      }
+    }
+  ]
+}

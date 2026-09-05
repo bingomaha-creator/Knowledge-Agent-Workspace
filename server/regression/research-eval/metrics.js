@@ -5,6 +5,13 @@
  * 只依赖公开 artifacts 形状（store/worker 持久化结果），不读取模块内部状态，
  * 与 docs/specs/research-harness.md §13.4 的 interface 测试约束一致。
  *
+ * 引用指标采用两个独立口径（不得合并为单一"可追溯率"）：
+ * - citationValidityRate（引用有效性）：报告做出的引用中，能映射到结构化
+ *   citation 的比例；被引用的每条 citation 都必须可追溯到证据，这是 Phase 2
+ *   Ledger"100% 可追溯"验收的口径。
+ * - evidenceUsageRate（证据使用率）：Evidence Pack 装配出的 citation 中，被
+ *   报告实际引用的比例。低于 1 是正常现象（候选允许不被使用），不作为缺陷。
+ *
  * Phase 0 的 claim-evidence 语义支持率没有自动化判定（人工/Judge 口径），
  * 恒为 null 并标注 not_evaluated；启用判定属于 Phase 3 之后的独立评测工作。
  */
@@ -19,29 +26,42 @@ function ratio(numerator, denominator) {
   return round4(Number(numerator) / denom);
 }
 
-function citationTraceableRatio(artifacts) {
-  const citations = Array.isArray(artifacts.citations) ? artifacts.citations.length : 0;
+function citationMetrics(artifacts) {
+  const citations = Array.isArray(artifacts.citations) ? artifacts.citations : [];
   const verification = artifacts.verification || {};
-  const referenced = Array.isArray(verification.referencedCitationIds)
-    ? verification.referencedCitationIds.length
-    : 0;
-  return ratio(referenced, citations);
+  const referencedIds = Array.isArray(verification.referencedCitationIds)
+    ? verification.referencedCitationIds
+    : [];
+  const invalidNumbers = Array.isArray(verification.invalidCitationNumbers)
+    ? verification.invalidCitationNumbers
+    : [];
+  const totalReferences = referencedIds.length + invalidNumbers.length;
+  return {
+    citationStructureValid: verification.valid === true,
+    citationValidityRate: totalReferences > 0
+      ? round4(referencedIds.length / totalReferences)
+      : null,
+    evidenceUsageRate: ratio(referencedIds.length, citations.length),
+    invalidCitationCount: invalidNumbers.length,
+    referencedCitationCount: referencedIds.length,
+    citationCount: citations.length
+  };
 }
 
 export function computeCaseMetrics({ testCase, task, latencyMs, counters, mode }) {
   const artifacts = task?.artifacts || {};
   const pack = artifacts.evidencePack || {};
-  const citations = Array.isArray(artifacts.citations) ? artifacts.citations : [];
   const quality = artifacts.quality || {};
   const qualityMetrics = quality.metrics || {};
   const diagnostics = artifacts.diagnostics || {};
+  const writer = diagnostics.writing || {};
   const readingFailures = Array.isArray(artifacts.reading?.failures)
     ? artifacts.reading.failures.length
     : 0;
   const inputTokens = Number(diagnostics.planning?.inputTokens || 0)
-    + Number(diagnostics.writing?.inputTokens || 0);
+    + Number(writer.inputTokens || 0);
   const outputTokens = Number(diagnostics.planning?.outputTokens || 0)
-    + Number(diagnostics.writing?.outputTokens || 0);
+    + Number(writer.outputTokens || 0);
 
   return {
     caseId: testCase.id,
@@ -57,8 +77,8 @@ export function computeCaseMetrics({ testCase, task, latencyMs, counters, mode }
     evidence: {
       candidateCount: pack.candidateCount ?? null,
       acceptedCount: pack.acceptedCount ?? null,
-      includedCount: pack.includedCount ?? citations.length,
-      citationCount: pack.citationCount ?? citations.length,
+      includedCount: pack.includedCount ?? null,
+      citationCount: pack.citationCount ?? null,
       passageCount: pack.passageCount ?? null,
       readSourceCount: pack.readSourceCount ?? null,
       totalCharacters: pack.totalCharacters ?? null,
@@ -66,12 +86,15 @@ export function computeCaseMetrics({ testCase, task, latencyMs, counters, mode }
     },
     fullTextReadRate: ratio(pack.readSourceCount, pack.acceptedCount),
     snippetFallbackRate: ratio(pack.snippetFallbackCount, pack.passageCount),
-    citationTraceableRatio: citationTraceableRatio(artifacts),
+    ...citationMetrics(artifacts),
     claimSupportRate: null,
     claimSupportStatus: 'not_evaluated',
-    writerMode: diagnostics.writing?.mode || 'fallback',
-    writerStatus: diagnostics.writing?.status || null,
     limitationCodes: (quality.limitations || []).map((item) => item.code),
+    writerMode: writer.mode || 'fallback',
+    writerStatus: writer.status || null,
+    writerReasonCode: writer.reasonCode || '',
+    writerFallbackReason: writer.fallbackReason || '',
+    writerModelAttempted: Number(counters?.writerCalls || 0) > 0,
     readerFailures: readingFailures,
     latencyMs,
     externalCalls: { ...counters },
@@ -80,7 +103,7 @@ export function computeCaseMetrics({ testCase, task, latencyMs, counters, mode }
 }
 
 /**
- * 两次回放对比时剔除延迟字段：确定性指“指标结论可复现”，不包含墙钟时间。
+ * 两次回放对比时剔除延迟字段：确定性指"指标结论可复现"，不包含墙钟时间。
  */
 export function stripTiming(metrics) {
   const { latencyMs, ...rest } = metrics;

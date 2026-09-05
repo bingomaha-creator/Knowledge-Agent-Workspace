@@ -75,6 +75,14 @@ function assertExpectations(testCase, metrics) {
     assert.equal(metrics.writerMode, expectations.writerMode,
       `${label} writer 模式应为 ${expectations.writerMode}`);
   }
+  if (expectations.writerReasonCode) {
+    assert.equal(metrics.writerReasonCode, expectations.writerReasonCode,
+      `${label} writer 降级原因码应为 ${expectations.writerReasonCode}`);
+  }
+  if (expectations.finalReportValid !== undefined) {
+    assert.equal(metrics.citationStructureValid, expectations.finalReportValid,
+      `${label} 最终报告引用结构有效性应为 ${expectations.finalReportValid}`);
+  }
   if (Array.isArray(expectations.limitationIncludes)) {
     for (const code of expectations.limitationIncludes) {
       assert.ok(metrics.limitationCodes.includes(code),
@@ -97,9 +105,12 @@ for (const testCase of testCases) {
 
       assert.equal(metrics.status, 'completed',
         `${testCase.id} 应以 completed 收敛，实际 ${metrics.status}${metrics.failedStage ? `（失败阶段 ${metrics.failedStage}）` : ''}`);
-      if (metrics.evidence.includedCount > 0) {
-        assert.equal(metrics.citationTraceableRatio, 1,
-          `${testCase.id} 报告引用必须全部可追溯到结构化 citation`);
+      if (metrics.evidence.includedCount > 0 && metrics.citationCount > 0) {
+        assert.equal(metrics.citationValidityRate, 1,
+          `${testCase.id} 报告做出的引用必须全部有效（映射到结构化 citation）`);
+        assert.equal(metrics.citationStructureValid, true,
+          `${testCase.id} 最终报告引用结构必须通过校验`);
+        // 证据使用率允许 < 1（候选 citation 允许不被报告引用），此处仅记录不断言。
       }
 
       const replayed = await runEvalCase({

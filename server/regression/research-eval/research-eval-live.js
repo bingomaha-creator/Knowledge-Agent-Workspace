@@ -1,21 +1,28 @@
 /**
- * Phase 0 live 评测入口（env-gated）：用真实 Qwen Planner/Writer、真实博查
- * 联网 Provider 与真实 SourceReader 执行全部 fixture case，产出当前质量/时延/
- * 成本基线 JSON（docs/artifacts/research-harness/phase0-baseline.json，本地产物）。
+ * Phase 0 live 评测入口（env-gated，fail closed）：用真实 Qwen Planner/Writer、
+ * 真实博查联网 Provider 与真实 SourceReader 执行全部 fixture case，产出基线 JSON。
  *
- * 启用条件：RESEARCH_EVAL_LIVE=1 且 .env.local 配置了 QWEN_API_KEY/BOCHA_API_KEY。
+ * 启用条件（缺一即退出，不产出基线）：RESEARCH_EVAL_LIVE=1、QWEN_API_KEY、
+ * BOCHA_API_KEY。运行中任一 case 出现 eval_error/未完成，或 web/hybrid case 的
+ * 联网整体不可用/出错时：诊断保留、baseline 标记 valid=false 并以非零码退出——
+ * invalid 的基线不得用于 Phase 3 阈值校准。
  *
- * 与生产链路的两点已知差异（均为有意为之，不影响 Phase 0 度量目标）：
- * 1. web 检索直接适配真实的 createWebSearchProvider，不经过 MCP transport——
- *    transport 语义由现有集成测试覆盖，本入口度量研究质量/时延/成本；
- * 2. 本地检索以空结果 stub 代替——Phase 0 case 全部使用空知识库范围，真实的
- *    本地检索与 MCP 知识链路由既有回归覆盖；生产 search 服务在所有模式下启动
- *    本地检索的偏差（research-search-service.js）已在 Plan Phase 2 记录待修。
+ * 输出：server/regression/research-eval/baselines/phase0-baseline.json（纳入版本
+ * 控制：聚合指标、无敏感 payload；权威留档位置，docs/artifacts 不再保存基线）。
  *
- * Captured run 录制暂不实现；若未来实现，须满足 Plan 歧义 2 的脱敏与凭据清除约束。
+ * 与生产链路的两点已知差异（provenance.deviation 同步记录）：
+ * 1. web 检索直接适配真实的 createWebSearchProvider，绕过生产 Search service 与
+ *    MCP transport——transport 语义由现有集成测试覆盖；
+ * 2. 本地检索为空结果 stub（Phase 0 case 均为空知识库范围）。
+ * 因此当前结果只是 **web 为主的探索性基线**：可用于观察真实链路的质量/时延/成本
+ * 量级，但不能单独满足 Phase 3 representative 校准前置（还缺真实 local/hybrid
+ * 代表样本或等价脱敏回放，见 Plan 歧义 2）。
+ *
  * 用法：RESEARCH_EVAL_LIVE=1 node server/regression/research-eval/research-eval-live.js [--case <id>]
  */
+import crypto from 'node:crypto';
 import dotenv from 'dotenv';
+import { execSync } from 'node:child_process';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -35,13 +42,23 @@ const repoRoot = path.resolve(here, '../../..');
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 dotenv.config();
 
-const enabled = process.env.RESEARCH_EVAL_LIVE === '1';
 const apiKey = process.env.QWEN_API_KEY || '';
+const bochaKey = process.env.BOCHA_API_KEY || '';
 const model = process.env.QWEN_MODEL || 'qwen-plus';
 
-if (!enabled || !apiKey) {
-  console.error('live 评测未启用：需要 RESEARCH_EVAL_LIVE=1 且 .env.local 配置 QWEN_API_KEY。');
+function failClosed(reason) {
+  console.error(`live 评测未启动（fail closed）：${reason}`);
   process.exit(2);
+}
+
+if (process.env.RESEARCH_EVAL_LIVE !== '1') {
+  failClosed('需要 RESEARCH_EVAL_LIVE=1 显式启用。');
+}
+if (!apiKey) {
+  failClosed('缺少 QWEN_API_KEY（.env.local）。');
+}
+if (!bochaKey) {
+  failClosed('缺少 BOCHA_API_KEY（.env.local），联网 Provider 将整体不可用。');
 }
 
 const caseFilter = (() => {
@@ -50,14 +67,12 @@ const caseFilter = (() => {
 })();
 
 const casesDir = path.join(here, 'cases');
-const allCases = fs.readdirSync(casesDir)
-  .filter((name) => name.endsWith('.json'))
-  .sort()
+const caseFileNames = fs.readdirSync(casesDir).filter((name) => name.endsWith('.json')).sort();
+const allCases = caseFileNames
   .flatMap((name) => JSON.parse(fs.readFileSync(path.join(casesDir, name), 'utf8')).cases);
 const selectedCases = caseFilter ? allCases.filter((item) => item.id === caseFilter) : allCases;
 if (!selectedCases.length) {
-  console.error(`没有匹配的评测 case：${caseFilter || '(空 case 集)'}`);
-  process.exit(2);
+  failClosed(`没有匹配的评测 case：${caseFilter || '(空 case 集)'}`);
 }
 
 function createLiveAdapters(counters) {
@@ -137,7 +152,12 @@ async function runAll() {
       console.log(`[live] ${metrics.caseId}: status=${metrics.status} quality=${metrics.resultQuality} coverage=${metrics.coverageRatio} latency=${metrics.latencyMs}ms`);
     } catch (error) {
       console.error(`[live] case ${testCase.id} 执行失败：${error?.message || error}`);
-      metricsList.push({ caseId: testCase.id, mode: 'live', status: 'eval_error', error: String(error?.message || error) });
+      metricsList.push({
+        caseId: testCase.id,
+        mode: 'live',
+        status: 'eval_error',
+        error: String(error?.message || error)
+      });
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -152,37 +172,122 @@ function summarize(metricsList) {
     qualityDistribution[item.resultQuality] = (qualityDistribution[item.resultQuality] || 0) + 1;
   }
   const sum = (pick) => completed.reduce((total, item) => total + (pick(item) || 0), 0);
+  // 平均只对有值的样本计算：零证据 case 的引用指标为 null，不应把平均拉低。
+  const avg = (pick) => {
+    const values = completed.map(pick).filter((value) => typeof value === 'number' && Number.isFinite(value));
+    return values.length ? Number((values.reduce((total, value) => total + value, 0) / values.length).toFixed(4)) : null;
+  };
+
+  // Writer 降级观测：模型报告被拒 → 确定性 fallback 接管，是 Phase 1 repair_report 的基线。
+  const attempted = completed.filter((item) => item.writerModelAttempted);
+  const accepted = attempted.filter((item) => item.writerMode === 'model');
+  const fallbacks = attempted.filter((item) => item.writerMode !== 'model');
+  const fallbackReasonCodes = {};
+  for (const item of fallbacks) {
+    const code = item.writerReasonCode || 'unknown';
+    fallbackReasonCodes[code] = (fallbackReasonCodes[code] || 0) + 1;
+  }
+
   return {
     caseCount: metricsList.length,
     completedCount: completed.length,
     qualityDistribution,
-    avgLatencyMs: completed.length
-      ? Math.round(sum((item) => item.latencyMs) / completed.length)
-      : null,
+    avgLatencyMs: completed.length ? Math.round(sum((item) => item.latencyMs) / completed.length) : null,
+    citation: {
+      // 引用有效性与证据使用率是两个口径：前者要求被引用的引用全部有效（Ledger 验收口径），
+      // 后者允许候选 citation 不被全部使用，低于 1 不是缺陷。
+      avgValidityRate: avg((item) => item.citationValidityRate),
+      avgEvidenceUsageRate: avg((item) => item.evidenceUsageRate),
+      structureValidCount: completed.filter((item) => item.citationStructureValid).length
+    },
+    writerFallback: {
+      modelAttemptedCount: attempted.length,
+      modelAcceptedCount: accepted.length,
+      fallbackCount: fallbacks.length,
+      fallbackRatio: attempted.length ? Number((fallbacks.length / attempted.length).toFixed(4)) : null,
+      fallbackReasonCodes
+    },
     totals: {
       inputTokens: sum((item) => item.tokens?.inputTokens),
       outputTokens: sum((item) => item.tokens?.outputTokens),
       webSearchRequests: sum((item) => item.externalCalls?.webSearchRequests),
       readerReads: sum((item) => item.externalCalls?.readerSuccesses),
       readerFailures: sum((item) => item.externalCalls?.readerFailures)
-    },
-    avgCitationTraceableRatio: completed.length
-      ? Number((sum((item) => item.citationTraceableRatio) / completed.length).toFixed(4))
-      : null
+    }
   };
+}
+
+function invalidReasonsOf(metricsList) {
+  const reasons = [];
+  for (const item of metricsList) {
+    if (item.status === 'eval_error') {
+      reasons.push(`case ${item.caseId}: eval_error — ${item.error || '未知错误'}`);
+    } else if (item.status !== 'completed') {
+      reasons.push(`case ${item.caseId}: 未完成（status=${item.status}，failedStage=${item.failedStage || '-'}）`);
+    } else if (item.searchMode !== 'local' && (item.webSearchStatus === 'unavailable' || item.webSearchStatus === 'error')) {
+      reasons.push(`case ${item.caseId}: 联网 Provider 整体不可用/出错（webSearchStatus=${item.webSearchStatus}）`);
+    }
+  }
+  return reasons;
 }
 
 const { runEvalCase } = await import('./harness.js');
 const metricsList = await runAll();
-const outputDir = path.join(repoRoot, 'docs/artifacts/research-harness');
-fs.mkdirSync(outputDir, { recursive: true });
-const outputPath = path.join(outputDir, 'phase0-baseline.json');
+const invalidReasons = invalidReasonsOf(metricsList);
+const valid = invalidReasons.length === 0;
+
+function gitInfo() {
+  try {
+    return {
+      codeCommit: execSync('git rev-parse HEAD', { cwd: repoRoot }).toString().trim(),
+      branch: execSync('git rev-parse --abbrev-ref HEAD', { cwd: repoRoot }).toString().trim()
+    };
+  } catch {
+    return { codeCommit: 'unknown', branch: 'unknown' };
+  }
+}
+
+const caseSetHash = crypto.createHash('sha256')
+  .update(caseFileNames
+    .map((name) => `${name}:${crypto.createHash('sha256').update(fs.readFileSync(path.join(casesDir, name))).digest('hex')}`)
+    .join('\n'))
+  .digest('hex')
+  .slice(0, 16);
+
 const payload = {
+  valid,
+  invalidReasons,
   generatedAt: new Date().toISOString(),
-  env: { model, webProvider: 'bocha', claimSupportRate: 'not_evaluated（人工/Judge 口径，Phase 0 无自动化判定）' },
+  provenance: {
+    ...gitInfo(),
+    model,
+    provider: 'bocha',
+    providerConfigured: true,
+    caseSetHash,
+    config: {
+      topK: 6,
+      concurrency: 1,
+      searchModes: [...new Set(selectedCases.map((item) => item.searchMode))],
+      knowledgeBaseScope: 'empty（本地检索为空 stub，见 deviations）'
+    },
+    deviations: [
+      'web 检索直连 createWebSearchProvider，绕过生产 Search service 与 MCP transport',
+      'local 检索为空结果 stub（Phase 0 case 均为空知识库范围）'
+    ],
+    scope: 'web 为主的探索性基线：可观察真实链路的质量/时延/成本量级，不能单独满足 Phase 3 representative 校准前置（缺真实 local/hybrid 代表样本或等价脱敏回放）'
+  },
   summary: summarize(metricsList),
   cases: metricsList
 };
+
+const outputDir = path.join(here, 'baselines');
+fs.mkdirSync(outputDir, { recursive: true });
+const outputPath = path.join(outputDir, 'phase0-baseline.json');
 fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
-console.log(`\n基线已写入 ${outputPath}`);
+
+console.log(`\n基线已写入 ${outputPath}（valid=${valid}）`);
 console.log(JSON.stringify(payload.summary, null, 2));
+if (!valid) {
+  console.error(`\nbaseline invalid，不能作为校准依据：\n- ${invalidReasons.join('\n- ')}`);
+  process.exitCode = 1;
+}
