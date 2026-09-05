@@ -1,0 +1,75 @@
+{
+  "cases": [
+    {
+      "id": "hybrid-mixed-channels",
+      "name": "hybrid 混合来源：本地与联网证据并存且各自保留来源类别",
+      "question": "etcd 与 ZooKeeper 的一致性协议有什么差异？",
+      "searchMode": "hybrid",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "etcd 一致性协议", "question": "etcd 使用的一致性协议是什么？", "searchQuery": "etcd 一致性协议 raft", "intent": "investigation", "facets": ["raft"] },
+            { "id": "q2", "subject": "ZooKeeper 一致性协议", "question": "ZooKeeper 使用的一致性协议是什么？", "searchQuery": "ZooKeeper 一致性协议 zab", "intent": "investigation", "facets": ["zab"] }
+          ]
+        },
+        "search": {
+          "etcd 一致性协议 raft": {
+            "web": [
+              { "id": "s1", "title": "etcd 架构文档", "url": "https://docs.example.org/etcd-architecture", "snippet": "etcd 使用 Raft 协议保证集群数据一致性，日志复制与选主逻辑均在 raft 库中实现。" }
+            ]
+          },
+          "ZooKeeper 一致性协议 zab": {
+            "webSearchStatus": "available",
+            "local": [
+              { "id": "l1", "title": "ZooKeeper 内部笔记", "snippet": "ZooKeeper 使用 ZAB 协议保证主备数据一致性，崩溃恢复与消息广播是 ZAB 的两个核心阶段。" }
+            ]
+          }
+        },
+        "read": {
+          "s1": { "text": "etcd 使用 Raft 协议保证集群数据一致性。\n\nRaft 的选主与日志复制逻辑独立成库，etcd 在其上实现了 MVCC 与事务语义。" },
+          "l1": { "text": "ZooKeeper 的 ZAB 协议包含崩溃恢复与消息广播两个阶段。\n\n主节点选举完成后，写请求以广播模式在集群内复制。" }
+        },
+        "writer": "faithful"
+      },
+      "expectations": {
+        "minEvidence": 2,
+        "minCoverage": 1,
+        "quality": ["sufficient", "limited"],
+        "webSearchStatus": "available"
+      }
+    },
+    {
+      "id": "hybrid-web-error",
+      "name": "hybrid 联网失败：web 全部失败但本地证据可用，报告必须显式降级",
+      "question": "Kafka 的副本同步机制是如何工作的？",
+      "searchMode": "hybrid",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "副本同步机制", "question": "Kafka 副本同步的核心机制是什么？", "searchQuery": "Kafka 副本同步 机制", "intent": "investigation", "facets": ["副本"] }
+          ]
+        },
+        "search": {
+          "Kafka 副本同步 机制": {
+            "webSearchStatus": "error",
+            "local": [
+              { "id": "l1", "title": "Kafka 副本机制笔记", "snippet": "Kafka 副本同步的核心机制是 leader 维护 ISR 列表，follower 通过拉取日志保持与 leader 同步。" }
+            ]
+          }
+        },
+        "read": {
+          "l1": { "text": "Kafka 副本同步依赖 leader 维护的 ISR 列表。\n\nfollower 通过持续拉取日志保持同步，落后超过阈值的副本会被移出 ISR。" }
+        },
+        "writer": "faithful"
+      },
+      "expectations": {
+        "minEvidence": 1,
+        "quality": ["limited"],
+        "webSearchStatus": "error",
+        "limitationIncludes": ["public_search_failed", "public_evidence_not_included"]
+      }
+    }
+  ]
+}

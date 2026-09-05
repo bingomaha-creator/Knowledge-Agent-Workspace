@@ -1,0 +1,272 @@
+{
+  "cases": [
+    {
+      "id": "web-full-coverage",
+      "name": "web 全覆盖：三个子问题均有可读正文来源，模型报告引用全部生效",
+      "question": "SQLite 与 PostgreSQL 在中小型应用中的运维成本有什么差异？",
+      "searchMode": "web",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "SQLite 运维成本", "question": "SQLite 的运维成本包含哪些部分？", "searchQuery": "SQLite 运维成本 组成部分", "intent": "investigation", "facets": ["备份", "监控"] },
+            { "id": "q2", "subject": "PostgreSQL 运维成本", "question": "PostgreSQL 的运维成本包含哪些部分？", "searchQuery": "PostgreSQL 运维成本 组成部分", "intent": "investigation", "facets": ["备份", "监控"] },
+            { "id": "q3", "subject": "备份升级差异", "question": "SQLite 与 PostgreSQL 在备份与升级上的差异是什么？", "searchQuery": "SQLite PostgreSQL 备份 升级 差异", "intent": "comparison", "facets": ["备份", "升级"] }
+          ]
+        },
+        "search": {
+          "SQLite 运维成本 组成部分": {
+            "web": [
+              { "id": "s1", "title": "SQLite 运维手册", "url": "https://docs.example.org/sqlite-ops", "snippet": "SQLite 的运维成本主要包含备份、监控、容量规划与版本升级几个部分，轻量部署下日常运维成本明显低于大型数据库服务。" },
+              { "id": "s2", "title": "嵌入式数据库运维指南", "url": "https://wiki.example.org/embedded-ops", "snippet": "SQLite 几乎不需要专职运维人员，其运维成本集中在文件备份与磁盘空间监控两部分。" }
+            ]
+          },
+          "PostgreSQL 运维成本 组成部分": {
+            "web": [
+              { "id": "s3", "title": "PostgreSQL 运维清单", "url": "https://docs.example.org/postgres-ops", "snippet": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控、连接池维护与大版本升级等部分。" },
+              { "id": "s4", "title": "PostgreSQL 容量规划", "url": "https://wiki.example.org/postgres-capacity", "snippet": "PostgreSQL 需要定期执行 VACUUM 与索引维护，这部分构成其长期运维成本的主要组成。" }
+            ]
+          },
+          "SQLite PostgreSQL 备份 升级 差异": {
+            "web": [
+              { "id": "s5", "title": "两种数据库备份对比", "url": "https://docs.example.org/backup-compare", "snippet": "SQLite 通过文件复制即可完成备份，PostgreSQL 则需要基础备份加 WAL 归档，两者的升级路径差异同样明显。" },
+              { "id": "s6", "title": "升级路径差异说明", "url": "https://wiki.example.org/upgrade-path", "snippet": "PostgreSQL 大版本升级需要 pg_upgrade 或逻辑复制，SQLite 升级通常随应用发布自动完成。" }
+            ]
+          }
+        },
+        "read": {
+          "s1": { "text": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级三部分组成。\n\n由于 SQLite 以单文件形式存在，运维人员只需复制数据库文件即可完成备份，无需独立的备份服务。" },
+          "s2": { "text": "嵌入式场景下 SQLite 几乎不需要专职运维角色。\n\n其成本集中在磁盘空间监控与文件完整性校验两部分，社区文档提供了标准化的检查清单。" },
+          "s3": { "text": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。\n\n生产环境还需要为大版本升级预留停机窗口或配置逻辑复制，这些都计入长期运维成本。" },
+          "s4": { "text": "PostgreSQL 需要定期执行 VACUUM 与索引重建来控制表膨胀。\n\n这部分维护工作构成了其长期运维成本的主要组成，通常由数据库管理员按周执行。" },
+          "s5": { "text": "SQLite 通过文件复制即可完成备份，PostgreSQL 需要基础备份叠加 WAL 归档才能保证恢复点目标。\n\n两者的备份复杂度差异直接反映在运维人力投入上。" },
+          "s6": { "text": "PostgreSQL 的大版本升级需要 pg_upgrade 工具或逻辑复制迁移数据。\n\nSQLite 的版本升级通常随应用程序发布自动完成，几乎不产生额外的运维成本。" }
+        },
+        "writer": "faithful"
+      },
+      "expectations": {
+        "minEvidence": 6,
+        "minCoverage": 1,
+        "quality": ["sufficient", "limited"],
+        "webSearchStatus": "available",
+        "readSourceCount": 6,
+        "snippetFallbackCount": 0,
+        "writerMode": "model"
+      }
+    },
+    {
+      "id": "web-partial-coverage",
+      "name": "web 部分覆盖：第三个子问题无来源，覆盖率低于 0.75 必须披露局限",
+      "question": "SQLite 与 PostgreSQL 在中小型应用中的运维成本有什么差异？",
+      "searchMode": "web",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "SQLite 运维成本", "question": "SQLite 的运维成本包含哪些部分？", "searchQuery": "SQLite 运维成本 组成部分", "intent": "investigation", "facets": ["备份"] },
+            { "id": "q2", "subject": "PostgreSQL 运维成本", "question": "PostgreSQL 的运维成本包含哪些部分？", "searchQuery": "PostgreSQL 运维成本 组成部分", "intent": "investigation", "facets": ["备份"] },
+            { "id": "q3", "subject": "云托管成本差异", "question": "两者在云托管场景下的成本差异如何？", "searchQuery": "云托管 数据库 成本差异", "intent": "comparison", "facets": ["云托管"] }
+          ]
+        },
+        "search": {
+          "SQLite 运维成本 组成部分": {
+            "web": [
+              { "id": "s1", "title": "SQLite 运维手册", "url": "https://docs.example.org/sqlite-ops", "snippet": "SQLite 的运维成本主要包含备份、监控与版本升级几个部分，轻量部署下日常运维成本较低。" }
+            ]
+          },
+          "PostgreSQL 运维成本 组成部分": {
+            "web": [
+              { "id": "s2", "title": "PostgreSQL 运维清单", "url": "https://docs.example.org/postgres-ops", "snippet": "PostgreSQL 的运维成本包含实例管理、归档备份、慢查询监控与版本升级等部分。" }
+            ]
+          },
+          "云托管 数据库 成本差异": { "webSearchStatus": "available" }
+        },
+        "read": {
+          "s1": { "text": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级组成。\n\n轻量部署场景下无需专职数据库管理员，日常运维以文件备份为主。" },
+          "s2": { "text": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。\n\n生产环境还需要为大版本升级预留停机窗口。" }
+        },
+        "writer": "faithful"
+      },
+      "expectations": {
+        "minEvidence": 1,
+        "maxCoverage": 0.7,
+        "quality": ["limited"],
+        "webSearchStatus": "available",
+        "limitationIncludes": ["low_subquestion_coverage", "thin_evidence_pack"]
+      }
+    },
+    {
+      "id": "web-no-results",
+      "name": "web 零命中：provider 正常返回但无命中，必须诚实输出证据缺口报告",
+      "question": "向量数据库 HNSW 索引的内存占用如何估算？",
+      "searchMode": "web",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "内存占用决定因素", "question": "HNSW 索引的内存占用由什么决定？", "searchQuery": "HNSW 索引 内存占用 决定因素", "intent": "investigation", "facets": ["内存"] },
+            { "id": "q2", "subject": "估算方法", "question": "有哪些公开的 HNSW 内存估算方法？", "searchQuery": "HNSW 内存估算 方法", "intent": "investigation", "facets": ["估算"] }
+          ]
+        },
+        "search": {
+          "HNSW 索引 内存占用 决定因素": { "webSearchStatus": "available" },
+          "HNSW 内存估算 方法": { "webSearchStatus": "available" }
+        },
+        "read": {},
+        "writer": "faithful"
+      },
+      "expectations": {
+        "maxEvidence": 0,
+        "quality": ["insufficient"],
+        "webSearchStatus": "available",
+        "writerMode": "fallback",
+        "limitationIncludes": ["no_relevant_evidence"]
+      }
+    },
+    {
+      "id": "web-provider-unavailable",
+      "name": "web provider 不可用：明确降级并保留 unavailable 状态，不伪装成证据不足以外的失败",
+      "question": "图数据库 Neo4j 的社区版有哪些功能限制？",
+      "searchMode": "web",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "社区版限制", "question": "Neo4j 社区版包含哪些功能限制？", "searchQuery": "Neo4j 社区版 功能限制", "intent": "investigation", "facets": ["限制"] }
+          ]
+        },
+        "search": {
+          "Neo4j 社区版 功能限制": { "web": [], "webSearchStatus": "unavailable" }
+        },
+        "read": {},
+        "writer": "faithful"
+      },
+      "expectations": {
+        "maxEvidence": 0,
+        "quality": ["insufficient"],
+        "webSearchStatus": "unavailable",
+        "limitationIncludes": ["public_search_unavailable"]
+      }
+    },
+    {
+      "id": "web-snippet-only",
+      "name": "web 仅摘要：全部来源读取失败，证据退化为 snippet 并必须可区分",
+      "question": "OAuth 2.1 相对 OAuth 2.0 的主要变化有哪些？",
+      "searchMode": "web",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "授权流程变化", "question": "OAuth 2.1 移除或新增了哪些授权流程？", "searchQuery": "OAuth 2.1 授权流程 变化", "intent": "investigation", "facets": ["授权"] },
+            { "id": "q2", "subject": "PKCE 要求", "question": "OAuth 2.1 对 PKCE 有什么新要求？", "searchQuery": "OAuth 2.1 PKCE 要求", "intent": "investigation", "facets": ["PKCE"] }
+          ]
+        },
+        "search": {
+          "OAuth 2.1 授权流程 变化": {
+            "web": [
+              { "id": "s1", "title": "OAuth 2.1 草案摘要", "url": "https://docs.example.org/oauth21-draft", "snippet": "OAuth 2.1 移除了隐式授权流程与密码授权流程，并新增了设备授权流程的规范化描述。" }
+            ]
+          },
+          "OAuth 2.1 PKCE 要求": {
+            "web": [
+              { "id": "s2", "title": "PKCE 新要求说明", "url": "https://wiki.example.org/oauth21-pkce", "snippet": "OAuth 2.1 要求所有授权码流程的客户端默认使用 PKCE，不再区分公共客户端与机密客户端。" }
+            ]
+          }
+        },
+        "read": {
+          "s1": { "fail": true, "code": "UPSTREAM_ERROR", "message": "fixture 模拟上游读取失败" },
+          "s2": { "fail": true, "code": "UPSTREAM_ERROR", "message": "fixture 模拟上游读取失败" }
+        },
+        "writer": "faithful"
+      },
+      "expectations": {
+        "minEvidence": 2,
+        "readSourceCount": 0,
+        "readerFailures": 2,
+        "snippetFallbackRate": 1,
+        "quality": ["limited"],
+        "webSearchStatus": "available"
+      }
+    },
+    {
+      "id": "web-read-partial",
+      "name": "web 部分读取：一个来源读取失败，正文与 snippet 证据必须可区分",
+      "question": "WebAssembly 在服务端场景的落地情况如何？",
+      "searchMode": "web",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "运行时支持", "question": "服务端有哪些 WebAssembly 运行时？", "searchQuery": "WebAssembly 服务端 运行时", "intent": "investigation", "facets": ["运行时"] },
+            { "id": "q2", "subject": "落地案例", "question": "WebAssembly 在服务端有哪些落地案例？", "searchQuery": "WebAssembly 服务端 落地案例", "intent": "investigation", "facets": ["案例"] },
+            { "id": "q3", "subject": "性能表现", "question": "WebAssembly 服务端运行的性能表现如何？", "searchQuery": "WebAssembly 服务端 性能", "intent": "investigation", "facets": ["性能"] }
+          ]
+        },
+        "search": {
+          "WebAssembly 服务端 运行时": {
+            "web": [
+              { "id": "s1", "title": "Wasm 运行时盘点", "url": "https://docs.example.org/wasm-runtimes", "snippet": "服务端常见的 WebAssembly 运行时包括 Wasmtime、WasmEdge 与 Wasmer，三者的运行时特性各有侧重。" }
+            ]
+          },
+          "WebAssembly 服务端 落地案例": {
+            "web": [
+              { "id": "s2", "title": "Wasm 服务端案例", "url": "https://wiki.example.org/wasm-server-cases", "snippet": "WebAssembly 在服务端的落地案例集中在插件系统、边缘函数与数据预处理三类场景。" }
+            ]
+          },
+          "WebAssembly 服务端 性能": {
+            "web": [
+              { "id": "s3", "title": "Wasm 性能报告", "url": "https://docs.example.org/wasm-performance", "snippet": "WebAssembly 服务端运行的性能接近原生代码的七成以上，冷启动显著快于传统容器方案。" }
+            ]
+          }
+        },
+        "read": {
+          "s1": { "text": "服务端常见的 WebAssembly 运行时包括 Wasmtime、WasmEdge 与 Wasmer。\n\nWasmtime 强调安全隔离，WasmEdge 侧重云端部署，Wasmer 支持多后端编译。" },
+          "s2": { "text": "WebAssembly 在服务端的落地案例集中在插件系统、边缘函数与数据预处理。\n\n插件系统借助 Wasm 的沙箱能力实现多租户代码隔离。" },
+          "s3": { "fail": true, "code": "UPSTREAM_ERROR", "message": "fixture 模拟上游读取失败" }
+        },
+        "writer": "faithful"
+      },
+      "expectations": {
+        "minEvidence": 4,
+        "readSourceCount": 2,
+        "readerFailures": 1,
+        "snippetFallbackCount": 1,
+        "quality": ["sufficient", "limited"],
+        "webSearchStatus": "available"
+      }
+    },
+    {
+      "id": "web-github-primary",
+      "name": "web 一手仓库来源：GitHub 仓库来源应获得更好的 provenance 分类",
+      "question": "Redis 开源项目 7.x 版本引入了哪些新特性？",
+      "searchMode": "web",
+      "knowledgeBaseIds": [],
+      "fixtures": {
+        "plan": {
+          "subquestions": [
+            { "id": "q1", "subject": "Redis 7.x 新特性", "question": "Redis 7.x 新增了哪些命令与数据结构？", "searchQuery": "Redis 7.x 新特性 命令", "intent": "investigation", "facets": ["命令"], "evidenceNeed": { "preferredSourceTypes": ["official_repo"] } }
+          ]
+        },
+        "search": {
+          "Redis 7.x 新特性 命令": {
+            "web": [
+              { "id": "s1", "title": "Redis 7.0 release notes", "url": "https://github.com/redis/redis/releases", "snippet": "Redis 7.x 引入了 Redis Functions、多部分 AOF 与 Sharded Pub/Sub 等新特性，并新增了多种命令。" },
+              { "id": "s2", "title": "Redis 7.2 release notes", "url": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES", "snippet": "Redis 7.2 新增了 Lua 脚本执行效果改进与新的集合命令，进一步扩展了数据结构能力。" }
+            ]
+          }
+        },
+        "read": {
+          "s1": { "text": "Redis 7.x 引入了 Redis Functions、多部分 AOF 持久化与 Sharded Pub/Sub。\n\n这些新特性在 release notes 中有完整清单，并附带了对应的命令说明。" },
+          "s2": { "text": "Redis 7.2 的 release notes 记录了 Lua 脚本执行改进与新的集合命令。\n\n数据结构能力的扩展主要集中在流与集合两类命令上。" }
+        },
+        "writer": "faithful"
+      },
+      "expectations": {
+        "minEvidence": 2,
+        "minCoverage": 1,
+        "quality": ["sufficient", "limited"],
+        "webSearchStatus": "available"
+      }
+    }
+  ]
+}
