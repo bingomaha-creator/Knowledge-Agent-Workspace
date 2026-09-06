@@ -35,6 +35,7 @@ import { createResearchSourceReader } from '../../services/research-source-reade
 import { createResearchRepositoryResolver } from '../../services/research-repository-resolver.js';
 import { createWebSearchProvider } from '../../web-search-provider.js';
 import { computeCaseMetrics } from './metrics.js';
+import { resolveBaselineOutputPath } from './output-path.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(here, '../../..');
@@ -321,19 +322,18 @@ const payload = {
 
 const outputDir = path.join(here, 'baselines');
 fs.mkdirSync(outputDir, { recursive: true });
-let outputPath;
-if (caseFilter) {
-  // --case 单查只写诊断文件，绝不覆盖 canonical baseline。
-  const diagDir = path.join(outputDir, 'diagnostics');
-  fs.mkdirSync(diagDir, { recursive: true });
-  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  outputPath = path.join(diagDir, `${stamp}_${selectedCaseIds.join('_')}.json`);
-} else {
-  outputPath = path.join(outputDir, 'phase0-baseline.json');
-}
+// 路径决策收敛在 output-path.js（含 slug 消毒与 canonical 保护）并有独立单测。
+const resolvedOutput = resolveBaselineOutputPath({
+  baselineDir: outputDir,
+  partialRun: Boolean(caseFilter),
+  caseIds: selectedCaseIds,
+  timestamp: new Date()
+});
+const outputPath = resolvedOutput.path;
+fs.mkdirSync(path.dirname(outputPath), { recursive: true });
 fs.writeFileSync(outputPath, `${JSON.stringify(payload, null, 2)}\n`);
 
-console.log(`\n已写入 ${outputPath}（valid=${valid}${caseFilter ? '，诊断文件：不影响 canonical baseline' : '，canonical baseline 已更新'}）`);
+console.log(`\n已写入 ${outputPath}（kind=${resolvedOutput.kind}，valid=${valid}${resolvedOutput.kind === 'diagnostics' ? '，诊断文件：不影响 canonical baseline' : '，canonical baseline 已更新'}）`);
 console.log(JSON.stringify(payload.summary, null, 2));
 if (!valid) {
   console.error(`\nbaseline invalid，不能作为校准依据：\n- ${invalidReasons.join('\n- ')}`);
