@@ -56,7 +56,12 @@ export function createResearchRouter({
         code: 'RESEARCH_NOT_FOUND'
       });
     }
-    return res.json({ task });
+    // Phase 1 Harness shadow（Spec research-harness §10）：契约检查与 RunBudget 作为
+    // 详情快照的增量字段透出，只增不改；缺失时为 null，不影响既有字段与轮询协议。
+    // 可选调用兼容未实现新方法的 store 形状（含集成测试的 mock）。
+    const contract = researchStore.getContractChecks?.(task.id) || null;
+    const budget = researchStore.getRunBudget?.(task.id) || null;
+    return res.json({ task: { ...task, contract, budget } });
   });
 
   router.post('/api/research', (req, res) => {

@@ -111,6 +111,42 @@ export function researchDiagnosticReasonLabel(code?: string) {
   })[code || ''] || '';
 }
 
+// —— Phase 1 Harness shadow 展示（Spec research-harness §10）——
+// shadow 指标必须明确标识为评估结果，禁止"事实核验通过"类文案。
+
+export function contractActionLabel(action: string) {
+  return ({
+    complete: '可交付',
+    replan: '建议补检索',
+    repair_report: '建议修复报告',
+    deliver_insufficient: '建议按证据缺口交付',
+    fail: '建议诚实失败'
+  })[action] || action;
+}
+
+export function contractCheckKindLabel(kind: string) {
+  return ({
+    citation_membership: '引用归属',
+    no_invalid_markers: '非法引用标记',
+    delivery_mode_consistent: '交付形态一致',
+    required_section: '必需章节',
+    limitation_disclosure: '局限披露',
+    writer_input_boundary: 'Writer 输入边界',
+    min_evidence: '最低证据数',
+    subquestion_coverage: '子问题覆盖',
+    source_diversity: '来源多样性',
+    fulltext_read_rate: '正文读取率',
+    writer_output_accepted: '模型报告采纳',
+    claim_support: '语义支持（评估口径）'
+  })[kind] || kind;
+}
+
+export function contractCheckStateLabel(passed: boolean | null) {
+  if (passed === true) return '通过';
+  if (passed === false) return '未通过';
+  return '本次无法评估';
+}
+
 export function clampResearchProgress(progress: number) {
   return Number.isFinite(progress) ? Math.min(100, Math.max(0, Math.round(progress))) : 0;
 }

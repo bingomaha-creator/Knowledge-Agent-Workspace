@@ -214,6 +214,59 @@ function migrateDatabase(db) {
     )
   `);
 
+  // Phase 1 Harness shadow（Spec research-harness §8/§9）：完成契约检查、RunBudget
+  // 计数与错误分类均为独立 side table，只增不改；不进入任务状态机，也不改变
+  // completed/failed 语义。
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS research_contract_checks (
+      run_id TEXT NOT NULL,
+      check_id TEXT NOT NULL,
+      kind TEXT NOT NULL,
+      required INTEGER NOT NULL DEFAULT 1,
+      passed INTEGER,
+      threshold REAL,
+      verifier TEXT NOT NULL DEFAULT 'completion-policy',
+      verifier_version INTEGER NOT NULL DEFAULT 1,
+      observed_json TEXT NOT NULL DEFAULT '{}',
+      explanation TEXT NOT NULL DEFAULT '',
+      not_evaluable_cause TEXT,
+      mode TEXT NOT NULL DEFAULT 'shadow',
+      next_action TEXT NOT NULL DEFAULT 'complete',
+      next_action_reason TEXT NOT NULL DEFAULT '',
+      verdict_passed INTEGER,
+      created_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, check_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS research_run_budget (
+      run_id TEXT PRIMARY KEY,
+      wall_time_ms INTEGER NOT NULL DEFAULT 0,
+      web_search_calls INTEGER NOT NULL DEFAULT 0,
+      targeted_replans_used INTEGER NOT NULL DEFAULT 0,
+      targeted_replans_limit INTEGER NOT NULL DEFAULT 1,
+      report_repairs_used INTEGER NOT NULL DEFAULT 0,
+      report_repairs_limit INTEGER NOT NULL DEFAULT 1,
+      adapter_retries_used INTEGER NOT NULL DEFAULT 0,
+      adapter_retries_limit INTEGER NOT NULL DEFAULT 3,
+      writer_input_tokens INTEGER NOT NULL DEFAULT 0,
+      writer_output_tokens INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS research_run_errors (
+      run_id TEXT NOT NULL,
+      stage TEXT NOT NULL DEFAULT '',
+      category TEXT NOT NULL,
+      code TEXT NOT NULL DEFAULT '',
+      message TEXT NOT NULL DEFAULT '',
+      retryable INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_research_run_errors_run
+      ON research_run_errors(run_id, created_at);
+  `);
+
   const columns = tableColumns(db, 'research_tasks');
   const addsResultQuality = !columns.has('result_quality');
   const addsLimitations = !columns.has('limitations_json');
@@ -702,9 +755,168 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     return listResumable();
   }
 
+  // —— Phase 1 Harness shadow（Spec research-harness §8/§9）——
+  // 契约检查、RunBudget 计数与错误分类只写入独立 side table，绝不回写任务状态机：
+  // shadow 结果丢失或缺失都不影响 completed/failed 语义。
+
+  function recordContractChecks(runId, verdict) {
+    if (!verdict || !Array.isArray(verdict.checks)) return;
+    const now = Date.now();
+    const upsert = db.prepare(`
+      INSERT INTO research_contract_checks (
+        run_id, check_id, kind, required, passed, threshold, verifier, verifier_version,
+        observed_json, explanation, not_evaluable_cause, mode, next_action,
+        next_action_reason, verdict_passed, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(run_id, check_id) DO UPDATE SET
+        kind = excluded.kind,
+        required = excluded.required,
+        passed = excluded.passed,
+        threshold = excluded.threshold,
+        verifier = excluded.verifier,
+        verifier_version = excluded.verifier_version,
+        observed_json = excluded.observed_json,
+        explanation = excluded.explanation,
+        not_evaluable_cause = excluded.not_evaluable_cause,
+        mode = excluded.mode,
+        next_action = excluded.next_action,
+        next_action_reason = excluded.next_action_reason,
+        verdict_passed = excluded.verdict_passed,
+        created_at = excluded.created_at
+    `);
+    for (const item of verdict.checks) {
+      upsert.run(
+        runId,
+        String(item.id || ''),
+        String(item.kind || ''),
+        item.required === true ? 1 : 0,
+        item.passed === true ? 1 : item.passed === false ? 0 : null,
+        Number.isFinite(Number(item.threshold)) ? Number(item.threshold) : null,
+        String(item.verifier || 'completion-policy'),
+        Number(item.verifierVersion || 1),
+        JSON.stringify(item.observed || {}),
+        String(item.explanation || ''),
+        item.notEvaluableCause || null,
+        String(verdict.mode || 'shadow'),
+        String(verdict.nextAction || 'complete'),
+        String(verdict.nextActionReason || ''),
+        verdict.passed === true ? 1 : verdict.passed === false ? 0 : null,
+        now
+      );
+    }
+  }
+
+  function getContractChecks(runId) {
+    const rows = db.prepare(
+      'SELECT * FROM research_contract_checks WHERE run_id = ? ORDER BY check_id'
+    ).all(runId);
+    if (!rows.length) return null;
+    const head = rows[0];
+    const checks = rows.map((row) => ({
+      id: row.check_id,
+      kind: row.kind,
+      required: row.required === 1,
+      passed: row.passed === null ? null : row.passed === 1,
+      threshold: row.threshold,
+      verifier: row.verifier,
+      verifierVersion: row.verifier_version,
+      observed: parseJson(row.observed_json, {}),
+      explanation: row.explanation,
+      notEvaluableCause: row.not_evaluable_cause || null
+    }));
+    return {
+      mode: head.mode,
+      passed: head.verdict_passed === null ? null : head.verdict_passed === 1,
+      nextAction: head.next_action,
+      nextActionReason: head.next_action_reason,
+      checks,
+      deliveryFailures: checks.filter((item) => item.required && item.passed === false).map((item) => item.id),
+      notEvaluableRequired: checks.filter((item) => item.required && item.passed === null).map((item) => item.id)
+    };
+  }
+
+  function upsertRunBudget(runId, snapshot) {
+    const safe = snapshot || {};
+    db.prepare(`
+      INSERT INTO research_run_budget (
+        run_id, wall_time_ms, web_search_calls,
+        targeted_replans_used, targeted_replans_limit,
+        report_repairs_used, report_repairs_limit,
+        adapter_retries_used, adapter_retries_limit,
+        writer_input_tokens, writer_output_tokens, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(run_id) DO UPDATE SET
+        wall_time_ms = excluded.wall_time_ms,
+        web_search_calls = excluded.web_search_calls,
+        targeted_replans_used = excluded.targeted_replans_used,
+        targeted_replans_limit = excluded.targeted_replans_limit,
+        report_repairs_used = excluded.report_repairs_used,
+        report_repairs_limit = excluded.report_repairs_limit,
+        adapter_retries_used = excluded.adapter_retries_used,
+        adapter_retries_limit = excluded.adapter_retries_limit,
+        writer_input_tokens = excluded.writer_input_tokens,
+        writer_output_tokens = excluded.writer_output_tokens,
+        updated_at = excluded.updated_at
+    `).run(
+      runId,
+      Math.max(0, Math.round(Number(safe.wallTimeMs) || 0)),
+      Math.max(0, Math.round(Number(safe.webSearchCalls) || 0)),
+      Math.max(0, Math.round(Number(safe.targetedReplansUsed) || 0)),
+      Math.max(1, Math.round(Number(safe.targetedReplansLimit) || 1)),
+      Math.max(0, Math.round(Number(safe.reportRepairsUsed) || 0)),
+      Math.max(1, Math.round(Number(safe.reportRepairsLimit) || 1)),
+      Math.max(0, Math.round(Number(safe.adapterRetriesUsed) || 0)),
+      Math.max(1, Math.round(Number(safe.adapterRetriesLimit) || 3)),
+      Math.max(0, Math.round(Number(safe.writerInputTokens) || 0)),
+      Math.max(0, Math.round(Number(safe.writerOutputTokens) || 0)),
+      Date.now()
+    );
+  }
+
+  function getRunBudget(runId) {
+    const row = db.prepare('SELECT * FROM research_run_budget WHERE run_id = ?').get(runId);
+    if (!row) return null;
+    return {
+      wallTimeMs: row.wall_time_ms,
+      webSearchCalls: row.web_search_calls,
+      targetedReplans: { used: row.targeted_replans_used, limit: row.targeted_replans_limit },
+      reportRepairs: { used: row.report_repairs_used, limit: row.report_repairs_limit },
+      adapterRetries: { used: row.adapter_retries_used, limit: row.adapter_retries_limit },
+      writerTokens: { input: row.writer_input_tokens, output: row.writer_output_tokens },
+      updatedAt: row.updated_at
+    };
+  }
+
+  function recordRunError(runId, { stage = '', category = 'internal', code = '', message = '', retryable = false } = {}) {
+    db.prepare(`
+      INSERT INTO research_run_errors (run_id, stage, category, code, message, retryable, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `).run(runId, String(stage || ''), String(category || 'internal'), String(code || ''),
+      String(message || '').slice(0, 2000), retryable === true ? 1 : 0, Date.now());
+  }
+
+  function listRunErrors(runId) {
+    return db.prepare(
+      'SELECT stage, category, code, message, retryable, created_at FROM research_run_errors WHERE run_id = ? ORDER BY created_at'
+    ).all(runId).map((row) => ({
+      stage: row.stage,
+      category: row.category,
+      code: row.code,
+      message: row.message,
+      retryable: row.retryable === 1,
+      createdAt: row.created_at
+    }));
+  }
+
   return {
     create,
     get: readTask,
+    recordContractChecks,
+    getContractChecks,
+    upsertRunBudget,
+    getRunBudget,
+    recordRunError,
+    listRunErrors,
     list,
     listSession,
     continueSession,

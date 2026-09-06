@@ -30,6 +30,49 @@ export type ResearchResultQuality = 'pending' | 'sufficient' | 'limited' | 'insu
 
 export type ResearchLimitation = { code: string; message: string };
 
+// —— Phase 1 Harness shadow（Spec research-harness §8.2/§10）——
+// 契约检查为评估结果，不阻断交付；passed 严格为 boolean | null（null = 本次无法评估）。
+export type ResearchContractCheck = {
+  id: string;
+  kind: string;
+  required: boolean;
+  passed: boolean | null;
+  threshold?: number | null;
+  verifier?: string;
+  verifierVersion?: number;
+  observed?: Record<string, unknown>;
+  explanation?: string;
+  notEvaluableCause?: 'report_defect' | 'evidence_gap' | 'infra' | null;
+};
+
+export type ResearchContractNextAction =
+  | 'complete'
+  | 'replan'
+  | 'repair_report'
+  | 'deliver_insufficient'
+  | 'fail';
+
+export type ResearchContractShadow = {
+  mode: 'shadow' | 'gate';
+  passed: boolean | null;
+  nextAction: ResearchContractNextAction;
+  nextActionReason?: string;
+  deliveryMode?: string;
+  checks: ResearchContractCheck[];
+  deliveryFailures?: string[];
+  notEvaluableRequired?: string[];
+};
+
+export type ResearchRunBudget = {
+  wallTimeMs: number;
+  webSearchCalls: number;
+  targetedReplans: { used: number; limit: number };
+  reportRepairs: { used: number; limit: number };
+  adapterRetries: { used: number; limit: number };
+  writerTokens: { input: number; output: number };
+  updatedAt: number;
+};
+
 export type ResearchCapabilities = {
   localKnowledge: boolean;
   publicPrimarySearch: { available: boolean; role: string };
@@ -172,6 +215,8 @@ export type ResearchTask = {
   continuationContext: ResearchContinuationContext | null;
   knowledgeBaseIds: string[];
   artifacts: ResearchArtifacts;
+  contract?: ResearchContractShadow | null;
+  budget?: ResearchRunBudget | null;
   createdAt: number;
   updatedAt: number;
   startedAt: number | null;

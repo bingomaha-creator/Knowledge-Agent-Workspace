@@ -23,6 +23,7 @@ import {
 } from './services/research-ai-service.js';
 import { assembleResearchEvidence } from './research-evidence.js';
 import { buildOutline, buildSections, verifyReport } from './research-report.js';
+import { evaluateCompletionContract } from './research-completion-policy.js';
 
 const WEB_SEARCH_STATUSES = new Set(RESEARCH_WEB_SEARCH_STATUS_VALUES);
 
@@ -232,6 +233,52 @@ function cancelled(error, task, signal) {
     error?.code === 'RESEARCH_CANCELLED' ||
     task?.status === 'cancelled' ||
     task?.cancelRequested;
+}
+
+/**
+ * RunBudget 快照（Spec research-harness §9.1 的 Phase 1 最小集）。
+ * 计数只从公开 artifacts 推导：web 检索调用数来自计划查询数，writer token 来自
+ * 写作诊断；replan/repair 在 Phase 1 从不执行，计数恒为 0、限额为待校准默认值。
+ */
+function buildRunBudgetSnapshot(artifacts, { startedAt, now }) {
+  const writerTokens = artifacts?.diagnostics?.writing || artifacts?.writer || {};
+  return {
+    wallTimeMs: Math.max(0, Number(now) - Number(startedAt || now)),
+    webSearchCalls: Array.isArray(artifacts?.search?.queries) ? artifacts.search.queries.length : 0,
+    targetedReplansUsed: 0,
+    targetedReplansLimit: 1,
+    reportRepairsUsed: 0,
+    reportRepairsLimit: 1,
+    adapterRetriesUsed: 0,
+    adapterRetriesLimit: 3,
+    writerInputTokens: Number(writerTokens.inputTokens || 0),
+    writerOutputTokens: Number(writerTokens.outputTokens || 0)
+  };
+}
+
+/**
+ * 错误分类（Spec research-harness §9.2）：只做静态归类与持久化，不触发任何动作；
+ * 有界 retry 属于后续 Phase，这里先让失败可解释、可统计。
+ */
+function classifyResearchError(error) {
+  const code = String(error?.code || '');
+  if (code === 'RESEARCH_CANCELLED' || error?.name === 'AbortError') {
+    return { category: 'cancelled', code: code || 'ABORT', retryable: false };
+  }
+  if (code === 'RESEARCH_LEASE_LOST') {
+    return { category: 'lease_lost', code, retryable: true };
+  }
+  if (['MISSING_API_KEY', 'INVALID_API_KEY', 'UNAUTHORIZED', 'FORBIDDEN'].includes(code)) {
+    return { category: 'auth', code, retryable: false };
+  }
+  if (['UPSTREAM_ERROR', 'QWEN_HTTP_ERROR', 'RATE_LIMITED', 'ETIMEDOUT'].includes(code) ||
+    error?.name === 'TimeoutError') {
+    return { category: 'upstream', code, retryable: true };
+  }
+  if (['SOURCE_POLICY_VIOLATION', 'UNSUPPORTED_SOURCE'].includes(code)) {
+    return { category: 'source_policy', code, retryable: false };
+  }
+  return { category: 'internal', code, retryable: false };
 }
 
 /**
@@ -672,8 +719,17 @@ export function createResearchWorker({
   async function run(id, signal) {
     let task = store.claim(id);
     if (!task) return store.get(id);
+    const startedAt = Date.now();
     let artifacts = task.artifacts || {};
     let currentStage = RESEARCH_STAGE_VALUES.includes(task.stage) ? task.stage : 'planning';
+
+    // Phase 1 shadow（Spec research-harness §8.3/§12）：预算从公开 artifacts 推导并
+    // 持久化到 side table，供运行态增量展示；失败只降级为缺少观测，绝不改变执行语义。
+    const persistBudget = () => {
+      try {
+        store.upsertRunBudget(id, buildRunBudgetSnapshot(artifacts, { startedAt, now: Date.now() }));
+      } catch { /* shadow 观测失败不改变执行语义 */ }
+    };
 
     try {
       while (currentStage !== 'completed') {
@@ -700,6 +756,7 @@ export function createResearchWorker({
         if (result.citations) patch.citations = result.citations;
         if (typeof result.report === 'string') patch.report = result.report;
         task = persistStage(id, patch, signal);
+        persistBudget();
         currentStage = nextStage;
       }
 
@@ -711,21 +768,56 @@ export function createResearchWorker({
       task = assertRunning(id, signal);
       const quality = assessResearchQuality(task, artifacts);
       artifacts = { ...artifacts, quality };
-      return store.complete(id, {
+      const completedTask = store.complete(id, {
         artifacts,
         citations,
         report,
         resultQuality: quality.quality,
         limitations: quality.limitations
       }) || store.get(id);
+      persistBudget();
+      try {
+        const budgetSnapshot = buildRunBudgetSnapshot(artifacts, { startedAt, now: Date.now() });
+        const verdict = evaluateCompletionContract({
+          task: completedTask,
+          artifacts,
+          mode: 'shadow',
+          budget: {
+            replans: {
+              used: budgetSnapshot.targetedReplansUsed,
+              limit: budgetSnapshot.targetedReplansLimit
+            },
+            repairs: {
+              used: budgetSnapshot.reportRepairsUsed,
+              limit: budgetSnapshot.reportRepairsLimit
+            }
+          }
+        });
+        store.recordContractChecks(id, verdict);
+      } catch (shadowError) {
+        console.warn(`[research] completion shadow 评估失败（不影响任务结果）: ${readableError(shadowError)}`);
+      }
+      return completedTask;
     } catch (error) {
       const current = store.get(id);
       if (cancelled(error, current, signal)) return current;
-      return store.fail(id, {
+      const failedTask = store.fail(id, {
         failedStage: currentStage,
         error: readableError(error),
         artifacts
       }) || store.get(id);
+      try {
+        persistBudget();
+        const classification = classifyResearchError(error);
+        store.recordRunError(id, {
+          stage: currentStage,
+          category: classification.category,
+          code: classification.code,
+          message: readableError(error),
+          retryable: classification.retryable
+        });
+      } catch { /* 错误分类持久化失败不影响失败语义 */ }
+      return failedTask;
     }
   }
 

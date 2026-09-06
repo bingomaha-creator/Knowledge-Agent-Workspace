@@ -3,6 +3,9 @@ import type { ResearchCitation, ResearchTask } from '@/services/researchApi';
 import {
   RESEARCH_STAGES,
   clampResearchProgress,
+  contractActionLabel,
+  contractCheckKindLabel,
+  contractCheckStateLabel,
   formatResearchTime,
   plannerLabel,
   researchDiagnosticReasonLabel,
@@ -131,6 +134,30 @@ const QualitySection = styled.section`
 
   p { margin: 0; color: var(--color-text-muted); font-size: 0.8rem; }
   ul { margin: 0; padding-left: 1.1rem; color: var(--color-text-muted); font-size: 0.8rem; line-height: 1.6; }
+`;
+
+const ContractSection = styled.section`
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-control);
+  background: var(--color-background);
+
+  strong { font-size: 0.85rem; }
+  > p { margin: 0; color: var(--color-text-muted); font-size: 0.8rem; overflow-wrap: anywhere; }
+  ul { display: grid; gap: var(--space-1); margin: 0; padding: 0; list-style: none; }
+  li {
+    display: grid;
+    gap: 0.15rem;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-control);
+    font-size: 0.78rem;
+  }
+  li[data-state='pass'] { background: var(--color-surface-muted); }
+  li[data-state='fail'] { background: var(--color-danger-surface); }
+  li[data-state='unknown'] { background: var(--color-surface-muted); color: var(--color-text-muted); }
+  .contract-note { color: var(--color-text-muted); font-size: 0.72rem; line-height: 1.5; overflow-wrap: anywhere; }
 `;
 
 const Alert = styled.section<{ $tone: 'danger' | 'info' }>`
@@ -306,6 +333,39 @@ export function ResearchTaskView({
             <p>质量评估未发现需要特别提示的局限；报告结论仍请结合引用自行核对。</p>
           )}
         </QualitySection>
+      ) : null}
+
+      {completed && task.contract ? (
+        <ContractSection data-mode={task.contract.mode}>
+          <strong>完成契约检查 · 评估结果</strong>
+          <p>
+            建议动作：{contractActionLabel(task.contract.nextAction)}（仅评估，不会自动执行）
+            {task.contract.nextActionReason ? ` · ${task.contract.nextActionReason}` : ''}
+          </p>
+          <ul>
+            {task.contract.checks.map((item) => (
+              <li
+                key={item.id}
+                data-state={item.passed === true ? 'pass' : item.passed === false ? 'fail' : 'unknown'}
+              >
+                <span>
+                  {contractCheckStateLabel(item.passed)} · {contractCheckKindLabel(item.kind)}
+                  {item.required ? '（必需）' : '（评估）'}
+                </span>
+                {item.explanation ? <span className="contract-note">{item.explanation}</span> : null}
+              </li>
+            ))}
+          </ul>
+          {task.budget ? (
+            <p className="contract-note">
+              本轮预算：外部检索 {task.budget.webSearchCalls} 次 ·
+              补检索 {task.budget.targetedReplans.used}/{task.budget.targetedReplans.limit} ·
+              报告修复 {task.budget.reportRepairs.used}/{task.budget.reportRepairs.limit} ·
+              Writer token {task.budget.writerTokens.input}/{task.budget.writerTokens.output}
+            </p>
+          ) : null}
+          <p className="contract-note">以上为过程评估指标，帮助解释研究质量；不代表结论已通过事实核验。</p>
+        </ContractSection>
       ) : null}
 
       {completed && task.report ? <ResearchReport report={task.report} /> : null}
