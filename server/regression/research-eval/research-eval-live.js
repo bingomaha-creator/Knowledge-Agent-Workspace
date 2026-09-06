@@ -104,7 +104,7 @@ function createLiveAdapters(counters) {
 
     resolveResearchRepositories: (request) => repositoryResolver.resolveRepositories(request),
 
-    searchSources: async ({ query, searchMode, signal }) => {
+    searchSources: async ({ query, searchMode, onWebSearchAttempt, signal }) => {
       counters.searchCalls += 1;
       // 本地检索 stub：空知识库范围下与生产行为等价（无本地命中），见文件头说明。
       counters.localSearchCalls += 1;
@@ -116,6 +116,12 @@ function createLiveAdapters(counters) {
       }
 
       counters.webSearchRequests += 1;
+      // Provider 调用边界与生产 search service 对齐：发起 search 前通知观察者。
+      if (typeof onWebSearchAttempt === 'function') {
+        try {
+          onWebSearchAttempt({ query });
+        } catch { /* 观察者异常不影响检索 */ }
+      }
       const webSearch = webProvider.search(query, { topK: 6, signal })
         .then((result) => ({
           available: result.available,

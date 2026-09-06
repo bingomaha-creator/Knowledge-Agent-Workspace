@@ -47,7 +47,6 @@ const MIN_COVERAGE_RATIO = 0.75;
 const MIN_FULLTEXT_READ_RATE = 0.5;
 const MIN_DISTINCT_SOURCES = 2;
 const MAX_SNIPPET_FALLBACK_RATE = 0.5;
-const VERIFIED_PROVENANCE = ['verified_primary', 'candidate_primary'];
 
 /**
  * 必需章节按"角色 + 别名"匹配（Spec §8.1 required_section）。不用单一精确中文
@@ -377,17 +376,18 @@ export function buildCompletionChecks({ task, artifacts }) {
   }));
 
   const webCitations = citations.filter((item) => item.kind === 'web');
+  // provenance 与局限披露是两个独立语义（Codex 三次评审第 3 点）：本检查只反映
+  // 来源是否经过一手验证——verified_primary 之外（含 candidate_primary/unknown）
+  // 都不算已验证；报告是否披露局限由 limitation_disclosure 判定，披露只能记录在
+  // observed 里，不能让 provenance 自动通过。
   const unverifiedWeb = webCitations.filter(
-    (item) => !VERIFIED_PROVENANCE.includes(item.provenance)
+    (item) => item.provenance !== 'verified_primary'
   );
-  // 与 source_diversity 同款诚实降级：未确认一手来源不得静默使用，但允许通过
-  // 显式局限披露替代（"来源不足不得伪造多样性/provenance"）。
-  const provenanceDisclosed = unverifiedWeb.length === 0 || reportDisclosesLimitation(report);
   checks.push(check({
     id: 'source-provenance',
     kind: 'source_provenance',
     required: false,
-    passed: webCitations.length === 0 ? null : provenanceDisclosed,
+    passed: webCitations.length === 0 ? null : unverifiedWeb.length === 0,
     observed: {
       webCitationCount: webCitations.length,
       unverifiedCount: unverifiedWeb.length,
@@ -397,10 +397,8 @@ export function buildCompletionChecks({ task, artifacts }) {
     explanation: webCitations.length === 0
       ? '没有外部来源，provenance 校验不适用。'
       : (unverifiedWeb.length === 0
-        ? '全部外部来源都属于已确认的公开一手 provenance。'
-        : (provenanceDisclosed
-          ? `${unverifiedWeb.length} 条外部来源尚未确认为一手资料，但报告已披露该局限。`
-          : `${unverifiedWeb.length} 条外部来源尚未确认为一手资料，且报告未披露该局限。`)),
+        ? '全部外部来源都已确认为 verified_primary 一手来源。'
+        : `${unverifiedWeb.length} 条外部来源尚未通过一手验证（candidate_primary/unknown 均不计为已验证）；报告是否披露该局限由 limitation-disclosure 判定。`),
     cause: 'evidence_gap'
   }));
 

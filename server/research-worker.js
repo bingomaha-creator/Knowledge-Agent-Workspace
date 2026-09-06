@@ -356,14 +356,19 @@ export function createResearchWorker({
   }
 
   /**
-   * shadow warning：shadow 自身的持久化故障留下结构化诊断（research_run_errors 中
-   * category='shadow_warning'），但不改变任务终态，也不推进 updatedAt。
+   * shadow warning：shadow 自身的持久化故障输出结构化日志（不写库、不改终态）。
+   * 保留 attempt/stage/code 字段供日志侧检索与统计。
    */
-  function shadowWarn(taskId, stage, code, error, attempt) {
-    try {
-      store.recordShadowWarning?.(taskId, { stage, code, message: readableError(error) }, { attempt });
-    } catch { /* warning 通道失败时放弃，不得影响执行 */ }
-    console.warn(`[research] ${code} @${stage}: ${readableError(error)}`);
+  function shadowWarn(taskId, stage, code, error) {
+    console.warn(JSON.stringify({
+      level: 'warning',
+      scope: 'research.shadow',
+      taskId,
+      stage,
+      code,
+      message: readableError(error),
+      at: new Date().toISOString()
+    }));
   }
 
   /**
@@ -422,6 +427,16 @@ export function createResearchWorker({
           queryIndex,
           knowledgeBaseIds: [...task.knowledgeBaseIds],
           searchMode: task.searchMode,
+          // Web SearchProvider 调用边界（Spec research-harness §9.1）：由 search service
+          // 在真正发起 search_web 请求时通知；local 模式 service 不发起即不计数，
+          // 计数走 SQL 自增，重启/重试后不丢、不被旧值覆盖。
+          onWebSearchAttempt: () => {
+            try {
+              store.addRunBudgetWebSearchCalls?.(task.id, 1, { attempt: Number(task.attempt || 0) });
+            } catch (budgetError) {
+              shadowWarn(task.id, 'retrieving', 'WEB_SEARCH_COUNT_PERSIST_FAILED', budgetError);
+            }
+          },
           signal
         }),
         repositoryRequested && typeof resolveResearchRepositories === 'function'
@@ -433,16 +448,6 @@ export function createResearchWorker({
           })
           : []
       ]);
-      // Web SearchProvider 调用边界（Spec research-harness §9.1）：worker 视角下，
-      // 每次非 local 子问题检索由 search service 发起恰好一次 search_web 调用。
-      // local 模式不计入。累计计数走 SQL 自增，重启/重试后不丢、不被旧值覆盖。
-      if (task.searchMode !== 'local') {
-        try {
-          store.addRunBudgetWebSearchCalls?.(task.id, 1, { attempt: Number(task.attempt || 0) });
-        } catch (budgetError) {
-          shadowWarn(task.id, 'retrieving', 'WEB_SEARCH_COUNT_PERSIST_FAILED', budgetError, Number(task.attempt || 0));
-        }
-      }
       const result = Array.isArray(searchResult)
         ? { local: searchResult, web: repositorySources }
         : {

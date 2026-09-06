@@ -204,6 +204,45 @@ test('shadow 信号二变体：零证据且 replan 预算耗尽 → 建议 deliv
   assert.equal(byId['fulltext-read-rate'].passed, null);
 });
 
+test('provenance 与披露拆分：candidate_primary/未知来源不计为已验证，披露不使其自动通过', () => {
+  // candidate_primary 不是 verified_primary：全部候选来源都视为未验证
+  const candidates = healthyArtifacts({
+    citations: [citation('c1', 1), citation('c2', 2), citation('c3', 3)].map((item) => ({
+      ...item,
+      provenance: 'candidate_primary'
+    })),
+    quality: {
+      metrics: { coverageRatio: 1, coveredSubquestionCount: 2, totalSubquestionCount: 2 },
+      limitations: [{ code: 'public_source_provenance_unverified', message: '外部来源尚未确认。' }]
+    }
+  });
+  const candidateVerdict = shadowNextAction(candidates);
+  const candidateById = checksById(candidateVerdict);
+  assert.equal(candidateById['source-provenance'].passed, false,
+    'candidate_primary 不得等同于 verified_primary');
+  assert.equal(candidateById['source-provenance'].observed.disclosureFound, true,
+    '披露情况记录在 observed，供 limitation-disclosure 与前端展示');
+  assert.equal(candidateById['limitation-disclosure'].passed, true, '披露判断由 limitation-disclosure 承担');
+
+  // 未知来源但已披露：provenance 仍未通过；预算耗尽时报告可被诚实交付
+  const unknownDisclosed = healthyArtifacts({
+    citations: [citation('c1', 1), citation('c2', 2), citation('c3', 3)].map((item) => ({
+      ...item,
+      provenance: 'unknown'
+    })),
+    quality: {
+      metrics: { coverageRatio: 1, coveredSubquestionCount: 2, totalSubquestionCount: 2 },
+      limitations: [{ code: 'public_source_provenance_unverified', message: '外部来源尚未确认。' }]
+    }
+  });
+  const exhausted = shadowNextAction(unknownDisclosed, { replans: { used: 1, limit: 1 } });
+  const exhaustedById = checksById(exhausted);
+  assert.equal(exhaustedById['source-provenance'].passed, false, '未知来源仍未通过 provenance');
+  assert.equal(exhaustedById['limitation-disclosure'].passed, true);
+  assert.equal(exhausted.nextAction, 'deliver_insufficient', '报告诚实披露时可安全交付');
+  assert.equal(exhausted.passed, true, '交付安全，shadow 下 passed 不受 optional 失败影响');
+});
+
 test('required_sections 按角色别名匹配，不依赖单一精确中文标题', () => {
   const modelStyle = healthyArtifacts({
     verifiedReport: [

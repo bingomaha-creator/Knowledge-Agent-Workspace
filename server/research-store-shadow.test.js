@@ -112,22 +112,23 @@ test('状态守卫：cancelled 拒绝 budget；contract 仅 completed；error �
   }
 });
 
-test('side snapshot 写入在同一事务内原子推进 updatedAt（前端仲裁依据）', () => {
+test('updatedAt 严格单调：同毫秒连续写入也必须至少 +1（前端仲裁依据）', () => {
   const { store, cleanup } = tempStore();
   try {
-    // Date.now() 毫秒精度不足以下断言严格递增，测试内忙等待几个毫秒。
-    const tick = (ms) => { const end = Date.now() + ms; while (Date.now() < end) { /* busy wait */ } };
     const { task, attempt } = claimedTask(store);
-    const before = store.get(task.id).updatedAt;
-    tick(3);
 
-    assert.equal(store.upsertRunBudget(task.id, { wallTimeMs: 5 }, { attempt }), true);
-    const afterBudget = store.get(task.id).updatedAt;
-    assert.ok(afterBudget > before, 'budget 写入必须原子推进 updatedAt');
+    // 不做任何等待，制造同毫秒连续写入：withRunSnapshotWrite 必须保证
+    // max(Date.now(), currentUpdatedAt + 1) 的严格单调语义。
+    assert.equal(store.upsertRunBudget(task.id, { wallTimeMs: 1 }, { attempt }), true);
+    const first = store.get(task.id).updatedAt;
+    assert.equal(store.upsertRunBudget(task.id, { wallTimeMs: 2 }, { attempt }), true);
+    const second = store.get(task.id).updatedAt;
+    assert.ok(second > first, `同毫秒连续写入必须严格单调（${first} → ${second}）`);
+    assert.equal(store.upsertRunBudget(task.id, { wallTimeMs: 3 }, { attempt }), true);
+    assert.ok(store.get(task.id).updatedAt > second);
 
     store.complete(task.id, { artifacts: {}, citations: [], report: '', resultQuality: 'limited', limitations: [] });
     const beforeContract = store.get(task.id).updatedAt;
-    tick(3);
     assert.equal(store.recordContractChecks(task.id, verdict(['a']), { attempt }), true);
     assert.ok(store.get(task.id).updatedAt > beforeContract, 'contract 写入必须原子推进 updatedAt');
   } finally {
@@ -148,25 +149,6 @@ test('webSearchCalls 累计：SQL 自增不被 upsertRunBudget 覆盖', () => {
 
     assert.equal(store.addRunBudgetWebSearchCalls(task.id, -5, { attempt }), true, '负增量被钳制为 0');
     assert.equal(store.getRunBudget(task.id).webSearchCalls, 3);
-  } finally {
-    cleanup();
-  }
-});
-
-test('shadow warning：任意状态可留痕，但 attempt 必须匹配，不推进 updatedAt', () => {
-  const { store, cleanup } = tempStore();
-  try {
-    const created = store.create({ question: 'warning 守卫', searchMode: 'local', knowledgeBaseIds: [] });
-    const attempt = Number(store.get(created.id).attempt);
-    const before = store.get(created.id).updatedAt;
-
-    assert.equal(store.recordShadowWarning(created.id, { stage: 'retrieving', code: 'BUDGET_PERSIST_FAILED', message: 'x' }, { attempt }), true);
-    assert.equal(store.recordShadowWarning(created.id, { stage: 'retrieving', code: 'X', message: 'y' }, { attempt: attempt + 99 }), false,
-      '旧 attempt 的 warning 也必须拒绝');
-    assert.equal(store.get(created.id).updatedAt, before, 'warning 是事件而非快照，不推进 updatedAt');
-    const errors = store.listRunErrors(created.id);
-    assert.equal(errors.length, 1);
-    assert.equal(errors[0].category, 'shadow_warning');
   } finally {
     cleanup();
   }

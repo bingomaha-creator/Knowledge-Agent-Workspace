@@ -775,14 +775,16 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
   //   attempt、不限状态、不推进 updatedAt（它是事件不是快照）。
 
   function withRunSnapshotWrite(runId, attempt, allowedStatuses, write) {
-    const now = Date.now();
     db.exec('BEGIN IMMEDIATE');
     try {
-      const row = db.prepare('SELECT attempt, status FROM research_tasks WHERE id = ?').get(runId);
+      const row = db.prepare('SELECT attempt, status, updated_at FROM research_tasks WHERE id = ?').get(runId);
       if (!row || Number(row.attempt) !== Number(attempt) || !allowedStatuses.includes(row.status)) {
         db.exec('ROLLBACK');
         return false;
       }
+      // 严格单调：即使同一毫秒内连续写入，也保证至少比上一值大 1（前端按 updatedAt
+      // 仲裁，重复值会让新快照被误判为旧）。
+      const now = Math.max(Date.now(), Number(row.updated_at) + 1);
       write(now);
       const bumped = db.prepare(
         'UPDATE research_tasks SET updated_at = ? WHERE id = ? AND attempt = ?'
@@ -797,11 +799,6 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
       try { db.exec('ROLLBACK'); } catch { /* 事务已回滚 */ }
       throw error;
     }
-  }
-
-  function sameAttempt(runId, attempt) {
-    const row = db.prepare('SELECT attempt FROM research_tasks WHERE id = ?').get(runId);
-    return Boolean(row && Number(row.attempt) === Number(attempt));
   }
 
   function recordContractChecks(runId, verdict, { attempt } = {}) {
@@ -955,17 +952,8 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     });
   }
 
-  // shadow 自身的持久化故障诊断：仅校验 attempt（任何状态都可留痕），是事件而非
-  // 快照，不推进 updatedAt（避免为了记录"没能记录"再扰动仲裁）。
-  function recordShadowWarning(runId, { stage = '', code = '', message = '' } = {}, { attempt } = {}) {
-    if (!sameAttempt(runId, attempt)) return false;
-    db.prepare(`
-      INSERT INTO research_run_errors (run_id, stage, category, code, message, retryable, created_at)
-      VALUES (?, ?, 'shadow_warning', ?, ?, 0, ?)
-    `).run(runId, String(stage || ''), String(code || 'SHADOW_PERSIST_FAILED'),
-      String(message || '').slice(0, 2000), Date.now());
-    return true;
-  }
+  // shadow 自身的持久化故障只输出结构化日志（worker.shadowWarn），不写库：
+  // 避免为"没能写库"再引入第二层兜底写（Codex 二次评审第 4 点，二选一取日志）。
 
   function listRunErrors(runId) {
     return db.prepare(
@@ -989,7 +977,6 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     addRunBudgetWebSearchCalls,
     getRunBudget,
     recordRunError,
-    recordShadowWarning,
     listRunErrors,
     list,
     listSession,

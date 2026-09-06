@@ -160,3 +160,88 @@ test('research search service propagates cancellation instead of degrading it', 
     (error) => error.name === 'AbortError'
   );
 });
+
+// —— Web SearchProvider 调用边界（Spec research-harness §9.1）——
+// onWebSearchAttempt 必须只在真正发起 search_web 时触发：local 不发起即不触发、
+// 发起后抛错仍触发（调用已发生）；观察者触发次数与 Provider 实际调用次数一致，
+// 未来引入缓存时命中路径不经过 callTool 也就不会计数。
+
+test('search service fires onWebSearchAttempt only when search_web is actually initiated', async () => {
+  let toolCalls = 0;
+  const service = createResearchSearchService({
+    searchEvidence: async () => ({ evidence: [] }),
+    toolExecutor: {
+      callTool: async () => {
+        toolCalls += 1;
+        return { structured: { available: true, status: 'success', results: [] } };
+      }
+    }
+  });
+
+  let attempts = 0;
+  await service.searchSources({
+    query: '混合查询',
+    searchMode: 'hybrid',
+    onWebSearchAttempt: () => { attempts += 1; }
+  });
+  assert.equal(attempts, 1, 'hybrid 一次检索恰好看起一次 Provider 调用');
+  assert.equal(toolCalls, 1, '观察者触发次数与 Provider 调用次数一致（未来缓存命中不计数的基础）');
+});
+
+test('search service does not fire onWebSearchAttempt in local mode', async () => {
+  let toolCalls = 0;
+  const service = createResearchSearchService({
+    searchEvidence: async () => ({ evidence: [{ id: 'c1', title: 't', snippet: 's', source: 'x' }] }),
+    toolExecutor: {
+      callTool: async () => {
+        toolCalls += 1;
+        return { structured: { available: true, status: 'success', results: [] } };
+      }
+    }
+  });
+
+  let attempts = 0;
+  await service.searchSources({
+    query: '本地查询',
+    searchMode: 'local',
+    onWebSearchAttempt: () => { attempts += 1; }
+  });
+  assert.equal(attempts, 0, 'local 模式不发起 Provider 调用，不计数');
+  assert.equal(toolCalls, 0);
+});
+
+test('search service counts the attempt even when the provider call throws afterwards', async () => {
+  const service = createResearchSearchService({
+    searchEvidence: async () => ({ evidence: [] }),
+    toolExecutor: {
+      callTool: async () => {
+        throw new Error('provider exploded after being called');
+      }
+    }
+  });
+
+  let attempts = 0;
+  const result = await service.searchSources({
+    query: '降级查询',
+    searchMode: 'hybrid',
+    onWebSearchAttempt: () => { attempts += 1; }
+  });
+  assert.equal(attempts, 1, '调用已发起，抛错后仍计数');
+  assert.equal(result.webSearchStatus, 'error');
+});
+
+test('search service survives observer failures', async () => {
+  const service = createResearchSearchService({
+    searchEvidence: async () => ({ evidence: [] }),
+    toolExecutor: {
+      callTool: async () => ({ structured: { available: true, status: 'success', results: [] } })
+    }
+  });
+
+  const result = await service.searchSources({
+    query: '观察者异常',
+    searchMode: 'hybrid',
+    onWebSearchAttempt: () => { throw new Error('observer boom'); }
+  });
+  assert.equal(result.webSearchStatus, 'available', '观察者异常不影响检索结果');
+});

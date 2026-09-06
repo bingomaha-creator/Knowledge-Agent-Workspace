@@ -3,10 +3,10 @@
  *
  * 验证（Spec research-harness §8.3/§12 Phase 1）：
  * - 完成契约 verdict 真实计算并持久化，但执行链忽略它（mode 恒为 shadow）；
- * - 最小 RunBudget 计数持久化，运行中增量更新；
- * - 错误分类持久化，失败语义不变（failed/cancelled 判定与 Phase 0 完全一致）；
- * - Phase 0 信号在真实管线中可观测：非法模型引用 → 建议 repair_report；
- *   零证据 → 建议 replan。
+ * - 最小 RunBudget：webSearchCalls 在 Search service 的 Provider 调用边界计数
+ *   （local 不计、发起后抛错仍计、重启/重试后累计），经由 onWebSearchAttempt 观察者；
+ * - 错误分类持久化，失败语义不变；Phase 0 两个信号在真实管线可观测；
+ * - shadow 写入携带 attempt 守卫，旧 attempt 迟到写被拒绝。
  */
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -38,6 +38,21 @@ const WEB_SOURCES = {
   ]
 };
 
+const LOCAL_SOURCES = {
+  子问题一: {
+    local: [
+      { id: 'l1', title: '本地资料一', snippet: '子问题一的本地资料答案，内容足够长以通过段落筛选并参与证据装配与引用。' },
+      { id: 'l2', title: '本地资料二', snippet: '子问题一的另一条本地资料答案，同样足够长以通过筛选进入证据包。' }
+    ]
+  },
+  子问题二: {
+    local: [
+      { id: 'l3', title: '本地资料三', snippet: '子问题二的本地资料答案，长度与措辞保证能够通过筛选进入候选池。' },
+      { id: 'l4', title: '本地资料四', snippet: '子问题二的另一条本地资料答案，保证证据数量达到 shadow 阈值要求。' }
+    ]
+  }
+};
+
 function fixtureAdapters({ searchResults = WEB_SOURCES, writerMode = 'model', failSearch = false } = {}) {
   return {
     planResearch: async () => ({
@@ -45,16 +60,22 @@ function fixtureAdapters({ searchResults = WEB_SOURCES, writerMode = 'model', fa
       subquestions: SUBQUESTIONS,
       diagnostics: { mode: 'fixture', status: 'success', durationMs: 0, inputTokens: 0, outputTokens: 0 }
     }),
-    searchSources: async ({ query }) => {
+    searchSources: async ({ query, searchMode, onWebSearchAttempt }) => {
       if (failSearch) {
+        // 检索在 Provider 发起前抛出：不触发观察者，对应"Provider 未调用不计数"。
         throw Object.assign(new Error('fixture 检索失败'), { code: 'UPSTREAM_ERROR' });
       }
-      // entry 兼容两种形状：来源数组，或带 webSearchStatus/local/web 的对象（零证据 case）。
       const entry = searchResults[query];
       const web = Array.isArray(entry) ? entry : (entry?.web || []);
       const local = Array.isArray(entry) ? [] : (entry?.local || []);
+      // 模拟 search service 的 Provider 调用边界：非 local 模式先通知观察者再返回结果。
+      if (searchMode !== 'local' && typeof onWebSearchAttempt === 'function') {
+        try {
+          onWebSearchAttempt({ query });
+        } catch { /* 观察者异常不影响检索 */ }
+      }
       const webSearchStatus = (!Array.isArray(entry) && entry?.webSearchStatus)
-        ?? (web.length ? 'available' : 'unavailable');
+        ?? (searchMode === 'local' ? 'not_requested' : (web.length ? 'available' : 'unavailable'));
       return { local, web, webSearchStatus };
     },
     readResearchSources: async ({ sources }) => ({
@@ -89,30 +110,58 @@ function fixtureAdapters({ searchResults = WEB_SOURCES, writerMode = 'model', fa
   };
 }
 
-test('shadow 健康路径：契约/预算持久化，completed 语义不变，建议 complete', async () => {
+test('shadow 健康路径（local）：来源均为项目资料，契约 complete，Provider 调用为 0', async () => {
   const { store, cleanup } = tempStore();
   try {
-    const worker = createResearchWorker({ store, concurrency: 1, ...fixtureAdapters() });
-    const created = store.create({ question: '健康路径研究', searchMode: 'web', knowledgeBaseIds: [] });
+    const worker = createResearchWorker({
+      store,
+      concurrency: 1,
+      ...fixtureAdapters({ searchResults: LOCAL_SOURCES })
+    });
+    const created = store.create({ question: '本地健康研究', searchMode: 'local', knowledgeBaseIds: [] });
     const finalTask = await worker.enqueue(created.id);
 
     assert.equal(finalTask.status, 'completed', '执行语义不变：正常收敛 completed');
     const budget = store.getRunBudget(finalTask.id);
     assert.ok(budget, 'RunBudget 已持久化');
-    assert.equal(budget.webSearchCalls, SUBQUESTIONS.length);
+    assert.equal(budget.webSearchCalls, 0, 'local 模式不发起 Provider 调用，不计数');
     assert.equal(budget.targetedReplans.used, 0, 'Phase 1 不执行 replan，计数恒为 0');
-    assert.ok(budget.wallTimeMs >= 0);
     assert.equal(budget.writerTokens.input, 120, 'writer token 计数来自写作诊断');
 
     const contract = store.getContractChecks(finalTask.id);
     assert.ok(contract, '契约 verdict 已持久化');
     assert.equal(contract.mode, 'shadow', '执行链只能以 shadow 口径记录');
     assert.equal(contract.nextAction, 'complete');
-    assert.ok(contract.checks.length > 0);
     const byId = Object.fromEntries(contract.checks.map((item) => [item.id, item]));
     assert.equal(byId['writer-output-accepted'].passed, true);
     assert.equal(byId['writer-input-boundary'].passed, null, 'Writer 输入边界在 Phase 1 恒为 not_evaluated');
+    assert.equal(byId['source-provenance'].passed, null, 'local 模式无外部来源，provenance 不适用');
+    for (const item of contract.checks) {
+      assert.ok(item.artifactRefs?.length, `${item.id} 必须携带 artifactRefs`);
+    }
     assert.deepEqual(contract.notEvaluableRequired, ['writer-input-boundary']);
+  } finally {
+    cleanup();
+  }
+});
+
+test('shadow web 路径：来源未经一手验证 → 诚实建议 replan；Provider 调用经观察者累计', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const worker = createResearchWorker({ store, concurrency: 1, ...fixtureAdapters() });
+    const created = store.create({ question: '外部检索研究', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(finalTask.status, 'completed');
+    const budget = store.getRunBudget(finalTask.id);
+    assert.equal(budget.webSearchCalls, 2, '两个子问题各发起一次 Provider 调用（观察者累计）');
+
+    const contract = store.getContractChecks(finalTask.id);
+    const byId = Object.fromEntries(contract.checks.map((item) => [item.id, item]));
+    assert.equal(byId['source-provenance'].passed, false, 'example.org 未通过一手验证（candidate_primary 也不算）');
+    assert.equal(contract.nextAction, 'replan', '证据缺口建议 replan，但 Phase 1 不执行');
+    assert.ok(contract.artifactRefs === undefined, 'artifactRefs 挂在 check 上而非 verdict 上');
+    assert.ok(contract.checks.every((item) => item.artifactRefs?.length));
   } finally {
     cleanup();
   }
@@ -147,7 +196,12 @@ test('shadow 信号二：零证据 → 建议 replan；不执行任何动作', a
     const worker = createResearchWorker({
       store,
       concurrency: 1,
-      ...fixtureAdapters({ searchResults: { 子问题一: { webSearchStatus: 'available' }, 子问题二: { webSearchStatus: 'available' } } })
+      ...fixtureAdapters({
+        searchResults: {
+          子问题一: { webSearchStatus: 'available' },
+          子问题二: { webSearchStatus: 'available' }
+        }
+      })
     });
     const created = store.create({ question: '零证据研究', searchMode: 'web', knowledgeBaseIds: [] });
     const finalTask = await worker.enqueue(created.id);
@@ -160,6 +214,38 @@ test('shadow 信号二：零证据 → 建议 replan；不执行任何动作', a
     const byId = Object.fromEntries(contract.checks.map((item) => [item.id, item]));
     assert.equal(byId['min-evidence'].passed, false);
     assert.equal(byId['writer-output-accepted'].passed, null, 'Writer 未尝试时该检查以 not_evaluated 恒在');
+    assert.equal(store.getRunBudget(created.id)?.webSearchCalls, 2, 'Provider 已被调用（返回空），计数如实');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Provider 发起后抛错：调用已发生仍计数，失败语义不变且错误分类持久化', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const adapters = fixtureAdapters();
+    const worker = createResearchWorker({
+      store,
+      concurrency: 1,
+      ...adapters,
+      searchSources: async ({ onWebSearchAttempt }) => {
+        // 模拟"Provider 请求已发起，之后上游抛错"：观察者先于异常触发。
+        if (typeof onWebSearchAttempt === 'function') {
+          onWebSearchAttempt({ query: 'thrown' });
+        }
+        throw Object.assign(new Error('fixture 上游抛错'), { code: 'UPSTREAM_ERROR' });
+      }
+    });
+    const created = store.create({ question: '调用后抛错研究', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(finalTask.status, 'failed', '失败语义不变');
+    assert.equal(store.getRunBudget(created.id)?.webSearchCalls, 2,
+      '两个子问题的 Provider 请求都已发起（观察者先于异常触发），调用已发生即计数');
+    const errors = store.listRunErrors(created.id);
+    assert.equal(errors.length, 1);
+    assert.equal(errors[0].category, 'upstream');
+    assert.equal(errors[0].retryable, true);
   } finally {
     cleanup();
   }
@@ -182,6 +268,7 @@ test('错误分类持久化：非取消失败写 failed 并记录 upstream 分�
     assert.equal(errors.length, 1);
     assert.equal(errors[0].category, 'upstream');
     assert.equal(errors[0].retryable, true);
+    assert.equal(store.getRunBudget(finalTask.id)?.webSearchCalls, 0, 'Provider 未被调用，不计数');
     assert.ok(store.getRunBudget(finalTask.id), '失败路径同样持久化预算快照');
   } finally {
     cleanup();

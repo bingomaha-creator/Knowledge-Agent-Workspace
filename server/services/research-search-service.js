@@ -24,6 +24,7 @@ export function createResearchSearchService({
     query,
     knowledgeBaseIds = [],
     searchMode = 'local',
+    onWebSearchAttempt,
     signal
   }) {
     if (signal?.aborted) {
@@ -41,6 +42,16 @@ export function createResearchSearchService({
     if (searchMode === 'local') {
       const { evidence: local } = await localSearch;
       return { local, web: [], webSearchStatus: 'not_requested' };
+    }
+
+    // Web SearchProvider 调用边界（Spec research-harness §9.1）：仅在真正发起
+    // search_web 请求时通知 onWebSearchAttempt——local 模式不发起、未来若引入
+    // 缓存则缓存命中也不应发起，因此观察者必须放在 callTool 之前这一固定位置。
+    // 观察者失败不得影响检索。
+    if (typeof onWebSearchAttempt === 'function') {
+      try {
+        onWebSearchAttempt({ query: String(query || '').slice(0, 500), searchMode });
+      } catch { /* 观察者异常由调用方自身诊断 */ }
     }
 
     // 本地检索和联网检索互不依赖，同时启动可避免每个子问题多付一段串行等待。
