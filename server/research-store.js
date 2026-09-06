@@ -216,7 +216,7 @@ function migrateDatabase(db) {
 
   // Phase 1 Harness shadow（Spec research-harness §8/§9）：完成契约检查、RunBudget
   // 计数与错误分类均为独立 side table，只增不改；不进入任务状态机，也不改变
-  // completed/failed 语义。
+  // completed/failed 语义。artifact_refs_json 为二次修正的增量列（旧库 ALTER 补齐）。
   db.exec(`
     CREATE TABLE IF NOT EXISTS research_contract_checks (
       run_id TEXT NOT NULL,
@@ -226,8 +226,9 @@ function migrateDatabase(db) {
       passed INTEGER,
       threshold REAL,
       verifier TEXT NOT NULL DEFAULT 'completion-policy',
-      verifier_version INTEGER NOT NULL DEFAULT 1,
+      verifier_version INTEGER NOT NULL DEFAULT 2,
       observed_json TEXT NOT NULL DEFAULT '{}',
+      artifact_refs_json TEXT NOT NULL DEFAULT '[]',
       explanation TEXT NOT NULL DEFAULT '',
       not_evaluable_cause TEXT,
       mode TEXT NOT NULL DEFAULT 'shadow',
@@ -266,6 +267,11 @@ function migrateDatabase(db) {
     CREATE INDEX IF NOT EXISTS idx_research_run_errors_run
       ON research_run_errors(run_id, created_at);
   `);
+
+  const checkColumns = tableColumns(db, 'research_contract_checks');
+  if (!checkColumns.has('artifact_refs_json')) {
+    db.exec("ALTER TABLE research_contract_checks ADD COLUMN artifact_refs_json TEXT NOT NULL DEFAULT '[]'");
+  }
 
   const columns = tableColumns(db, 'research_tasks');
   const addsResultQuality = !columns.has('result_quality');
@@ -755,55 +761,84 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     return listResumable();
   }
 
-  // —— Phase 1 Harness shadow（Spec research-harness §8/§9）——
+  // —— Phase 1 Harness shadow（Spec research-harness §8/§9，二次修正强化）——
   // 契约检查、RunBudget 计数与错误分类只写入独立 side table，绝不回写任务状态机：
   // shadow 结果丢失或缺失都不影响 completed/failed 语义。
+  //
+  // 写入守卫（Codex 二次评审）：所有 snapshot 写入必须携带并校验当前 Run 的
+  // attempt 与允许状态，拒绝旧 attempt 的迟到写入；写入与 research_tasks.updatedAt
+  // 的原子推进在同一个事务内完成，保证前端轮询按 updatedAt 仲裁时能看到一致快照。
+  // 允许的终态写入分类：
+  // - contract：仅 completed（最终 verdict 在对应 attempt 完成后写入）；
+  // - budget：running（增量）/ completed / failed（终态快照）；cancelled 拒绝；
+  // - error：仅 failed。shadow warning（shadow 自身的持久化故障诊断）仅校验
+  //   attempt、不限状态、不推进 updatedAt（它是事件不是快照）。
 
-  function recordContractChecks(runId, verdict) {
-    if (!verdict || !Array.isArray(verdict.checks)) return;
+  function withRunSnapshotWrite(runId, attempt, allowedStatuses, write) {
     const now = Date.now();
-    const upsert = db.prepare(`
-      INSERT INTO research_contract_checks (
-        run_id, check_id, kind, required, passed, threshold, verifier, verifier_version,
-        observed_json, explanation, not_evaluable_cause, mode, next_action,
-        next_action_reason, verdict_passed, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(run_id, check_id) DO UPDATE SET
-        kind = excluded.kind,
-        required = excluded.required,
-        passed = excluded.passed,
-        threshold = excluded.threshold,
-        verifier = excluded.verifier,
-        verifier_version = excluded.verifier_version,
-        observed_json = excluded.observed_json,
-        explanation = excluded.explanation,
-        not_evaluable_cause = excluded.not_evaluable_cause,
-        mode = excluded.mode,
-        next_action = excluded.next_action,
-        next_action_reason = excluded.next_action_reason,
-        verdict_passed = excluded.verdict_passed,
-        created_at = excluded.created_at
-    `);
-    for (const item of verdict.checks) {
-      upsert.run(
-        runId,
-        String(item.id || ''),
-        String(item.kind || ''),
-        item.required === true ? 1 : 0,
-        item.passed === true ? 1 : item.passed === false ? 0 : null,
-        Number.isFinite(Number(item.threshold)) ? Number(item.threshold) : null,
-        String(item.verifier || 'completion-policy'),
-        Number(item.verifierVersion || 1),
-        JSON.stringify(item.observed || {}),
-        String(item.explanation || ''),
-        item.notEvaluableCause || null,
-        String(verdict.mode || 'shadow'),
-        String(verdict.nextAction || 'complete'),
-        String(verdict.nextActionReason || ''),
-        verdict.passed === true ? 1 : verdict.passed === false ? 0 : null,
-        now
-      );
+    db.exec('BEGIN IMMEDIATE');
+    try {
+      const row = db.prepare('SELECT attempt, status FROM research_tasks WHERE id = ?').get(runId);
+      if (!row || Number(row.attempt) !== Number(attempt) || !allowedStatuses.includes(row.status)) {
+        db.exec('ROLLBACK');
+        return false;
+      }
+      write(now);
+      const bumped = db.prepare(
+        'UPDATE research_tasks SET updated_at = ? WHERE id = ? AND attempt = ?'
+      ).run(now, runId, Number(attempt));
+      if (!bumped.changes) {
+        db.exec('ROLLBACK');
+        return false;
+      }
+      db.exec('COMMIT');
+      return true;
+    } catch (error) {
+      try { db.exec('ROLLBACK'); } catch { /* 事务已回滚 */ }
+      throw error;
     }
+  }
+
+  function sameAttempt(runId, attempt) {
+    const row = db.prepare('SELECT attempt FROM research_tasks WHERE id = ?').get(runId);
+    return Boolean(row && Number(row.attempt) === Number(attempt));
+  }
+
+  function recordContractChecks(runId, verdict, { attempt } = {}) {
+    if (!verdict || !Array.isArray(verdict.checks)) return false;
+    return withRunSnapshotWrite(runId, attempt, ['completed'], (now) => {
+      // 单事务整体替换：先清空该 run 的旧 checks 再写入新 verdict，
+      // 避免新旧 verdict 混合（重试/重评后旧检查项残留）。
+      db.prepare('DELETE FROM research_contract_checks WHERE run_id = ?').run(runId);
+      const insert = db.prepare(`
+        INSERT INTO research_contract_checks (
+          run_id, check_id, kind, required, passed, threshold, verifier, verifier_version,
+          observed_json, artifact_refs_json, explanation, not_evaluable_cause, mode,
+          next_action, next_action_reason, verdict_passed, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const item of verdict.checks) {
+        insert.run(
+          runId,
+          String(item.id || ''),
+          String(item.kind || ''),
+          item.required === true ? 1 : 0,
+          item.passed === true ? 1 : item.passed === false ? 0 : null,
+          Number.isFinite(Number(item.threshold)) ? Number(item.threshold) : null,
+          String(item.verifier || 'completion-policy'),
+          Number(item.verifierVersion || 2),
+          JSON.stringify(item.observed || {}),
+          JSON.stringify(Array.isArray(item.artifactRefs) ? item.artifactRefs : []),
+          String(item.explanation || ''),
+          item.notEvaluableCause || null,
+          String(verdict.mode || 'shadow'),
+          String(verdict.nextAction || 'complete'),
+          String(verdict.nextActionReason || ''),
+          verdict.passed === true ? 1 : verdict.passed === false ? 0 : null,
+          now
+        );
+      }
+    });
   }
 
   function getContractChecks(runId) {
@@ -821,6 +856,7 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
       verifier: row.verifier,
       verifierVersion: row.verifier_version,
       observed: parseJson(row.observed_json, {}),
+      artifactRefs: parseJson(row.artifact_refs_json, []),
       explanation: row.explanation,
       notEvaluableCause: row.not_evaluable_cause || null
     }));
@@ -831,46 +867,68 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
       nextActionReason: head.next_action_reason,
       checks,
       deliveryFailures: checks.filter((item) => item.required && item.passed === false).map((item) => item.id),
+      qualityFailures: checks.filter((item) => !item.required && item.passed === false).map((item) => item.id),
       notEvaluableRequired: checks.filter((item) => item.required && item.passed === null).map((item) => item.id)
     };
   }
 
-  function upsertRunBudget(runId, snapshot) {
+  function upsertRunBudget(runId, snapshot, { attempt } = {}) {
     const safe = snapshot || {};
-    db.prepare(`
-      INSERT INTO research_run_budget (
-        run_id, wall_time_ms, web_search_calls,
-        targeted_replans_used, targeted_replans_limit,
-        report_repairs_used, report_repairs_limit,
-        adapter_retries_used, adapter_retries_limit,
-        writer_input_tokens, writer_output_tokens, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(run_id) DO UPDATE SET
-        wall_time_ms = excluded.wall_time_ms,
-        web_search_calls = excluded.web_search_calls,
-        targeted_replans_used = excluded.targeted_replans_used,
-        targeted_replans_limit = excluded.targeted_replans_limit,
-        report_repairs_used = excluded.report_repairs_used,
-        report_repairs_limit = excluded.report_repairs_limit,
-        adapter_retries_used = excluded.adapter_retries_used,
-        adapter_retries_limit = excluded.adapter_retries_limit,
-        writer_input_tokens = excluded.writer_input_tokens,
-        writer_output_tokens = excluded.writer_output_tokens,
-        updated_at = excluded.updated_at
-    `).run(
-      runId,
-      Math.max(0, Math.round(Number(safe.wallTimeMs) || 0)),
-      Math.max(0, Math.round(Number(safe.webSearchCalls) || 0)),
-      Math.max(0, Math.round(Number(safe.targetedReplansUsed) || 0)),
-      Math.max(1, Math.round(Number(safe.targetedReplansLimit) || 1)),
-      Math.max(0, Math.round(Number(safe.reportRepairsUsed) || 0)),
-      Math.max(1, Math.round(Number(safe.reportRepairsLimit) || 1)),
-      Math.max(0, Math.round(Number(safe.adapterRetriesUsed) || 0)),
-      Math.max(1, Math.round(Number(safe.adapterRetriesLimit) || 3)),
-      Math.max(0, Math.round(Number(safe.writerInputTokens) || 0)),
-      Math.max(0, Math.round(Number(safe.writerOutputTokens) || 0)),
-      Date.now()
-    );
+    // web_search_calls 不在此覆盖：它是 Provider 调用边界的累计计数，
+    // 只能通过 addRunBudgetWebSearchCalls 递增（重启/重试后保持累计）。
+    return withRunSnapshotWrite(runId, attempt, ['running', 'completed', 'failed'], (now) => {
+      db.prepare(`
+        INSERT INTO research_run_budget (
+          run_id, wall_time_ms, web_search_calls,
+          targeted_replans_used, targeted_replans_limit,
+          report_repairs_used, report_repairs_limit,
+          adapter_retries_used, adapter_retries_limit,
+          writer_input_tokens, writer_output_tokens, updated_at
+        ) VALUES (?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(run_id) DO UPDATE SET
+          wall_time_ms = excluded.wall_time_ms,
+          targeted_replans_used = excluded.targeted_replans_used,
+          targeted_replans_limit = excluded.targeted_replans_limit,
+          report_repairs_used = excluded.report_repairs_used,
+          report_repairs_limit = excluded.report_repairs_limit,
+          adapter_retries_used = excluded.adapter_retries_used,
+          adapter_retries_limit = excluded.adapter_retries_limit,
+          writer_input_tokens = excluded.writer_input_tokens,
+          writer_output_tokens = excluded.writer_output_tokens,
+          updated_at = excluded.updated_at
+      `).run(
+        runId,
+        Math.max(0, Math.round(Number(safe.wallTimeMs) || 0)),
+        Math.max(0, Math.round(Number(safe.targetedReplansUsed) || 0)),
+        Math.max(1, Math.round(Number(safe.targetedReplansLimit) || 1)),
+        Math.max(0, Math.round(Number(safe.reportRepairsUsed) || 0)),
+        Math.max(1, Math.round(Number(safe.reportRepairsLimit) || 1)),
+        Math.max(0, Math.round(Number(safe.adapterRetriesUsed) || 0)),
+        Math.max(1, Math.round(Number(safe.adapterRetriesLimit) || 3)),
+        Math.max(0, Math.round(Number(safe.writerInputTokens) || 0)),
+        Math.max(0, Math.round(Number(safe.writerOutputTokens) || 0)),
+        now
+      );
+    });
+  }
+
+  function addRunBudgetWebSearchCalls(runId, delta, { attempt } = {}) {
+    const increment = Math.max(0, Math.round(Number(delta) || 0));
+    if (!increment) return true;
+    return withRunSnapshotWrite(runId, attempt, ['running'], (now) => {
+      db.prepare(`
+        INSERT INTO research_run_budget (
+          run_id, wall_time_ms, web_search_calls,
+          targeted_replans_used, targeted_replans_limit,
+          report_repairs_used, report_repairs_limit,
+          adapter_retries_used, adapter_retries_limit,
+          writer_input_tokens, writer_output_tokens, updated_at
+        ) VALUES (?, 0, ?, 0, 1, 0, 1, 0, 3, 0, 0, ?)
+        ON CONFLICT(run_id) DO UPDATE SET
+          web_search_calls = web_search_calls + excluded.web_search_calls,
+          updated_at = excluded.updated_at
+      `).run(runId, increment, now);
+    });
   }
 
   function getRunBudget(runId) {
@@ -887,12 +945,26 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     };
   }
 
-  function recordRunError(runId, { stage = '', category = 'internal', code = '', message = '', retryable = false } = {}) {
+  function recordRunError(runId, { stage = '', category = 'internal', code = '', message = '', retryable = false } = {}, { attempt } = {}) {
+    return withRunSnapshotWrite(runId, attempt, ['failed'], (now) => {
+      db.prepare(`
+        INSERT INTO research_run_errors (run_id, stage, category, code, message, retryable, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+      `).run(runId, String(stage || ''), String(category || 'internal'), String(code || ''),
+        String(message || '').slice(0, 2000), retryable === true ? 1 : 0, now);
+    });
+  }
+
+  // shadow 自身的持久化故障诊断：仅校验 attempt（任何状态都可留痕），是事件而非
+  // 快照，不推进 updatedAt（避免为了记录"没能记录"再扰动仲裁）。
+  function recordShadowWarning(runId, { stage = '', code = '', message = '' } = {}, { attempt } = {}) {
+    if (!sameAttempt(runId, attempt)) return false;
     db.prepare(`
       INSERT INTO research_run_errors (run_id, stage, category, code, message, retryable, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(runId, String(stage || ''), String(category || 'internal'), String(code || ''),
-      String(message || '').slice(0, 2000), retryable === true ? 1 : 0, Date.now());
+      VALUES (?, ?, 'shadow_warning', ?, ?, 0, ?)
+    `).run(runId, String(stage || ''), String(code || 'SHADOW_PERSIST_FAILED'),
+      String(message || '').slice(0, 2000), Date.now());
+    return true;
   }
 
   function listRunErrors(runId) {
@@ -914,8 +986,10 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     recordContractChecks,
     getContractChecks,
     upsertRunBudget,
+    addRunBudgetWebSearchCalls,
     getRunBudget,
     recordRunError,
+    recordShadowWarning,
     listRunErrors,
     list,
     listSession,

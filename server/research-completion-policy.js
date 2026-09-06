@@ -18,10 +18,16 @@
  *   （执行链应先行有界 adapter retry，重试后仍不可判定才落到 fail，Spec §9.2）。
  *   任何 required null 都不会输出 complete。
  *
- * 质量检查（required=false）的失败只用于产生建议与 resultQuality 对照，不阻止完成。
+ * 多缺陷 nextAction 优先级（Spec §9.2 分流顺序）：先处理不安全的确定性交付/
+ * Writer 缺陷（repair_report），报告安全后再处理证据缺口（replan /
+ * deliver_insufficient）；基础设施异常由执行链按有界 retry 处理，重试后仍不可
+ * 判定才 fail。证据缺口不得掩盖 Writer rejection。
+ *
+ * 质量检查永不缺席：可评估时给出明确结果，不可评估时必须以 passed=null +
+ * observed.status='not_evaluated' 显式输出，不允许从 checks 中消失（Spec §8.1/§13.4）。
  */
 
-export const COMPLETION_POLICY_VERSION = 1;
+export const COMPLETION_POLICY_VERSION = 2;
 export const COMPLETION_MODES = Object.freeze(['shadow', 'gate']);
 export const COMPLETION_NEXT_ACTIONS = Object.freeze([
   'complete',
@@ -40,6 +46,31 @@ const MIN_EVIDENCE_THRESHOLD = 3;
 const MIN_COVERAGE_RATIO = 0.75;
 const MIN_FULLTEXT_READ_RATE = 0.5;
 const MIN_DISTINCT_SOURCES = 2;
+const MAX_SNIPPET_FALLBACK_RATE = 0.5;
+const VERIFIED_PROVENANCE = ['verified_primary', 'candidate_primary'];
+
+/**
+ * 必需章节按"角色 + 别名"匹配（Spec §8.1 required_section）。不用单一精确中文
+ * 复合标题：确定性 fallback 报告、fixture 写手与常见模型报告形态都应命中。
+ * 别名基于 Phase 0 回放与 Phase 1 集成测试中的真实报告样本校准。
+ */
+const REQUIRED_SECTION_ROLES = Object.freeze([
+  {
+    role: 'methodology',
+    label: '研究范围与方法',
+    aliases: ['研究范围', '研究方法', '检索方式', '检索与取证', '方法', 'scope', 'methodology', 'method']
+  },
+  {
+    role: 'conclusion_limitations',
+    label: '结论与局限',
+    aliases: ['综合结论', '结论', '限制', '局限', '下一步', 'conclusion', 'limitation', 'next step']
+  },
+  {
+    role: 'references',
+    label: '参考资料',
+    aliases: ['参考资料', '参考来源', '引用来源', '参考文献', '引用', 'references', 'sources', 'citations']
+  }
+]);
 
 function check({
   id,
@@ -49,7 +80,8 @@ function check({
   observed,
   explanation,
   cause = 'report_defect',
-  threshold = null
+  threshold = null,
+  artifactRefs = []
 }) {
   return {
     id,
@@ -64,8 +96,7 @@ function check({
       ...observed
     },
     explanation,
-    // cause 描述该检查失败/不可评估时的分流类别（Spec §8.2）：report_defect →
-    // repair_report；evidence_gap → replan / deliver_insufficient；infra → retry 后 fail。
+    artifactRefs,
     cause,
     notEvaluableCause: passed === null ? cause : null
   };
@@ -90,35 +121,55 @@ function distinctSourceCount(citations) {
   return keys.size;
 }
 
+function missingSectionRoles(report) {
+  const headings = markdownHeadings(report).map((heading) => heading.toLowerCase());
+  return REQUIRED_SECTION_ROLES
+    .filter((role) => !role.aliases.some((alias) =>
+      headings.some((heading) => heading.includes(alias.toLowerCase()))
+    ))
+    .map((role) => role.role);
+}
+
 function citationInputs(artifacts) {
   const citations = Array.isArray(artifacts.citations) ? artifacts.citations : [];
   const verification = artifacts.verification || {};
+  const referencedIds = Array.isArray(verification.referencedCitationIds)
+    ? verification.referencedCitationIds
+    : [];
+  const invalidNumbers = Array.isArray(verification.invalidCitationNumbers)
+    ? verification.invalidCitationNumbers
+    : [];
+  const invalidMarkers = Array.isArray(verification.invalidCitationMarkers)
+    ? verification.invalidCitationMarkers
+    : [];
+  // 引用归属由本模块自行验证：所有 referencedCitationIds 都必须属于当前 Run 的
+  // citations，不信任上游 verification.valid（Spec §8.1）。
+  const citationIds = new Set(citations.map((item) => item.id));
+  const foreignReferences = referencedIds.filter((id) => !citationIds.has(id));
   return {
     citations,
     verification,
-    referencedIds: Array.isArray(verification.referencedCitationIds)
-      ? verification.referencedCitationIds
-      : [],
-    invalidNumbers: Array.isArray(verification.invalidCitationNumbers)
-      ? verification.invalidCitationNumbers
-      : [],
-    invalidMarkers: Array.isArray(verification.invalidCitationMarkers)
-      ? verification.invalidCitationMarkers
-      : []
+    referencedIds,
+    invalidNumbers,
+    invalidMarkers,
+    foreignReferences
   };
 }
 
 /**
- * 组装检查集。有前置条件的检查只在前置成立时纳入（如无局限标注时不产生
- * limitation_disclosure），避免用 null 冒充"已评估"。
+ * 组装检查集。质量检查（required=false）全部恒在：可评估给出 true/false，
+ * 不可评估给出 null + not_evaluated；确定性交付检查中仅 limitation_disclosure
+ * 依赖前置（无局限标注时按空条件通过）。
  */
 export function buildCompletionChecks({ task, artifacts }) {
   const safeArtifacts = artifacts || {};
-  const { citations, verification, invalidNumbers, invalidMarkers } = citationInputs(safeArtifacts);
+  const { citations, verification, referencedIds, invalidNumbers, invalidMarkers, foreignReferences }
+    = citationInputs(safeArtifacts);
   const evidence = Array.isArray(safeArtifacts.evidence) ? safeArtifacts.evidence : [];
   const writer = safeArtifacts.diagnostics?.writing || safeArtifacts.writer || null;
   const qualityMetrics = safeArtifacts.quality?.metrics || {};
   const quality = safeArtifacts.quality || {};
+  const pack = safeArtifacts.evidencePack || {};
   const report = typeof task?.report === 'string' && task.report
     ? task.report
     : (typeof safeArtifacts.verifiedReport === 'string' ? safeArtifacts.verifiedReport : '');
@@ -131,15 +182,17 @@ export function buildCompletionChecks({ task, artifacts }) {
     id: 'citation-membership',
     kind: 'citation_membership',
     required: true,
-    passed: invalidNumbers.length === 0,
+    passed: foreignReferences.length === 0 && invalidNumbers.length === 0,
     observed: {
-      referencedCount: verification.referencedCitationIds?.length ?? 0,
+      referencedCount: referencedIds.length,
       citationCount: citations.length,
-      invalidCitationNumbers: invalidNumbers
+      invalidCitationNumbers: invalidNumbers,
+      foreignReferences
     },
-    explanation: invalidNumbers.length
-      ? `报告引用了 ${invalidNumbers.length} 个不属于本轮证据的编号：${invalidNumbers.join('、')}。`
-      : '报告做出的引用全部能映射到本轮结构化 citation。',
+    artifactRefs: ['artifacts.citations', 'artifacts.verification'],
+    explanation: foreignReferences.length || invalidNumbers.length
+      ? `报告引用中存在无法归属到本轮证据的项：越界编号 ${invalidNumbers.join('、') || '无'}；外来引用 ID ${foreignReferences.join('、') || '无'}。`
+      : '报告做出的引用全部能归属到本轮结构化 citation（本模块自行验证，不信任上游标记）。',
     cause: 'report_defect'
   }));
 
@@ -152,6 +205,7 @@ export function buildCompletionChecks({ task, artifacts }) {
       invalidCitationMarkers: invalidMarkers,
       invalidCitationNumbers: invalidNumbers
     },
+    artifactRefs: ['artifacts.verification', 'artifacts.draftReport'],
     explanation: invalidMarkers.length
       ? `报告包含非法符号引用 marker：${invalidMarkers.join('、')}。`
       : '报告中没有非法引用 marker。',
@@ -162,57 +216,56 @@ export function buildCompletionChecks({ task, artifacts }) {
     id: 'delivery-mode-consistent',
     kind: 'delivery_mode_consistent',
     required: true,
-    passed: deliveryMode === 'grounded_report'
-      ? true
-      : null,
+    passed: deliveryMode === 'grounded_report' ? true : null,
     observed: {
       deliveryMode,
       citationCount: citations.length,
       evidenceCount: evidence.length
     },
+    artifactRefs: ['artifacts.citations', 'artifacts.evidence'],
     explanation: deliveryMode === 'grounded_report'
       ? '报告以本轮证据为边界交付（grounded_report）。'
       : '本轮无证据，报告按 evidence_gap_report 交付；其"不产生事实性结论"的边界需要语义校验，当前阶段无法确定性评估。',
     cause: 'evidence_gap'
   }));
 
-  const requiredHeadings = ['研究范围与方法', '综合结论、限制与下一步', '参考资料'];
-  const headings = markdownHeadings(report);
-  const missingSections = requiredHeadings.filter(
-    (name) => !headings.some((heading) => heading.toLowerCase().includes(name.toLowerCase()))
-  );
+  const missingRoles = missingSectionRoles(report);
   checks.push(check({
     id: 'required-sections',
     kind: 'required_section',
     required: true,
-    passed: missingSections.length === 0,
+    passed: missingRoles.length === 0,
     observed: {
-      missingSections,
-      headingCount: headings.length
+      missingRoles,
+      matchedBy: 'role-alias',
+      headingCount: markdownHeadings(report).length
     },
-    explanation: missingSections.length
-      ? `报告缺少必需章节：${missingSections.join('、')}。`
-      : '报告包含全部必需章节。',
+    artifactRefs: ['task.report', 'artifacts.verifiedReport'],
+    explanation: missingRoles.length
+      ? `报告缺少必需章节角色：${missingRoles.join('、')}（按角色别名匹配，不依赖单一标题）。`
+      : '报告覆盖全部必需章节角色。',
     cause: 'report_defect'
   }));
 
   const limitations = Array.isArray(quality.limitations) ? quality.limitations : [];
-  if (limitations.length) {
-    checks.push(check({
-      id: 'limitation-disclosure',
-      kind: 'limitation_disclosure',
-      required: true,
-      passed: reportDisclosesLimitation(report),
-      observed: {
-        limitationCodes: limitations.map((item) => item.code),
-        disclosureFound: reportDisclosesLimitation(report)
-      },
-      explanation: reportDisclosesLimitation(report)
+  checks.push(check({
+    id: 'limitation-disclosure',
+    kind: 'limitation_disclosure',
+    required: true,
+    passed: limitations.length ? reportDisclosesLimitation(report) : true,
+    observed: {
+      limitationCodes: limitations.map((item) => item.code),
+      disclosureRequired: limitations.length > 0,
+      disclosureFound: reportDisclosesLimitation(report)
+    },
+    artifactRefs: ['task.report', 'artifacts.quality.limitations'],
+    explanation: limitations.length
+      ? (reportDisclosesLimitation(report)
         ? '报告对已识别的局限做了显式披露。'
-        : '本轮存在局限标注，但报告正文未发现局限披露表述。',
-      cause: 'report_defect'
-    }));
-  }
+        : '本轮存在局限标注，但报告正文未发现局限披露表述。')
+      : '本轮无局限标注，无需披露（空条件通过）。',
+    cause: 'report_defect'
+  }));
 
   checks.push(check({
     id: 'writer-input-boundary',
@@ -222,11 +275,12 @@ export function buildCompletionChecks({ task, artifacts }) {
     observed: {
       evidencePackCount: evidence.length
     },
+    artifactRefs: ['artifacts.evidence'],
     explanation: 'Writer 实际输入是否仅包含本轮 Evidence Pack 需要 Evidence Ledger 观测（Phase 2），当前阶段无法评估。',
     cause: 'infra'
   }));
 
-  // —— 研究质量检查（required=false，shadow 决定建议与 resultQuality 对照）——
+  // —— 研究质量检查（required=false，全部恒在，可评估或显式 not_evaluated）——
 
   checks.push(check({
     id: 'min-evidence',
@@ -235,6 +289,7 @@ export function buildCompletionChecks({ task, artifacts }) {
     passed: citations.length >= MIN_EVIDENCE_THRESHOLD,
     observed: { citationCount: citations.length },
     threshold: MIN_EVIDENCE_THRESHOLD,
+    artifactRefs: ['artifacts.citations'],
     explanation: `本轮入选 citation ${citations.length} 条（阈值 ${MIN_EVIDENCE_THRESHOLD}）。`,
     cause: 'evidence_gap'
   }));
@@ -242,95 +297,168 @@ export function buildCompletionChecks({ task, artifacts }) {
   const coverageRatio = Number.isFinite(Number(qualityMetrics.coverageRatio))
     ? Number(qualityMetrics.coverageRatio)
     : null;
-  if (coverageRatio !== null) {
-    checks.push(check({
-      id: 'subquestion-coverage',
-      kind: 'subquestion_coverage',
-      required: false,
-      passed: coverageRatio >= MIN_COVERAGE_RATIO,
-      observed: { coverageRatio, coveredCount: qualityMetrics.coveredSubquestionCount ?? null },
-      threshold: MIN_COVERAGE_RATIO,
-      explanation: `子问题覆盖率 ${coverageRatio}（阈值 ${MIN_COVERAGE_RATIO}）。`,
-      cause: 'evidence_gap'
-    }));
-  }
+  checks.push(check({
+    id: 'subquestion-coverage',
+    kind: 'subquestion_coverage',
+    required: false,
+    passed: coverageRatio === null ? null : coverageRatio >= MIN_COVERAGE_RATIO,
+    observed: {
+      coverageRatio,
+      coveredCount: qualityMetrics.coveredSubquestionCount ?? null
+    },
+    threshold: MIN_COVERAGE_RATIO,
+    artifactRefs: ['artifacts.quality.metrics'],
+    explanation: coverageRatio === null
+      ? '质量评估未产出覆盖率，无法评估。'
+      : `子问题覆盖率 ${coverageRatio}（阈值 ${MIN_COVERAGE_RATIO}）。`,
+    cause: 'evidence_gap'
+  }));
 
-  if (citations.length > 0) {
-    const distinctSources = distinctSourceCount(citations);
-    checks.push(check({
-      id: 'source-diversity',
-      kind: 'source_diversity',
-      required: false,
-      passed: distinctSources >= MIN_DISTINCT_SOURCES,
-      observed: {
-        distinctSources,
-        citationCount: citations.length,
-        disclosureFound: reportDisclosesLimitation(report)
-      },
-      threshold: MIN_DISTINCT_SOURCES,
-      explanation: distinctSources >= MIN_DISTINCT_SOURCES
+  const distinctSources = distinctSourceCount(citations);
+  checks.push(check({
+    id: 'source-diversity',
+    kind: 'source_diversity',
+    required: false,
+    passed: citations.length === 0 ? null : distinctSources >= MIN_DISTINCT_SOURCES,
+    observed: {
+      distinctSources,
+      citationCount: citations.length,
+      disclosureFound: reportDisclosesLimitation(report)
+    },
+    threshold: MIN_DISTINCT_SOURCES,
+    artifactRefs: ['artifacts.citations'],
+    explanation: citations.length === 0
+      ? '没有入选 citation，多样性不适用。'
+      : (distinctSources >= MIN_DISTINCT_SOURCES
         ? `证据来自 ${distinctSources} 个不同来源。`
-        : `证据只来自 ${distinctSources} 个来源；来源不足不得伪造多样性，需要披露局限或补充来源。`,
-      cause: 'evidence_gap'
-    }));
-  }
+        : `证据只来自 ${distinctSources} 个来源；来源不足不得伪造多样性，需要披露局限或补充来源。`),
+    cause: 'evidence_gap'
+  }));
 
-  const acceptedCount = Number(safeArtifacts.evidencePack?.acceptedCount ?? 0);
-  const readSourceCount = Number(safeArtifacts.evidencePack?.readSourceCount ?? 0);
-  if (acceptedCount > 0) {
-    const readRate = readSourceCount / acceptedCount;
-    checks.push(check({
-      id: 'fulltext-read-rate',
-      kind: 'fulltext_read_rate',
-      required: false,
-      passed: readRate >= MIN_FULLTEXT_READ_RATE,
-      observed: {
-        readSourceCount,
-        acceptedCount,
-        readRate: Number(readRate.toFixed(4)),
-        snippetFallbackCount: safeArtifacts.evidencePack?.snippetFallbackCount ?? null
-      },
-      threshold: MIN_FULLTEXT_READ_RATE,
-      explanation: `通过筛选的来源中 ${readSourceCount}/${acceptedCount} 读到了正文。`,
-      cause: 'evidence_gap'
-    }));
-  }
+  const acceptedCount = Number(pack.acceptedCount ?? 0);
+  const readSourceCount = Number(pack.readSourceCount ?? 0);
+  checks.push(check({
+    id: 'fulltext-read-rate',
+    kind: 'fulltext_read_rate',
+    required: false,
+    passed: acceptedCount === 0 ? null : readRate(acceptedCount, readSourceCount) >= MIN_FULLTEXT_READ_RATE,
+    observed: {
+      readSourceCount,
+      acceptedCount,
+      readRate: acceptedCount === 0 ? null : Number((readSourceCount / acceptedCount).toFixed(4))
+    },
+    threshold: MIN_FULLTEXT_READ_RATE,
+    artifactRefs: ['artifacts.evidencePack'],
+    explanation: acceptedCount === 0
+      ? '没有通过筛选的来源，正文读取率不适用。'
+      : `通过筛选的来源中 ${readSourceCount}/${acceptedCount} 读到了正文。`,
+    cause: 'evidence_gap'
+  }));
 
-  const writerAttempted = evidence.length > 0 && Boolean(writer);
-  if (writerAttempted) {
-    checks.push(check({
-      id: 'writer-output-accepted',
-      kind: 'writer_output_accepted',
-      required: false,
-      passed: writer.mode === 'model',
-      observed: {
-        writerMode: writer.mode || null,
-        writerStatus: writer.status || null,
-        reasonCode: writer.reasonCode || '',
-        fallbackReason: writer.fallbackReason || ''
-      },
-      explanation: writer.mode === 'model'
+  const passageCount = Number(pack.passageCount ?? 0);
+  const snippetFallbackCount = Number(pack.snippetFallbackCount ?? 0);
+  const snippetFallbackRate = passageCount === 0 ? null : Number((snippetFallbackCount / passageCount).toFixed(4));
+  checks.push(check({
+    id: 'snippet-fallback-rate',
+    kind: 'snippet_fallback_rate',
+    required: false,
+    passed: passageCount === 0 ? null : snippetFallbackRate <= MAX_SNIPPET_FALLBACK_RATE,
+    observed: {
+      snippetFallbackCount,
+      passageCount,
+      snippetFallbackRate
+    },
+    threshold: MAX_SNIPPET_FALLBACK_RATE,
+    artifactRefs: ['artifacts.evidencePack'],
+    explanation: passageCount === 0
+      ? '没有证据片段，snippet 回退率不适用。'
+      : `${snippetFallbackCount}/${passageCount} 段证据使用搜索摘要而非正文。`,
+    cause: 'evidence_gap'
+  }));
+
+  const webCitations = citations.filter((item) => item.kind === 'web');
+  const unverifiedWeb = webCitations.filter(
+    (item) => !VERIFIED_PROVENANCE.includes(item.provenance)
+  );
+  // 与 source_diversity 同款诚实降级：未确认一手来源不得静默使用，但允许通过
+  // 显式局限披露替代（"来源不足不得伪造多样性/provenance"）。
+  const provenanceDisclosed = unverifiedWeb.length === 0 || reportDisclosesLimitation(report);
+  checks.push(check({
+    id: 'source-provenance',
+    kind: 'source_provenance',
+    required: false,
+    passed: webCitations.length === 0 ? null : provenanceDisclosed,
+    observed: {
+      webCitationCount: webCitations.length,
+      unverifiedCount: unverifiedWeb.length,
+      disclosureFound: reportDisclosesLimitation(report)
+    },
+    artifactRefs: ['artifacts.citations'],
+    explanation: webCitations.length === 0
+      ? '没有外部来源，provenance 校验不适用。'
+      : (unverifiedWeb.length === 0
+        ? '全部外部来源都属于已确认的公开一手 provenance。'
+        : (provenanceDisclosed
+          ? `${unverifiedWeb.length} 条外部来源尚未确认为一手资料，但报告已披露该局限。`
+          : `${unverifiedWeb.length} 条外部来源尚未确认为一手资料，且报告未披露该局限。`)),
+    cause: 'evidence_gap'
+  }));
+
+  checks.push(check({
+    id: 'writer-output-accepted',
+    kind: 'writer_output_accepted',
+    required: false,
+    passed: evidence.length === 0 || !writer
+      ? null
+      : writer.mode === 'model',
+    observed: {
+      writerAttempted: evidence.length > 0 && Boolean(writer),
+      writerMode: writer?.mode || null,
+      writerStatus: writer?.status || null,
+      reasonCode: writer?.reasonCode || '',
+      fallbackReason: writer?.fallbackReason || ''
+    },
+    artifactRefs: ['artifacts.diagnostics.writing'],
+    explanation: evidence.length === 0 || !writer
+      ? 'Writer 未尝试写作（无证据或缺少写作诊断），无法评估。'
+      : (writer.mode === 'model'
         ? '模型报告通过引用校验并被采纳。'
-        : `模型报告未通过校验（${writer.reasonCode || '未知原因'}），已降级为确定性证据摘要。`,
-      cause: 'report_defect'
-    }));
-  }
+        : `模型报告未通过校验（${writer.reasonCode || '未知原因'}），已降级为确定性证据摘要。`),
+    cause: 'report_defect'
+  }));
 
-  if (citations.length > 0) {
-    checks.push(check({
-      id: 'claim-support',
-      kind: 'claim_support',
-      required: false,
-      passed: null,
-      observed: {
-        citationCount: citations.length
-      },
-      explanation: 'claim-evidence 语义支持率需要人工标注或独立 Judge 口径（Spec §8.1/§13.4），不将"有合法 citation ID"当作语义支持；Phase 1 不评估。',
-      cause: 'infra'
-    }));
-  }
+  checks.push(check({
+    id: 'claim-support',
+    kind: 'claim_support',
+    required: false,
+    passed: null,
+    observed: {
+      citationCount: citations.length,
+      evidenceCount: evidence.length
+    },
+    artifactRefs: ['artifacts.citations', 'artifacts.evidence'],
+    explanation: 'claim-evidence 语义支持率需要人工标注或独立 Judge 口径（Spec §8.1/§13.4），不将"有合法 citation ID"当作语义支持；Phase 1 不评估。',
+    cause: 'infra'
+  }));
+
+  checks.push(check({
+    id: 'conflict-detection',
+    kind: 'conflict_detection',
+    required: false,
+    passed: null,
+    observed: {
+      evidenceCount: evidence.length
+    },
+    artifactRefs: ['artifacts.evidence'],
+    explanation: '来源之间的显式冲突与未解决问题检测依赖 Evidence Ledger 与语义比对（Phase 2+），当前阶段无法评估。',
+    cause: 'infra'
+  }));
 
   return { checks, deliveryMode, limitations };
+}
+
+function readRate(acceptedCount, readSourceCount) {
+  return readSourceCount / acceptedCount;
 }
 
 function replanBudgetAvailable(budget) {
@@ -394,8 +522,15 @@ export function aggregateCompletionVerdict({ checks, mode, budget }) {
     }
   } else {
     // Shadow 聚合：required null 不计入失败，仅观测（Spec §8.2）。
+    // 多缺陷优先级（Spec §9.2）：先修复不安全的交付/Writer 缺陷，再考虑补证据，
+    // 不让证据缺口掩盖 Writer rejection。
     passed = requiredFailures.length === 0;
-    if (gapFailures.length) {
+    if (requiredFailures.length || writerRejected) {
+      nextAction = 'repair_report';
+      nextActionReason = writerRejected && !requiredFailures.length
+        ? '模型报告被拒并降级为确定性摘要，建议修复报告后重评。'
+        : `交付检查未通过（${requiredFailures.map((item) => item.id).join('、')}），建议修复报告。`;
+    } else if (gapFailures.length) {
       if (replanBudgetAvailable(budget)) {
         nextAction = 'replan';
         nextActionReason = `证据覆盖不足（${gapFailures.map((item) => item.id).join('、')}），replan 预算可用，建议一次针对性补检索。`;
@@ -406,11 +541,6 @@ export function aggregateCompletionVerdict({ checks, mode, budget }) {
         nextAction = 'fail';
         nextActionReason = '证据覆盖不足、replan 预算耗尽且报告缺少安全披露。';
       }
-    } else if (requiredFailures.length || writerRejected) {
-      nextAction = 'repair_report';
-      nextActionReason = requiredFailures.length
-        ? `交付检查未通过（${requiredFailures.map((item) => item.id).join('、')}），建议修复报告。`
-        : '模型报告被拒并降级为确定性摘要，建议修复报告后重评。';
     } else {
       nextAction = 'complete';
       nextActionReason = '交付检查通过，证据覆盖满足阈值。';

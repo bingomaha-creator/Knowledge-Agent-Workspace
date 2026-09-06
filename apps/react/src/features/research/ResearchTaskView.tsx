@@ -160,6 +160,13 @@ const ContractSection = styled.section`
   .contract-note { color: var(--color-text-muted); font-size: 0.72rem; line-height: 1.5; overflow-wrap: anywhere; }
 `;
 
+const BudgetLine = styled.p`
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  overflow-wrap: anywhere;
+`;
+
 const Alert = styled.section<{ $tone: 'danger' | 'info' }>`
   display: grid;
   gap: var(--space-1);
@@ -268,6 +275,13 @@ export function ResearchTaskView({
               </li>
             ))}
           </StageList>
+          {task.budget ? (
+            <BudgetLine>
+              本轮预算：外部检索 {task.budget.webSearchCalls} 次 ·
+              补检索 {task.budget.targetedReplans.used}/{task.budget.targetedReplans.limit} ·
+              报告修复 {task.budget.reportRepairs.used}/{task.budget.reportRepairs.limit}
+            </BudgetLine>
+          ) : null}
         </>
       ) : null}
 

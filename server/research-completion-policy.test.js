@@ -4,8 +4,8 @@
  * 覆盖 Phase 0 暴露的两个 shadow 信号：
  * 1. 非法模型引用触发 writer fallback → 建议 repair_report（不执行）；
  * 2. 证据覆盖不足 → 按原因与预算建议 replan 或 deliver_insufficient（不执行）。
- * 以及 boolean|null 语义：required null 在 shadow 下不计失败、在 gate 下阻断 complete
- * 并按 notEvaluableCause 分流。
+ * 以及：多缺陷优先级（Writer 缺陷不被证据缺口掩盖）、artifactRefs 全覆盖、
+ * citation membership 自验、章节角色别名匹配、质量检查恒在（可评估或显式 null）。
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
@@ -37,7 +37,7 @@ const GAP_REPORT = [
 ].join('\n');
 
 function citation(id, index) {
-  return { id, index, title: `来源 ${index}`, url: `https://example.org/${index}`, kind: 'web' };
+  return { id, index, title: `来源 ${index}`, url: `https://example.org/${index}`, kind: 'web', provenance: 'verified_primary' };
 }
 
 function healthyArtifacts(overrides = {}) {
@@ -54,7 +54,7 @@ function healthyArtifacts(overrides = {}) {
       invalidCitationNumbers: [],
       invalidCitationMarkers: []
     },
-    evidencePack: { acceptedCount: 3, readSourceCount: 3, snippetFallbackCount: 0 },
+    evidencePack: { acceptedCount: 3, readSourceCount: 3, passageCount: 3, snippetFallbackCount: 0 },
     diagnostics: {
       writing: { mode: 'model', status: 'success', reasonCode: '', fallbackReason: '' }
     },
@@ -76,17 +76,45 @@ function shadowNextAction(artifacts, budget) {
   });
 }
 
-test('shadow 健康运行：交付检查通过，建议 complete', () => {
+function checksById(verdict) {
+  return Object.fromEntries(verdict.checks.map((item) => [item.id, item]));
+}
+
+test('shadow 健康运行：交付检查通过，建议 complete；artifactRefs 全覆盖', () => {
   const verdict = shadowNextAction(healthyArtifacts());
   assert.equal(verdict.mode, 'shadow');
   assert.equal(verdict.passed, true);
   assert.equal(verdict.nextAction, 'complete');
   assert.equal(verdict.deliveryMode, 'grounded_report');
-  const byId = Object.fromEntries(verdict.checks.map((item) => [item.id, item]));
+  assert.ok(verdict.checks.length >= 12, `质量检查恒在：实际 ${verdict.checks.length} 项`);
+  for (const item of verdict.checks) {
+    assert.ok(Array.isArray(item.artifactRefs) && item.artifactRefs.length > 0,
+      `${item.id} 必须携带 artifactRefs（Spec §8.2）`);
+  }
+  const byId = checksById(verdict);
   assert.equal(byId['writer-output-accepted'].passed, true);
   assert.equal(byId['claim-support'].passed, null, 'claim_support 在 Phase 1 恒为 not_evaluated');
+  assert.equal(byId['conflict-detection'].passed, null, '冲突检测在 Phase 1 恒为 not_evaluated，但不得缺席');
+  assert.equal(byId['snippet-fallback-rate'].passed, true);
+  assert.equal(byId['source-provenance'].passed, true);
   assert.equal(byId['writer-input-boundary'].passed, null);
   assert.deepEqual(verdict.notEvaluableRequired, ['writer-input-boundary']);
+});
+
+test('citation membership 自验：不信任上游 verification，外来引用 ID 记为失败', () => {
+  const verdict = shadowNextAction(healthyArtifacts({
+    verification: {
+      valid: true,
+      referencedCitationIds: ['c1', 'c2', 'c-from-another-run'],
+      invalidCitationNumbers: [],
+      invalidCitationMarkers: []
+    }
+  }));
+  const byId = checksById(verdict);
+  assert.equal(byId['citation-membership'].passed, false,
+    '上游 valid=true 也不能掩盖引用不属于当前 Run 的事实');
+  assert.deepEqual(byId['citation-membership'].observed.foreignReferences, ['c-from-another-run']);
+  assert.equal(verdict.nextAction, 'repair_report');
 });
 
 test('shadow 信号一：模型报告非法引用被拒并降级 → 建议 repair_report', () => {
@@ -101,7 +129,7 @@ test('shadow 信号一：模型报告非法引用被拒并降级 → 建议 repa
     }
   }));
   assert.equal(verdict.passed, true, '降级后的确定性最终报告本身交付安全（required 检查通过）');
-  const byId = Object.fromEntries(verdict.checks.map((item) => [item.id, item]));
+  const byId = checksById(verdict);
   assert.equal(byId['writer-output-accepted'].passed, false);
   assert.equal(byId['writer-output-accepted'].observed.reasonCode, 'invalid_citations');
   assert.equal(verdict.nextAction, 'repair_report');
@@ -115,11 +143,32 @@ test('shadow 信号二：证据覆盖不足 → 预算可用时建议 replan', (
       limitations: [{ code: 'low_subquestion_coverage', message: '只有 1/3 个子问题获得了相关证据。' }]
     }
   }));
-  const byId = Object.fromEntries(verdict.checks.map((item) => [item.id, item]));
+  const byId = checksById(verdict);
   assert.equal(byId['subquestion-coverage'].passed, false);
   assert.equal(byId['limitation-disclosure'].passed, true, '报告包含局限披露表述');
   assert.equal(verdict.nextAction, 'replan');
   assert.ok(verdict.nextActionReason.includes('replan 预算可用'));
+});
+
+test('多缺陷优先级：Writer rejection + 证据缺口并存 → 先 repair_report，不被 replan 掩盖', () => {
+  const verdict = shadowNextAction(healthyArtifacts({
+    diagnostics: {
+      writing: {
+        mode: 'fallback',
+        status: 'degraded',
+        reasonCode: 'invalid_citations',
+        fallbackReason: '模型报告缺少有效的证据引用，已使用确定性证据摘要'
+      }
+    },
+    quality: {
+      metrics: { coverageRatio: 0.3333, coveredSubquestionCount: 1, totalSubquestionCount: 3 },
+      limitations: [{ code: 'low_subquestion_coverage', message: '只有 1/3 个子问题获得了相关证据。' }]
+    }
+  }));
+  assert.equal(verdict.nextAction, 'repair_report',
+    'Writer 缺陷优先于证据缺口（Spec §9.2：报告安全后再补证据）');
+  assert.deepEqual([...verdict.qualityFailures].sort(), ['subquestion-coverage', 'writer-output-accepted'],
+    '两类缺陷同时在列，但建议动作必须是 repair_report');
 });
 
 test('shadow 信号二变体：零证据且 replan 预算耗尽 → 建议 deliver_insufficient', () => {
@@ -127,8 +176,7 @@ test('shadow 信号二变体：零证据且 replan 预算耗尽 → 建议 deliv
     citations: [],
     evidence: [],
     verification: { valid: true, referencedCitationIds: [], invalidCitationNumbers: [], invalidCitationMarkers: [] },
-    evidencePack: { acceptedCount: 0, readSourceCount: 0, snippetFallbackCount: 0 },
-    diagnostics: { writing: { mode: 'fallback', status: 'degraded', reasonCode: 'model_unavailable', fallbackReason: '未接入受证据约束的报告写作者' } },
+    evidencePack: { acceptedCount: 0, readSourceCount: 0, passageCount: 0, snippetFallbackCount: 0 },
     quality: {
       metrics: { coverageRatio: 0, coveredSubquestionCount: 0, totalSubquestionCount: 2 },
       limitations: [{ code: 'no_relevant_evidence', message: '没有找到足够相关的证据。' }]
@@ -144,10 +192,42 @@ test('shadow 信号二变体：零证据且 replan 预算耗尽 → 建议 deliv
 
   // Shadow 口径下 required null（delivery_mode_consistent）不计为失败：
   assert.ok(withFreshBudget.notEvaluableRequired.includes('delivery-mode-consistent'));
-  const byId = Object.fromEntries(withFreshBudget.checks.map((item) => [item.id, item]));
+  const byId = checksById(withFreshBudget);
   assert.equal(byId['delivery-mode-consistent'].passed, null);
   assert.equal(byId['delivery-mode-consistent'].observed.status, 'not_evaluated');
   assert.equal(byId['delivery-mode-consistent'].observed.deliveryMode, 'evidence_gap_report');
+  // 质量检查恒在：不可评估的以 null 显式输出，不得从 checks 中消失
+  assert.equal(byId['writer-output-accepted'].passed, null, 'Writer 未尝试时显式 not_evaluated');
+  assert.equal(byId['snippet-fallback-rate'].passed, null);
+  assert.equal(byId['source-provenance'].passed, null);
+  assert.equal(byId['source-diversity'].passed, null);
+  assert.equal(byId['fulltext-read-rate'].passed, null);
+});
+
+test('required_sections 按角色别名匹配，不依赖单一精确中文标题', () => {
+  const modelStyle = healthyArtifacts({
+    verifiedReport: [
+      '# 报告',
+      '## 检索方式',
+      '受控联网检索。',
+      '## 结论与限制',
+      '结论以引用为边界。',
+      '## References',
+      '[1] 来源'
+    ].join('\n')
+  });
+  const byId = checksById(shadowNextAction(modelStyle));
+  assert.equal(byId['required-sections'].passed, true,
+    '别名命中：检索方式→methodology，结论与限制→conclusion_limitations，References→references');
+
+  const missing = healthyArtifacts({
+    verifiedReport: '# 报告\n\n只有结论，没有范围与参考章节。\n\n## 结论\n内容。'
+  });
+  const missingVerdict = shadowNextAction(missing);
+  const missingById = checksById(missingVerdict);
+  assert.equal(missingById['required-sections'].passed, false);
+  assert.ok(missingById['required-sections'].observed.missingRoles.includes('methodology'));
+  assert.ok(missingById['required-sections'].observed.missingRoles.includes('references'));
 });
 
 test('gate 口径：真实 artifacts 因 writer_input_boundary 恒为 null 而 fail-closed', () => {
@@ -169,7 +249,9 @@ test('gate 口径表驱动：required null 按 notEvaluableCause 分流，option
     passed: 'passed' in overrides ? overrides.passed : null,
     observed: { status: overrides.passed === null ? 'not_evaluated' : 'evaluated' },
     explanation: '',
-    notEvaluableCause: overrides.cause || null
+    artifactRefs: ['synthetic'],
+    cause: overrides.cause || null,
+    notEvaluableCause: overrides.passed === null ? (overrides.cause || null) : null
   });
   const budget = { replans: { used: 0, limit: 1 }, repairs: { used: 0, limit: 1 } };
 

@@ -27,8 +27,11 @@ function isActive(task?: ResearchTask | null) {
   return Boolean(task && (task.status === 'queued' || task.status === 'running'));
 }
 
-/** 旧响应（如取消期间晚到的轮询）不得覆盖更新的权威快照。 */
-function preferAuthoritativeTask(cached: ResearchTask | undefined, incoming: ResearchTask): ResearchTask {
+/**
+ * 旧响应（如取消期间晚到的轮询）不得覆盖更新的权威快照。
+ * 导出供缓存仲裁回归测试使用（Spec research-harness §13.2）。
+ */
+export function preferAuthoritativeTask(cached: ResearchTask | undefined, incoming: ResearchTask): ResearchTask {
   return cached && cached.updatedAt > incoming.updatedAt ? cached : incoming;
 }
 

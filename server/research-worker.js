@@ -237,14 +237,14 @@ function cancelled(error, task, signal) {
 
 /**
  * RunBudget 快照（Spec research-harness §9.1 的 Phase 1 最小集）。
- * 计数只从公开 artifacts 推导：web 检索调用数来自计划查询数，writer token 来自
- * 写作诊断；replan/repair 在 Phase 1 从不执行，计数恒为 0、限额为待校准默认值。
+ * 注意：web_search_calls 不在此推导——它必须在 Web SearchProvider 调用边界
+ * （retrieve 中每次非 local 子问题检索完成）由 addRunBudgetWebSearchCalls 累计
+ * 递增，失败/重启/重试后保持累计，禁止用计划 query 数覆盖旧值。
  */
 function buildRunBudgetSnapshot(artifacts, { startedAt, now }) {
   const writerTokens = artifacts?.diagnostics?.writing || artifacts?.writer || {};
   return {
     wallTimeMs: Math.max(0, Number(now) - Number(startedAt || now)),
-    webSearchCalls: Array.isArray(artifacts?.search?.queries) ? artifacts.search.queries.length : 0,
     targetedReplansUsed: 0,
     targetedReplansLimit: 1,
     reportRepairsUsed: 0,
@@ -356,6 +356,17 @@ export function createResearchWorker({
   }
 
   /**
+   * shadow warning：shadow 自身的持久化故障留下结构化诊断（research_run_errors 中
+   * category='shadow_warning'），但不改变任务终态，也不推进 updatedAt。
+   */
+  function shadowWarn(taskId, stage, code, error, attempt) {
+    try {
+      store.recordShadowWarning?.(taskId, { stage, code, message: readableError(error) }, { attempt });
+    } catch { /* warning 通道失败时放弃，不得影响执行 */ }
+    console.warn(`[research] ${code} @${stage}: ${readableError(error)}`);
+  }
+
+  /**
    * 每个异步边界前后重新验证运行权。AbortSignal 负责快速中止当前进程，SQLite 的
    * status/cancelRequested 则覆盖来自另一个 HTTP 请求或迟到写入的竞态。
    * 返回最新 task 快照，供下一阶段使用。
@@ -422,6 +433,16 @@ export function createResearchWorker({
           })
           : []
       ]);
+      // Web SearchProvider 调用边界（Spec research-harness §9.1）：worker 视角下，
+      // 每次非 local 子问题检索由 search service 发起恰好一次 search_web 调用。
+      // local 模式不计入。累计计数走 SQL 自增，重启/重试后不丢、不被旧值覆盖。
+      if (task.searchMode !== 'local') {
+        try {
+          store.addRunBudgetWebSearchCalls?.(task.id, 1, { attempt: Number(task.attempt || 0) });
+        } catch (budgetError) {
+          shadowWarn(task.id, 'retrieving', 'WEB_SEARCH_COUNT_PERSIST_FAILED', budgetError, Number(task.attempt || 0));
+        }
+      }
       const result = Array.isArray(searchResult)
         ? { local: searchResult, web: repositorySources }
         : {
@@ -720,15 +741,18 @@ export function createResearchWorker({
     let task = store.claim(id);
     if (!task) return store.get(id);
     const startedAt = Date.now();
+    const attempt = Number(task?.attempt || 0);
     let artifacts = task.artifacts || {};
     let currentStage = RESEARCH_STAGE_VALUES.includes(task.stage) ? task.stage : 'planning';
 
-    // Phase 1 shadow（Spec research-harness §8.3/§12）：预算从公开 artifacts 推导并
-    // 持久化到 side table，供运行态增量展示；失败只降级为缺少观测，绝不改变执行语义。
+    // Phase 1 shadow（Spec research-harness §8.3/§12）：预算快照持久化到 side table，
+    // 供运行态增量展示；写入携带 attempt 守卫，失败只降级为缺少观测并留下结构化警告。
     const persistBudget = () => {
       try {
-        store.upsertRunBudget(id, buildRunBudgetSnapshot(artifacts, { startedAt, now: Date.now() }));
-      } catch { /* shadow 观测失败不改变执行语义 */ }
+        store.upsertRunBudget?.(id, buildRunBudgetSnapshot(artifacts, { startedAt, now: Date.now() }), { attempt });
+      } catch (error) {
+        shadowWarn(id, currentStage, 'BUDGET_PERSIST_FAILED', error, attempt);
+      }
     };
 
     try {
@@ -793,9 +817,9 @@ export function createResearchWorker({
             }
           }
         });
-        store.recordContractChecks(id, verdict);
+        store.recordContractChecks?.(id, verdict, { attempt });
       } catch (shadowError) {
-        console.warn(`[research] completion shadow 评估失败（不影响任务结果）: ${readableError(shadowError)}`);
+        shadowWarn(id, currentStage, 'CONTRACT_PERSIST_FAILED', shadowError, attempt);
       }
       return completedTask;
     } catch (error) {
@@ -809,14 +833,16 @@ export function createResearchWorker({
       try {
         persistBudget();
         const classification = classifyResearchError(error);
-        store.recordRunError(id, {
+        store.recordRunError?.(id, {
           stage: currentStage,
           category: classification.category,
           code: classification.code,
           message: readableError(error),
           retryable: classification.retryable
-        });
-      } catch { /* 错误分类持久化失败不影响失败语义 */ }
+        }, { attempt });
+      } catch (shadowError) {
+        shadowWarn(id, currentStage, 'ERROR_CLASSIFY_PERSIST_FAILED', shadowError, attempt);
+      }
       return failedTask;
     }
   }

@@ -159,7 +159,7 @@ test('shadow 信号二：零证据 → 建议 replan；不执行任何动作', a
     assert.ok(contract.notEvaluableRequired.includes('delivery-mode-consistent'));
     const byId = Object.fromEntries(contract.checks.map((item) => [item.id, item]));
     assert.equal(byId['min-evidence'].passed, false);
-    assert.equal(byId['writer-output-accepted'], undefined, 'writer 未尝试时不产生该检查');
+    assert.equal(byId['writer-output-accepted'].passed, null, 'Writer 未尝试时该检查以 not_evaluated 恒在');
   } finally {
     cleanup();
   }
@@ -183,6 +183,38 @@ test('错误分类持久化：非取消失败写 failed 并记录 upstream 分�
     assert.equal(errors[0].category, 'upstream');
     assert.equal(errors[0].retryable, true);
     assert.ok(store.getRunBudget(finalTask.id), '失败路径同样持久化预算快照');
+  } finally {
+    cleanup();
+  }
+});
+
+test('重试后 webSearchCalls 保持累计：失败 attempt 未调 Provider 不计数，新 attempt 正确累加', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const failingWorker = createResearchWorker({
+      store,
+      concurrency: 1,
+      ...fixtureAdapters({ failSearch: true })
+    });
+    const created = store.create({ question: '重试累计研究', searchMode: 'web', knowledgeBaseIds: [] });
+    const failedTask = await failingWorker.enqueue(created.id);
+    assert.equal(failedTask.status, 'failed');
+    assert.equal(store.getRunBudget(created.id)?.webSearchCalls, 0,
+      '检索在 Provider 调用前抛出，不得计数');
+
+    // retry：attempt 前进，新 attempt 的 2 次调用累加到同一 Run 的计数上
+    assert.ok(store.retry(created.id), 'failed 任务可重试');
+    const workingWorker = createResearchWorker({ store, concurrency: 1, ...fixtureAdapters() });
+    const finalTask = await workingWorker.enqueue(created.id);
+    assert.equal(finalTask.status, 'completed');
+    assert.ok(Number(finalTask.attempt) >= 2, 'retry 后 attempt 前进');
+    assert.equal(store.getRunBudget(created.id)?.webSearchCalls, 2,
+      '新 attempt 的调用累计（SQL 自增），不是覆盖也不是清零');
+
+    // 旧 attempt 的迟到写入被 attempt 守卫拒绝
+    const staleAttempt = Number(finalTask.attempt) - 1;
+    assert.equal(store.addRunBudgetWebSearchCalls(created.id, 99, { attempt: staleAttempt }), false);
+    assert.equal(store.getRunBudget(created.id)?.webSearchCalls, 2, '迟到写入不得污染累计值');
   } finally {
     cleanup();
   }
