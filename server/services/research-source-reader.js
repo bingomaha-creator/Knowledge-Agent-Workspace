@@ -1,5 +1,11 @@
+import { createHash } from 'node:crypto';
+
 const MAX_DOCUMENT_BYTES = 160_000;
 const DEFAULT_TIMEOUT_MS = 8_000;
+
+function contentHashOf(content) {
+  return createHash('sha256').update(String(content || '').replace(/\r/g, '').replace(/\u0000/g, '').trim()).digest('hex');
+}
 
 function githubRepository(value) {
   try {
@@ -68,6 +74,13 @@ function safeReaderFailure(source, code) {
  * 通用 HTTPS HTML/PDF Reader 属于 Phase 2B，本阶段不注册（canRead 恒 false 即
  * 等价于不存在）；每个失败都携带 sourceId/code/message/retryable，禁止无声回退
  * 为"已精读正文"——snippet 回退由证据装配阶段标记 readerKind='search_snippet' 并降质。
+ *
+ * attestation（Codex Phase 2A 评审第 2 点）：Adapter 显式声明内容的取得方式。
+ * 内置 Adapter 默认只证明"内容由该 Reader 获取"（reader_obtained）——provider_raw
+ * 与任意 GitHub README 读取成功都不得自动升级 verified_primary；只有来源身份与
+ * 官方主体关系经过明确验证的 Adapter 才能声明 verified_primary，不得靠域名或
+ * 搜索结果标签推断。document 同时携带全量正文的 contentHash（Ledger 身份直接
+ * 采用，避免对截断文本重算）。
  */
 export function createResearchSourceReader({
   fetchImpl = globalThis.fetch,
@@ -87,7 +100,12 @@ export function createResearchSourceReader({
           content: bounded.content,
           contentType: 'text/plain',
           truncated: bounded.truncated,
-          readerKind: 'provider_raw'
+          readerKind: 'provider_raw',
+          contentHash: contentHashOf(bounded.content),
+          attestation: {
+            provenance: 'reader_obtained',
+            reason: 'content_from_search_provider_payload'
+          }
         };
       }
     },
@@ -126,7 +144,12 @@ export function createResearchSourceReader({
             content: bounded.content,
             contentType: response.headers?.get?.('content-type') || 'text/plain',
             truncated: bounded.truncated,
-            readerKind: 'github_readme'
+            readerKind: 'github_readme',
+            contentHash: contentHashOf(bounded.content),
+            attestation: {
+              provenance: 'reader_obtained',
+              reason: 'content_from_github_readme_endpoint'
+            }
           };
         } catch (error) {
           if (signal?.aborted) throw error;
@@ -149,7 +172,12 @@ export function createResearchSourceReader({
         content: bounded.content,
         contentType: 'text/plain',
         truncated: bounded.truncated,
-        readerKind: 'local_evidence'
+        readerKind: 'local_evidence',
+        contentHash: contentHashOf(bounded.content),
+        attestation: {
+          provenance: 'reader_obtained',
+          reason: 'local_project_knowledge_evidence'
+        }
       };
     }
 

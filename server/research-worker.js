@@ -27,7 +27,7 @@ import { evaluateCompletionContract } from './research-completion-policy.js';
 import {
   LEDGER_VERSION,
   buildLedgerEntries,
-  buildWriterInputDiff,
+  buildReadingEligibilityDiff,
   normalizeEvidenceLedgerMode
 } from './research-evidence-ledger.js';
 
@@ -750,7 +750,11 @@ export function createResearchWorker({
           verification: verified.verification
         },
         citations,
-        report: verified.report
+        report: verified.report,
+        // citation 终态依据 verifying 的实际引用集合收敛（writer_selected ≠ cited）。
+        ledgerCitationFinalize: {
+          referencedCitationIds: verified.verification.referencedCitationIds
+        }
       };
     }
 
@@ -807,8 +811,10 @@ export function createResearchWorker({
         if (typeof result.report === 'string') patch.report = result.report;
         task = persistStage(id, patch, signal);
         persistBudget();
-        // Phase 2A Evidence Ledger shadow 双写（Spec §7/§12）：旧证据路径继续供
-        // Writer 使用，台账只记录 would-be Writer 输入与差异；off 模式完全跳过。
+        // Phase 2A：主快照与 Evidence Ledger 侧写在同一事务内提交（Spec §7/§12），
+        // 消除"任务已进入下一阶段、Ledger 尚未写入"的崩溃窗口；shadow 故障回退为
+        // 普通阶段持久化并留结构化日志，off 模式完全跳过。
+        let ledgerPayload = null;
         if (ledgerMode === 'shadow' && result.ledgerSourceData) {
           try {
             const ledger = buildLedgerEntries({
@@ -821,20 +827,39 @@ export function createResearchWorker({
               evidence: artifacts.evidence,
               citations: result.citations || artifacts.citations
             });
-            const diff = {
-              mode: 'shadow',
-              ...buildWriterInputDiff({
-                entries: ledger.entries,
-                citations: result.citations || artifacts.citations
-              })
+            ledgerPayload = {
+              type: 'replace',
+              entries: ledger.entries,
+              artifacts: ledger.artifacts,
+              diff: {
+                mode: 'shadow',
+                ...buildReadingEligibilityDiff({
+                  entries: ledger.entries,
+                  citations: result.citations || artifacts.citations
+                })
+              }
             };
-            store.recordEvidenceLedger?.(id, { ...ledger, diff, ledgerVersion: LEDGER_VERSION }, {
-              attempt: Number(task.attempt || 0)
-            });
           } catch (ledgerError) {
-            shadowWarn(id, 'extracting', 'LEDGER_PERSIST_FAILED', ledgerError);
+            shadowWarn(id, currentStage, 'LEDGER_BUILD_FAILED', ledgerError);
           }
         }
+        if (ledgerMode === 'shadow' && result.ledgerCitationFinalize) {
+          ledgerPayload = {
+            type: 'citations',
+            referencedCitationIds: result.ledgerCitationFinalize.referencedCitationIds
+          };
+        }
+        if (ledgerPayload && typeof store.commitRunningStageWithLedger === 'function') {
+          try {
+            store.commitRunningStageWithLedger(id, patch, { attempt: Number(task.attempt || 0) }, ledgerPayload);
+          } catch (ledgerError) {
+            shadowWarn(id, currentStage, 'LEDGER_COMMIT_FAILED', ledgerError);
+            task = persistStage(id, patch, signal);
+          }
+        } else {
+          task = persistStage(id, patch, signal);
+        }
+        persistBudget();
         currentStage = nextStage;
       }
 

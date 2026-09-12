@@ -153,7 +153,7 @@ test('shadow 健康路径（local）：来源均为项目资料，契约 complet
   }
 });
 
-test('shadow web 路径：来源未经一手验证 → 诚实建议 replan；Provider 调用经观察者累计', async () => {
+test('shadow web 路径：来源未经一手验证（reader_obtained 不升级）→ 建议不因此改变；调用经观察者累计', async () => {
   const { store, cleanup } = tempStore();
   try {
     const worker = createResearchWorker({ store, concurrency: 1, ...fixtureAdapters() });
@@ -169,24 +169,30 @@ test('shadow web 路径：来源未经一手验证 → 诚实建议 replan；Pro
     assert.equal(byId['source-provenance'].passed, false, 'example.org 未通过一手验证（candidate_primary 也不算）');
     assert.equal(contract.nextAction, 'complete', 'provenance 是观察指标：缺口的补救是 Reader 验证而非补检索，不机械 replan');
 
-    // Evidence Ledger shadow 双写：旧路径 Writer 输入不变，台账记录 provenance 转换与差异
+    // Evidence Ledger shadow 双写：旧路径 Writer 输入不变；attestation 与 provenance 分离
     const ledger = store.getEvidenceLedger(finalTask.id);
     assert.ok(ledger, 'shadow 模式下台账已持久化');
     assert.equal(ledger.ledgerVersion, 1);
-    const upgraded = ledger.entries.filter((item) => item.provenanceAfter === 'verified_primary');
-    assert.ok(upgraded.length > 0, '经 fixture Adapter 成功读取的来源升级 verified_primary');
-    for (const item of upgraded) {
-      assert.equal(item.provenanceTransition.reason.startsWith('verified_by_reader:'), true);
-      assert.ok(item.provenanceTransition.artifactRef, '升级必须带 artifactRef');
-      assert.ok(ledger.artifacts.some((artifact) => artifact.artifactId === item.provenanceTransition.artifactRef));
-      assert.equal(item.reading.status, 'succeeded');
-      assert.equal(item.citation.status, 'cited');
+    const succeeded = ledger.entries.filter((item) => item.reading.status === 'succeeded');
+    assert.ok(succeeded.length > 0, '经 fixture Adapter 成功读取的来源存在');
+    for (const item of succeeded) {
+      assert.equal(item.readerAttestation.level, 'reader_obtained',
+        'provider_raw/GitHub 读取成功只是 reader_obtained，不得自动升级');
+      assert.equal(item.provenanceAfter, item.provenanceBefore, '无显式 verified attestation 时 provenance 保持原值');
+      assert.equal(item.provenanceTransition, null);
     }
     const rejected = ledger.entries.filter((item) => item.screening.status === 'rejected');
     assert.ok(rejected.every((item) => item.provenanceTransition.reason.startsWith('screening_rejected:')),
       '筛选拒绝的来源记录拒绝原因且不升级 provenance');
-    assert.ok(ledger.diff, 'would-be Writer 差异报告已持久化');
+    // citation 终态由 verifying 的 referencedCitationIds 收敛：被报告实际引用的为 cited
+    const cited = ledger.entries.filter((item) => item.citation.status === 'cited');
+    assert.ok(cited.length > 0, '报告实际引用的来源收敛为 cited');
+    assert.ok(cited.every((item) => item.citation.status !== 'writer_selected'));
+
+    // would-be diff 是读取资格差异诊断
+    assert.ok(ledger.diff, '读取资格差异诊断已持久化');
     assert.equal(ledger.diff.mode, 'shadow');
+    assert.equal(ledger.diff.diagnostic, 'reading_eligibility');
     assert.ok(Array.isArray(ledger.diff.ledgerWouldIncludeCitationIds));
     assert.ok(Array.isArray(ledger.diff.ledgerExcludedButWriterUsed));
     assert.ok(contract.artifactRefs === undefined, 'artifactRefs 挂在 check 上而非 verdict 上');

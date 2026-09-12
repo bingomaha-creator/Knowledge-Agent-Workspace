@@ -331,6 +331,18 @@ function migrateDatabase(db) {
     db.exec("ALTER TABLE research_contract_checks ADD COLUMN artifact_refs_json TEXT NOT NULL DEFAULT '[]'");
   }
 
+  const ledgerColumns = tableColumns(db, 'research_evidence_ledger');
+  const ledgerAdditions = [
+    ['reader_attestation', "TEXT NOT NULL DEFAULT ''"],
+    ['reader_attestation_reason', "TEXT NOT NULL DEFAULT ''"],
+    ['extraction_reason', "TEXT NOT NULL DEFAULT ''"]
+  ];
+  for (const [name, definition] of ledgerAdditions) {
+    if (!ledgerColumns.has(name)) {
+      db.exec(`ALTER TABLE research_evidence_ledger ADD COLUMN ${name} ${definition}`);
+    }
+  }
+
   const columns = tableColumns(db, 'research_tasks');
   const addsResultQuality = !columns.has('result_quality');
   const addsLimitations = !columns.has('limitations_json');
@@ -903,8 +915,7 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     ).all(runId);
     if (!rows.length) return null;
     const head = rows[0];
-    const checks = rows.map((row) => ({
-      id: row.check_id,
+    const checks = rows.map((row) => ({      id: row.check_id,
       kind: row.kind,
       required: row.required === 1,
       passed: row.passed === null ? null : row.passed === 1,
@@ -1036,8 +1047,10 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     if (!Array.isArray(entries)) return false;
     return withRunSnapshotWrite(runId, attempt, ['running', 'completed'], (now) => {
       // 台账按 Run 整体重建：同一 attempt 内重复写入（如重评）以最新快照为准。
+      // diff 必须先删后写：新快照无 diff 时不得残留旧值。
       db.prepare('DELETE FROM research_evidence_ledger WHERE run_id = ?').run(runId);
       db.prepare('DELETE FROM research_evidence_artifacts WHERE run_id = ?').run(runId);
+      db.prepare('DELETE FROM research_evidence_ledger_diffs WHERE run_id = ?').run(runId);
       const insertEntry = db.prepare(`
         INSERT INTO research_evidence_ledger (
           run_id, evidence_id, source_channel, canonical_source_id, canonical_url,
@@ -1045,9 +1058,11 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
           provenance_before, provenance_after, provenance_transition_json,
           subquestion_id, query, provider, reader_kind, content_hash, truncated,
           artifact_id, screening_status, screening_reason, reading_status,
-          reading_reason, extraction_status, citation_status, citation_id,
+          reading_reason, extraction_status, extraction_reason,
+          reader_attestation, reader_attestation_reason,
+          citation_status, citation_id,
           ledger_version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
       for (const item of entries) {
         insertEntry.run(
@@ -1075,7 +1090,10 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
           String(item.readingStatus || 'pending'),
           String(item.readingReason || ''),
           String(item.extractionStatus || 'not_selected'),
-          String(item.citationStatus || 'not_cited'),
+          String(item.extractionReason || ''),
+          String(item.readerAttestation || ''),
+          String(item.readerAttestationReason || ''),
+          String(item.citationStatus || 'pending'),
           String(item.citationId || ''),
           Number(item.ledgerVersion || ledgerVersion),
           now,
@@ -1144,7 +1162,11 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
         artifactId: row.artifact_id,
         screening: { status: row.screening_status, reason: row.screening_reason },
         reading: { status: row.reading_status, reason: row.reading_reason },
-        extraction: { status: row.extraction_status },
+        extraction: { status: row.extraction_status, reason: row.extraction_reason },
+        readerAttestation: {
+          level: row.reader_attestation,
+          reason: row.reader_attestation_reason
+        },
         citation: { status: row.citation_status, citationId: row.citation_id }
       })),
       artifacts: db.prepare(
@@ -1164,6 +1186,126 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     };
   }
 
+  /**
+   * 深组合提交（Codex Phase 2A 评审第 3 点）：主任务快照（updateRunning 语义）与
+   * Evidence Ledger 侧写（整体替换或 citation 终态）在同一个事务内提交，消除
+   * "任务已进入下一阶段、Ledger 尚未写入"的崩溃窗口。ledger 为 null 时退化为
+   * 普通 updateRunning。不把 documents 塞进 task artifacts，不引入事件总线。
+   *
+   * ledger.type = 'replace'：extracting 阶段整体替换 { entries, artifacts, diff }。
+   * ledger.type = 'citations'：verifying 阶段按 verification.referencedCitationIds
+   *   将 citation_status 从 writer_selected/pending 收敛为 cited/not_cited。
+   */
+  function commitRunningStageWithLedger(runId, patch, { attempt } = {}, ledger = null) {
+    return withRunSnapshotWrite(runId, attempt, ['running'], () => {
+      const updated = updateRunning(runId, patch);
+      if (!updated) {
+        throw new Error('组合提交失败：主快照写入时任务已不在运行');
+      }
+      if (ledger?.type === 'replace') {
+        writeLedgerReplace(runId, ledger, Date.now());
+      }
+      if (ledger?.type === 'citations') {
+        finalizeLedgerCitations(runId, ledger.referencedCitationIds || [], Date.now());
+      }
+    });
+  }
+
+  function writeLedgerReplace(runId, { entries = [], artifacts = [], diff = null, ledgerVersion = 1 }, now) {
+    // diff 先删后写：新快照无 diff 时不得残留旧值。
+    db.prepare('DELETE FROM research_evidence_ledger WHERE run_id = ?').run(runId);
+    db.prepare('DELETE FROM research_evidence_artifacts WHERE run_id = ?').run(runId);
+    db.prepare('DELETE FROM research_evidence_ledger_diffs WHERE run_id = ?').run(runId);
+    const insertEntry = db.prepare(`
+      INSERT INTO research_evidence_ledger (
+        run_id, evidence_id, source_channel, canonical_source_id, canonical_url,
+        title, domain, published_at, source_type,
+        provenance_before, provenance_after, provenance_transition_json,
+        subquestion_id, query, provider, reader_kind, content_hash, truncated,
+        artifact_id, screening_status, screening_reason, reading_status,
+        reading_reason, extraction_status, extraction_reason,
+        reader_attestation, reader_attestation_reason,
+        citation_status, citation_id,
+        ledger_version, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const item of entries) {
+      insertEntry.run(
+        runId,
+        String(item.evidenceId || ''),
+        String(item.sourceChannel || ''),
+        String(item.canonicalSourceId || ''),
+        String(item.canonicalUrl || ''),
+        String(item.title || ''),
+        String(item.domain || ''),
+        String(item.publishedAt || ''),
+        String(item.sourceType || ''),
+        String(item.provenanceBefore || 'unknown'),
+        String(item.provenanceAfter || 'unknown'),
+        JSON.stringify(item.provenanceTransition || null),
+        String(item.subquestionId || ''),
+        String(item.query || ''),
+        String(item.provider || ''),
+        String(item.readerKind || ''),
+        String(item.contentHash || ''),
+        item.truncated === true ? 1 : 0,
+        String(item.artifactId || ''),
+        String(item.screeningStatus || 'pending'),
+        String(item.screeningReason || ''),
+        String(item.readingStatus || 'pending'),
+        String(item.readingReason || ''),
+        String(item.extractionStatus || 'not_selected'),
+        String(item.extractionReason || ''),
+        String(item.readerAttestation || ''),
+        String(item.readerAttestationReason || ''),
+        String(item.citationStatus || 'pending'),
+        String(item.citationId || ''),
+        Number(item.ledgerVersion || ledgerVersion),
+        now,
+        now
+      );
+    }
+    const insertArtifact = db.prepare(`
+      INSERT INTO research_evidence_artifacts (
+        artifact_id, run_id, kind, content_hash, byte_size, truncated, content, created_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    for (const artifact of artifacts) {
+      insertArtifact.run(
+        String(artifact.artifactId || ''),
+        runId,
+        String(artifact.kind || 'source_content'),
+        String(artifact.contentHash || ''),
+        Math.max(0, Math.round(Number(artifact.byteSize) || 0)),
+        artifact.truncated === true ? 1 : 0,
+        String(artifact.content || ''),
+        now
+      );
+    }
+    if (diff) {
+      db.prepare(`
+        INSERT INTO research_evidence_ledger_diffs (run_id, mode, ledger_version, diff_json, created_at)
+        VALUES (?, ?, ?, ?, ?)
+      `).run(runId, String(diff.mode || 'shadow'), Number(ledgerVersion), JSON.stringify(diff), now);
+    }
+  }
+
+  function finalizeLedgerCitations(runId, referencedCitationIds, now) {
+    // citation 终态只依据 verifying 阶段的 verification.referencedCitationIds：
+    // 进入 Writer 输入（writer_selected）不等于最终被报告引用。
+    const referenced = new Set(Array.isArray(referencedCitationIds) ? referencedCitationIds : []);
+    const rows = db.prepare(
+      'SELECT evidence_id, citation_id FROM research_evidence_ledger WHERE run_id = ?'
+    ).all(runId);
+    const update = db.prepare(
+      'UPDATE research_evidence_ledger SET citation_status = ?, updated_at = ? WHERE run_id = ? AND evidence_id = ?'
+    );
+    for (const row of rows) {
+      const status = row.citation_id && referenced.has(row.citation_id) ? 'cited' : 'not_cited';
+      update.run(status, now, runId, row.evidence_id);
+    }
+  }
+
   return {
     create,
     get: readTask,
@@ -1176,6 +1318,7 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     listRunErrors,
     recordEvidenceLedger,
     getEvidenceLedger,
+    commitRunningStageWithLedger,
     list,
     listSession,
     continueSession,

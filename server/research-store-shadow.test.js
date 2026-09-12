@@ -136,6 +136,74 @@ test('updatedAt 严格单调：同毫秒连续写入也必须至少 +1（前端�
   }
 });
 
+test('组合提交：Ledger 写入失败时主快照一并回滚，不存在中间崩溃窗口', () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const { task, attempt } = claimedTask(store);
+    assert.equal(task.stage, 'planning');
+
+    // Ledger 侧写抛错（entries 不可迭代）→ 整个事务回滚：主快照不得前进到下一阶段，
+    // 否则会出现"任务已进入 outlining、Ledger 尚未写入"的崩溃窗口。
+    assert.throws(
+      () => store.commitRunningStageWithLedger(
+        task.id,
+        { stage: 'extracting', progress: 45, artifacts: { v: 1 } },
+        { attempt },
+        { type: 'replace', entries: 123, artifacts: [], diff: { mode: 'shadow' } }
+      ),
+      Error
+    );
+    assert.equal(store.get(task.id).stage, 'planning', '主快照必须回滚到上一阶段');
+    assert.equal(store.getEvidenceLedger(task.id), null, '台账同样回滚，无半写状态');
+
+    // 正确 payload 重试 → 主快照与 Ledger 原子推进
+    assert.equal(
+      store.commitRunningStageWithLedger(
+        task.id,
+        { stage: 'extracting', progress: 45, artifacts: { v: 1 } },
+        { attempt },
+        {
+          type: 'replace',
+          entries: [{
+            evidenceId: 'ev_a', sourceChannel: 'web', canonicalSourceId: 'https://example.org/1',
+            provenanceBefore: 'candidate_primary', provenanceAfter: 'candidate_primary',
+            screeningStatus: 'accepted', readingStatus: 'succeeded',
+            extractionStatus: 'extracted', citationStatus: 'writer_selected', citationId: 'web-s1'
+          }],
+          artifacts: [],
+          diff: { mode: 'shadow', diagnostic: 'reading_eligibility' }
+        }
+      ),
+      true
+    );
+    assert.equal(store.get(task.id).stage, 'extracting');
+    const ledger = store.getEvidenceLedger(task.id);
+    assert.equal(ledger.entries[0].citation.status, 'writer_selected', 'extracting 阶段只有 writer_selected');
+
+    // verifying 收敛：citation 终态依据 referencedCitationIds
+    const finalizeOk = store.commitRunningStageWithLedger(
+      task.id,
+      { stage: 'outlining', progress: 60, artifacts: { v: 2 } },
+      { attempt },
+      { type: 'citations', referencedCitationIds: ['web-s1'] }
+    );
+    assert.equal(finalizeOk, true);
+    const finalized = store.getEvidenceLedger(task.id);
+    assert.equal(finalized.entries[0].citation.status, 'cited', '被报告引用的来源收敛为 cited');
+
+    // 未被报告引用的来源收敛为 not_cited
+    store.commitRunningStageWithLedger(
+      task.id,
+      { stage: 'outlining', progress: 61, artifacts: { v: 3 } },
+      { attempt },
+      { type: 'citations', referencedCitationIds: [] }
+    );
+    assert.equal(store.getEvidenceLedger(task.id).entries[0].citation.status, 'not_cited');
+  } finally {
+    cleanup();
+  }
+});
+
 test('webSearchCalls 累计：SQL 自增不被 upsertRunBudget 覆盖', () => {
   const { store, cleanup } = tempStore();
   try {

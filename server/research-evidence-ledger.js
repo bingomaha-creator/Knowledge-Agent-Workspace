@@ -91,15 +91,18 @@ function citationIdFor(source) {
 /**
  * 从阶段/最终 artifacts 推导台账条目。
  *
- * @param {object} input
- * @param {string} input.runId
- * @param {Array} input.acceptedSources 通过相关性筛选的来源（artifacts.sources）
- * @param {Array} [input.excludedSources] 被筛选排除的来源（含 reason）
- * @param {Array} [input.selectionExcluded] 因配额未进入 Writer 的已接受来源
- * @param {Array} [input.documents] Reader 成功读取的文档（sourceId/content/readerKind）
- * @param {Array} [input.readingFailures] Reader 失败（sourceId/code/message/retryable）
- * @param {Array} [input.evidence] 实际入选 Evidence Pack 的 passage
- * @param {Array} [input.citations] 实际生成的结构化 citation
+ * reading 维度的 document 形状：{ sourceId, content, readerKind, contentHash?,
+ * attestation? }——attestation 是 Adapter 对"内容取得方式与来源身份"的显式声明：
+ * 默认 { provenance: 'reader_obtained', reason } 只证明内容由该 Reader 获取；
+ * 只有来源身份与官方主体关系经过明确验证的 Adapter 才能声明
+ * provenance: 'verified_primary'（不得靠域名或搜索结果标签推断）。
+ *
+ * citation 维度在 extracting 阶段只能标记 writer_selected/pending（进入 Writer
+ * 输入 ≠ 最终被报告引用）；最终 cited/not_cited 由 verifying 阶段的
+ * verification.referencedCitationIds 经 store 的组合提交收敛。
+ *
+ * contentHash 基于 Reader 实际取得的完整规范化正文（document 可携带预计算的
+ * full-content hash，避免对截断文本重算）；原文 artifact 按 160KB 上限截断保存。
  */
 export function buildLedgerEntries({
   runId,
@@ -134,15 +137,19 @@ export function buildLedgerEntries({
   const buildEntry = (source, { screeningStatus, screeningReason }) => {
     const document = documentBySource.get(source.id);
     const failure = failureBySource.get(source.id);
-    const bound = document
-      ? boundArtifactContent(document.content)
-      : { content: '', byteSize: 0, truncated: false };
-    const { evidenceId, contentHash } = computeEvidenceIdentity({
+    // 内容身份基于 Reader 实际取得的完整规范化正文；artifact 只按上限截断保存。
+    const fullContent = normalizeContentForHash(document?.content || '');
+    const contentHash = document?.contentHash
+      || createHash('sha256').update(fullContent).digest('hex');
+    const { evidenceId } = computeEvidenceIdentity({
       runId,
       sourceChannel: source.kind,
       canonicalSourceId: source.url || source.id,
-      content: bound.content
+      contentHash
     });
+    const bound = document
+      ? boundArtifactContent(document.content)
+      : { content: '', byteSize: 0, truncated: false };
 
     // reading 维度：Reader 实际结果；未被选中读取的来源保持 pending。
     const readingStatus = document
@@ -154,22 +161,37 @@ export function buildLedgerEntries({
       ? ''
       : (failure ? `${failure.code}: ${failure.message}` : '');
 
-    // extraction 维度：入选 Evidence Pack 的 passage 数；配额排除即 not_selected。
+    // Reader attestation（默认只证明"内容由该 Reader 获取"）。
+    const readerAttestation = document
+      ? (document.attestation || {
+        provenance: 'reader_obtained',
+        reason: `obtained_by_reader:${document.readerKind || 'unknown'}`
+      })
+      : null;
+
+    // extraction 维度：固定枚举 not_selected | extracted | failed；原因放独立字段。
     const passageCount = evidenceBySource.get(source.id) || 0;
     const quotaExcluded = selectionExcludedById.get(source.id);
     const extractionStatus = passageCount > 0
       ? 'extracted'
-      : (quotaExcluded ? `not_selected:${quotaExcluded.reason || 'quota'}` : 'not_selected');
+      : 'not_selected';
+    const extractionReason = quotaExcluded
+      ? (quotaExcluded.reason || 'quota')
+      : '';
 
-    // citation 维度：citation id 由证据装配的确定性规则（kind-sourceId）给出。
+    // citation 维度：extracting 阶段只标记进入 Writer 输入（writer_selected）；
+    // 最终 cited/not_cited 由 verifying 阶段的 referencedCitationIds 收敛。
     const expectedCitationId = citationIdFor(source);
-    const cited = citationById.has(expectedCitationId);
+    const writerSelected = citationById.has(expectedCitationId);
 
-    // provenance 转换：只有经受控 Reader/Adapter 成功读取的 web 来源才升级为
-    // verified_primary；筛选拒绝与读取失败都保持原 provenance。
+    // provenance 转换：只有 Adapter 显式声明 verified_primary（来源身份与官方
+    // 主体关系经过明确验证）的读取才升级；provider_raw / 任意 GitHub README
+    // 读取成功都只是 reader_obtained，不自动升级；筛选拒绝与读取失败保持原值
+    // 并记录原因。
     const provenanceBefore = String(source.provenance || 'unknown');
     const upgraded = readingStatus === 'succeeded'
       && source.kind === 'web'
+      && readerAttestation?.provenance === 'verified_primary'
       && provenanceBefore !== 'verified_primary';
     const provenanceAfter = upgraded ? 'verified_primary' : provenanceBefore;
     const provenanceTransition = upgraded
@@ -185,7 +207,7 @@ export function buildLedgerEntries({
           ? { from: provenanceBefore, to: provenanceBefore, reason: `screening_rejected:${screeningReason || 'unknown'}`, artifactRef: '' }
           : null));
 
-    // 成功读取的内容进入原文 artifact（受字节上限约束，规范化文本）。
+    // 成功读取的内容进入原文 artifact（按 160KB 上限截断保存，身份哈希仍是全量正文）。
     let artifactId = '';
     if (document && bound.content) {
       artifactId = `art_${createHash('sha256')
@@ -231,8 +253,11 @@ export function buildLedgerEntries({
       readingStatus,
       readingReason,
       extractionStatus,
-      citationStatus: cited ? 'cited' : 'not_cited',
-      citationId: cited ? expectedCitationId : ''
+      extractionReason,
+      readerAttestation: readerAttestation?.provenance || '',
+      readerAttestationReason: readerAttestation?.reason || '',
+      citationStatus: writerSelected ? 'writer_selected' : 'pending',
+      citationId: writerSelected ? expectedCitationId : ''
     });
   };
 
@@ -250,11 +275,16 @@ export function buildLedgerEntries({
 }
 
 /**
- * would-be Writer 输入差异（shadow 模式核心产物）：Ledger 认为"筛选通过 + 读取
- * 成功 + 已抽取"的来源才是合格 Writer 输入；与实际 Writer 输入（Evidence Pack）
- * 对比，暴露读取失败却经 snippet 回退进入报告的来源等差异。
+ * 读取资格差异诊断（shadow 模式产物）：Ledger 按"筛选通过 + 读取成功 + 已抽取"
+ * 判定合格的 Writer 输入来源，与实际 Writer 输入对比，暴露读取失败却经 snippet
+ * 回退进入报告的来源。
+ *
+ * 注意（Spec §12 Phase 2A）：这只是**读取资格差异诊断**，不是 Ledger primary
+ * 验收结果——真正的 would-be Evidence Pack/citations 需要 Ledger 按自身准入与
+ * passage 选择规则独立产出（primary 验收工作的一部分），在此之前第二交付门
+ * 保持未达成。
  */
-export function buildWriterInputDiff({ entries, citations = [] }) {
+export function buildReadingEligibilityDiff({ entries, citations = [] }) {
   const wouldInclude = entries
     .filter((item) => item.screeningStatus === 'accepted'
       && item.readingStatus === 'succeeded'
@@ -265,6 +295,7 @@ export function buildWriterInputDiff({ entries, citations = [] }) {
   const wouldSet = new Set(wouldInclude);
   const actualSet = new Set(actual);
   return {
+    diagnostic: 'reading_eligibility',
     ledgerWouldIncludeCitationIds: wouldInclude,
     actualWriterCitationIds: actual,
     ledgerIncludedButWriterMissed: wouldInclude.filter((id) => !actualSet.has(id)),
