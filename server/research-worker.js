@@ -809,54 +809,71 @@ export function createResearchWorker({
         if (result.webSearchStatus) patch.webSearchStatus = result.webSearchStatus;
         if (result.citations) patch.citations = result.citations;
         if (typeof result.report === 'string') patch.report = result.report;
-        task = persistStage(id, patch, signal);
-        persistBudget();
-        // Phase 2A：主快照与 Evidence Ledger 侧写在同一事务内提交（Spec §7/§12），
-        // 消除"任务已进入下一阶段、Ledger 尚未写入"的崩溃窗口；shadow 故障回退为
-        // 普通阶段持久化并留结构化日志，off 模式完全跳过。
+        // Phase 2A：先构建 patch 与 ledger payload，再且仅再选择一次写入——
+        // 有 ledger payload 且 store 支持组合提交 → 主快照与 Ledger 原子提交；
+        // off / 无 payload / store 不支持 → 普通 persist；组合提交失败（shadow
+        // 降级）→ 普通 persist 并在 artifacts 写入明确的 ledgerShadow 失败标记
+        // （后续验收排除该 Run），绝不表现成 Ledger 完整。
         let ledgerPayload = null;
-        if (ledgerMode === 'shadow' && result.ledgerSourceData) {
+        let ledgerShadowFailure = null;
+        if (ledgerMode === 'shadow') {
           try {
-            const ledger = buildLedgerEntries({
-              runId: id,
-              acceptedSources: artifacts.sources,
-              excludedSources: artifacts.excludedSources,
-              selectionExcluded: artifacts.evidencePack?.selectionExcluded,
-              documents: result.ledgerSourceData.documents,
-              readingFailures: result.ledgerSourceData.failures,
-              evidence: artifacts.evidence,
-              citations: result.citations || artifacts.citations
-            });
-            ledgerPayload = {
-              type: 'replace',
-              entries: ledger.entries,
-              artifacts: ledger.artifacts,
-              diff: {
-                mode: 'shadow',
-                ...buildReadingEligibilityDiff({
-                  entries: ledger.entries,
-                  citations: result.citations || artifacts.citations
-                })
-              }
-            };
+            if (result.ledgerSourceData) {
+              const ledger = buildLedgerEntries({
+                runId: id,
+                acceptedSources: artifacts.sources,
+                excludedSources: artifacts.excludedSources,
+                selectionExcluded: artifacts.evidencePack?.selectionExcluded,
+                documents: result.ledgerSourceData.documents,
+                readingFailures: result.ledgerSourceData.failures,
+                evidence: artifacts.evidence,
+                citations: result.citations || artifacts.citations
+              });
+              ledgerPayload = {
+                type: 'replace',
+                entries: ledger.entries,
+                artifacts: ledger.artifacts,
+                diff: {
+                  mode: 'shadow',
+                  ...buildReadingEligibilityDiff({
+                    entries: ledger.entries,
+                    citations: result.citations || artifacts.citations
+                  })
+                }
+              };
+            } else if (result.ledgerCitationFinalize) {
+              ledgerPayload = {
+                type: 'citations',
+                referencedCitationIds: result.ledgerCitationFinalize.referencedCitationIds
+              };
+            }
           } catch (ledgerError) {
+            ledgerShadowFailure = `LEDGER_BUILD_FAILED: ${readableError(ledgerError)}`;
             shadowWarn(id, currentStage, 'LEDGER_BUILD_FAILED', ledgerError);
           }
         }
-        if (ledgerMode === 'shadow' && result.ledgerCitationFinalize) {
-          ledgerPayload = {
-            type: 'citations',
-            referencedCitationIds: result.ledgerCitationFinalize.referencedCitationIds
-          };
-        }
+
         if (ledgerPayload && typeof store.commitRunningStageWithLedger === 'function') {
+          let committed = false;
           try {
-            store.commitRunningStageWithLedger(id, patch, { attempt: Number(task.attempt || 0) }, ledgerPayload);
+            store.commitRunningStageWithLedger(id, patch, { attempt }, ledgerPayload);
+            committed = true;
           } catch (ledgerError) {
+            ledgerShadowFailure = `LEDGER_COMMIT_FAILED${ledgerError?.code ? `:${ledgerError.code}` : ''}: ${readableError(ledgerError)}`;
             shadowWarn(id, currentStage, 'LEDGER_COMMIT_FAILED', ledgerError);
+          }
+          if (committed) {
+            task = store.get(id);
+          } else {
+            artifacts = { ...artifacts, ledgerShadow: { status: 'failed', reason: ledgerShadowFailure } };
+            patch.artifacts = artifacts;
             task = persistStage(id, patch, signal);
           }
         } else {
+          if (ledgerShadowFailure) {
+            artifacts = { ...artifacts, ledgerShadow: { status: 'failed', reason: ledgerShadowFailure } };
+            patch.artifacts = artifacts;
+          }
           task = persistStage(id, patch, signal);
         }
         persistBudget();

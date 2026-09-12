@@ -379,3 +379,88 @@ test('取消路径不产生 shadow 错误记录，cancelled 语义不变', async
     cleanup();
   }
 });
+
+// —— 真实 Worker 顺序故障注入（Codex Phase 2A 修正第 6 点）——
+// 通过包装 store 注入 Ledger 写入故障，验证：组合提交失败不会先推进主快照；
+// shadow 降级继续执行时 artifacts.ledgerShadow 明确标记缺失（后续验收排除该 Run）。
+
+function withFaultyLedgerStore(realStore, fault) {
+  return {
+    ...realStore,
+    commitRunningStageWithLedger: (id, patch, options, ledger) => {
+      if (fault === 'extracting' && ledger?.type === 'replace') {
+        throw Object.assign(new Error('injected extracting ledger fault'), { code: 'INJECTED_FAULT' });
+      }
+      if (fault === 'skip-replace') {
+        // 模拟"替换写入被跳过"：主快照照常提交，台账无行；citations finalize 照常
+        // 透传（空台账 + 非空引用 → store 显式失败）。
+        return ledger?.type === 'replace'
+          ? true
+          : realStore.commitRunningStageWithLedger(id, patch, options, ledger);
+      }
+      return realStore.commitRunningStageWithLedger(id, patch, options, ledger);
+    }
+  };
+}
+
+test('故障注入：extracting Ledger 写入失败 → 不先推进主快照，降级后 artifacts 明确标记缺失', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const faultyStore = withFaultyLedgerStore(store, 'extracting');
+    const worker = createResearchWorker({
+      store: faultyStore,
+      concurrency: 1,
+      ...fixtureAdapters()
+    });
+    const created = faultyStore.create({ question: 'extracting 故障注入', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(finalTask.status, 'completed', 'shadow 降级继续执行');
+    assert.equal(finalTask.artifacts.ledgerShadow?.status, 'failed',
+      'artifacts 必须明确标记 ledger shadow 缺失，供后续验收排除该 Run');
+    assert.match(finalTask.artifacts.ledgerShadow.reason, /LEDGER_COMMIT_FAILED/);
+    assert.equal(store.getEvidenceLedger(created.id), null, '台账写入未成功，不得表现成 Ledger 完整');
+    // 旧实现会先 persistStage 再组合提交：主快照早已推进且无降级标记。降级标记的
+    // 存在同时证明写入只发生一次（fallback 路径），不存在"先推进、后补台账"的双写。
+    assert.ok(finalTask.artifacts.evidence?.length, '证据路径（旧路径）不受影响，Writer 输入照常');
+  } finally {
+    cleanup();
+  }
+});
+
+test('故障注入：verifying finalize 遇空台账 + 非空引用 → 显式失败并降级标记', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const faultyStore = withFaultyLedgerStore(store, 'skip-replace');
+    const worker = createResearchWorker({
+      store: faultyStore,
+      concurrency: 1,
+      ...fixtureAdapters()
+    });
+    const created = faultyStore.create({ question: 'finalize 故障注入', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(finalTask.status, 'completed', 'shadow 降级继续执行');
+    assert.equal(finalTask.artifacts.ledgerShadow?.status, 'failed');
+    assert.match(finalTask.artifacts.ledgerShadow.reason, /LEDGER_MISSING_FOR_FINALIZE/,
+      '空台账 + 非空引用的 finalize 失败必须带明确诊断');
+    assert.equal(store.getEvidenceLedger(created.id), null);
+  } finally {
+    cleanup();
+  }
+});
+
+test('成功路径不写 ledgerShadow 失败标记：不得表现成 Ledger 不完整', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const worker = createResearchWorker({ store, concurrency: 1, ...fixtureAdapters() });
+    const created = store.create({ question: '正常路径', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+    assert.equal(finalTask.status, 'completed');
+    assert.equal(finalTask.artifacts.ledgerShadow, undefined,
+      '成功路径不得携带 ledgerShadow 失败标记');
+    assert.ok(store.getEvidenceLedger(created.id));
+  } finally {
+    cleanup();
+  }
+});

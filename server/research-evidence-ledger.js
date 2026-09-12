@@ -66,14 +66,28 @@ export function boundArtifactContent(content, maxBytes = MAX_ARTIFACT_BYTES) {
  * 稳定身份：内容寻址。同一 Run 内同一来源同一版内容只产生一个 evidenceId；
  * 来源内容变化产生新身份。
  */
-export function computeEvidenceIdentity({ runId, sourceChannel, canonicalSourceId, content }) {
-  const normalized = normalizeContentForHash(content);
-  const contentHash = createHash('sha256').update(normalized).digest('hex');
+/**
+ * 内容指纹：对规范化正文整体计算（不截断）。这是 evidenceId 的唯一内容输入。
+ */
+export function computeContentHash(content) {
+  return createHash('sha256').update(normalizeContentForHash(content)).digest('hex');
+}
+
+/**
+ * 稳定身份：evidenceId 由 (runId, sourceChannel, canonicalSourceId, contentHash)
+ * 唯一决定；contentHash 必须由调用方基于完整规范化正文显式传入（可用
+ * computeContentHash 计算，或采用 Reader 预计算的 full-content hash），本函数
+ * 不做任何隐式重算或截断。
+ */
+export function computeEvidenceIdentity({ runId, sourceChannel, canonicalSourceId, contentHash }) {
+  if (!contentHash) {
+    throw new TypeError('computeEvidenceIdentity requires contentHash（基于完整规范化正文）');
+  }
   const evidenceId = `ev_${createHash('sha256')
     .update([runId, sourceChannel, canonicalSourceId, contentHash].join('|'))
     .digest('hex')
     .slice(0, 32)}`;
-  return { evidenceId, contentHash, content: normalized };
+  return { evidenceId, contentHash };
 }
 
 function domainOf(url) {
@@ -137,10 +151,10 @@ export function buildLedgerEntries({
   const buildEntry = (source, { screeningStatus, screeningReason }) => {
     const document = documentBySource.get(source.id);
     const failure = failureBySource.get(source.id);
-    // 内容身份基于 Reader 实际取得的完整规范化正文；artifact 只按上限截断保存。
-    const fullContent = normalizeContentForHash(document?.content || '');
+    // 内容身份基于 Reader 实际取得的完整规范化正文：document 可携带 Reader 预计算
+    // 的 full-content hash，否则此处显式重算；artifact 只按上限截断保存。
     const contentHash = document?.contentHash
-      || createHash('sha256').update(fullContent).digest('hex');
+      || computeContentHash(document?.content || '');
     const { evidenceId } = computeEvidenceIdentity({
       runId,
       sourceChannel: source.kind,
@@ -150,6 +164,8 @@ export function buildLedgerEntries({
     const bound = document
       ? boundArtifactContent(document.content)
       : { content: '', byteSize: 0, truncated: false };
+    // 截断标记来自 Reader（如 provider_raw 先全量哈希再截断）与 artifact 上限的合成。
+    const truncated = document?.truncated === true || bound.truncated;
 
     // reading 维度：Reader 实际结果；未被选中读取的来源保持 pending。
     const readingStatus = document
@@ -220,7 +236,7 @@ export function buildLedgerEntries({
         kind: 'source_content',
         contentHash,
         byteSize: bound.byteSize,
-        truncated: bound.truncated,
+        truncated,
         content: bound.content
       });
       if (upgraded && provenanceTransition) {
@@ -246,7 +262,7 @@ export function buildLedgerEntries({
       provider: PROVIDER_FIELD_BY_CHANNEL[source.kind] || source.kind || '',
       readerKind: document?.readerKind || (failure ? failure.readerKind || '' : ''),
       contentHash,
-      truncated: bound.truncated,
+      truncated,
       artifactId,
       screeningStatus,
       screeningReason: screeningReason || '',

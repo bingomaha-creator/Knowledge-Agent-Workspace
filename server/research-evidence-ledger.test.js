@@ -17,6 +17,7 @@ import {
   boundArtifactContent,
   buildLedgerEntries,
   buildReadingEligibilityDiff,
+  computeContentHash,
   computeEvidenceIdentity,
   normalizeEvidenceLedgerMode
 } from './research-evidence-ledger.js';
@@ -35,28 +36,38 @@ function webSource(overrides = {}) {
 }
 
 test('稳定身份：同输入同身份，内容变化产生新身份', () => {
+  const hashA = computeContentHash('内容 A');
+  const hashB = computeContentHash('内容 B');
   const first = computeEvidenceIdentity({
-    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/1', content: '内容 A'
+    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/1', contentHash: hashA
   });
   const again = computeEvidenceIdentity({
-    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/1', content: '内容 A'
+    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/1', contentHash: hashA
   });
   const changed = computeEvidenceIdentity({
-    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/1', content: '内容 B'
+    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/1', contentHash: hashB
   });
   assert.equal(first.evidenceId, again.evidenceId);
   assert.equal(first.contentHash, again.contentHash);
   assert.notEqual(first.evidenceId, changed.evidenceId, '来源内容变化必须产生新身份');
   assert.notEqual(first.contentHash, changed.contentHash);
+  assert.throws(
+    () => computeEvidenceIdentity({ runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'x' }),
+    /contentHash/,
+    '缺少 contentHash 时必须显式报错，不得按空正文静默计算'
+  );
 });
 
 test('内容身份基于完整正文：160KB 截断点之后的内容变化仍产生不同 evidenceId', () => {
   const prefix = 'x'.repeat(170_000);
+  const hashA = computeContentHash(`${prefix}结尾 A`);
+  const hashB = computeContentHash(`${prefix}结尾 B`);
+  assert.notEqual(hashA, hashB, '全量哈希对截断点之后的内容敏感');
   const docA = computeEvidenceIdentity({
-    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/a', content: `${prefix}结尾 A`
+    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/a', contentHash: hashA
   });
   const docB = computeEvidenceIdentity({
-    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/b', content: `${prefix}结尾 B`
+    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'https://example.org/b', contentHash: hashB
   });
   assert.notEqual(docA.evidenceId, docB.evidenceId,
     '差异位于 160KB 截断点之后时，身份仍必须不同（artifact 截断保存不影响身份）');
@@ -67,9 +78,7 @@ test('内容身份基于完整正文：160KB 截断点之后的内容变化仍�
 });
 
 test('document 可携带预计算的 full-content hash，Ledger 不对截断文本重算', () => {
-  const computed = computeEvidenceIdentity({
-    runId: 'r1', sourceChannel: 'web', canonicalSourceId: 'src', content: '正文'
-  });
+  const computed = computeContentHash('正文');
   const { entries } = buildLedgerEntries({
     runId: 'r1',
     acceptedSources: [webSource({ id: 's1' })],
@@ -77,11 +86,11 @@ test('document 可携带预计算的 full-content hash，Ledger 不对截断文�
       sourceId: 's1',
       content: '正文',
       readerKind: 'github_readme',
-      contentHash: computed.contentHash,
+      contentHash: computed,
       attestation: { provenance: 'reader_obtained', reason: 'content_from_github_readme_endpoint' }
     }]
   });
-  assert.equal(entries[0].contentHash, computed.contentHash, '预计算 hash 被直接采用');
+  assert.equal(entries[0].contentHash, computed, '预计算 hash 被直接采用');
 });
 
 test('attestation 与 provenance 分离：provider_raw/GitHub 读取成功只是 reader_obtained', () => {
@@ -232,4 +241,49 @@ test('normalizeEvidenceLedgerMode：三态归一，primary 未过门槛前抛错
   assert.equal(normalizeEvidenceLedgerMode('SHADOW'), 'shadow');
   assert.throws(() => normalizeEvidenceLedgerMode('primary'), /Phase 2A 仅开放 shadow/);
   assert.throws(() => normalizeEvidenceLedgerMode('bogus'), /非法取值/);
+});
+
+// —— Reader→Ledger 全链路（Codex Phase 2A 修正第 3 点）——
+// provider_raw 先对完整原始 content 计算全量哈希，再截断保存 artifact：
+// 相同 runId/sourceChannel/canonicalSourceId、仅 160KB 截断点之后正文不同的两次
+// 读取，contentHash/evidenceId 必须不同，而 artifact 前缀相同且 truncated=true。
+test('Reader→Ledger 全链路：160KB 后内容不同 → 身份不同，artifact 前缀相同且截断', async () => {
+  const { createResearchSourceReader } = await import('./services/research-source-reader.js');
+  const reader = createResearchSourceReader({
+    fetchImpl: async () => { throw new Error('provider_raw 不应发起网络请求'); }
+  });
+  const runId = 'r-chain';
+  const buildFor = async (suffix) => {
+    const source = {
+      id: 's1',
+      title: '来源一',
+      url: 'https://example.org/1',
+      snippet: '摘要',
+      kind: 'web',
+      content: `${'x'.repeat(170_000)}${suffix}`
+    };
+    const document = await reader.readSource(source, undefined);
+    assert.equal(document.truncated, true, 'Reader 按 160KB 截断 document 正文');
+    return buildLedgerEntries({
+      runId,
+      acceptedSources: [{ ...source, subquestionId: 'q1' }],
+      documents: [document],
+      evidence: [{ sourceId: 's1', citationId: 'web-s1', claim: '主张', citationNumber: 1 }],
+      citations: [{ id: 'web-s1', index: 1 }]
+    });
+  };
+
+  const a = await buildFor('结尾 A');
+  const b = await buildFor('结尾 B');
+
+  assert.notEqual(a.entries[0].contentHash, b.entries[0].contentHash,
+    '全量 contentHash 必须对截断点之后的内容敏感');
+  assert.notEqual(a.entries[0].evidenceId, b.entries[0].evidenceId,
+    'evidenceId 随 contentHash 变化（同一 canonicalSourceId 的不同版本是不同身份）');
+  assert.equal(a.entries[0].truncated, true);
+  assert.equal(a.artifacts[0].truncated, true);
+  assert.equal(b.artifacts[0].truncated, true);
+  assert.equal(a.artifacts[0].content, b.artifacts[0].content, 'artifact 保存相同的 160KB 截断前缀');
+  assert.equal(a.artifacts[0].byteSize, b.artifacts[0].byteSize);
+  assert.notEqual(a.artifacts[0].contentHash, b.artifacts[0].contentHash, 'artifact 记录的是全量哈希');
 });

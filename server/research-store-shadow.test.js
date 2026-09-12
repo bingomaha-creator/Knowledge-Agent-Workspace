@@ -204,6 +204,69 @@ test('组合提交：Ledger 写入失败时主快照一并回滚，不存在中�
   }
 });
 
+test('citation finalize：空台账 + 非空引用集显式失败并回滚；真正零证据才允许空台账', () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const { task, attempt } = claimedTask(store);
+    assert.throws(
+      () => store.commitRunningStageWithLedger(
+        task.id,
+        { stage: 'verifying', progress: 90, artifacts: {} },
+        { attempt },
+        { type: 'citations', referencedCitationIds: ['web-s1'] }
+      ),
+      /LEDGER_MISSING_FOR_FINALIZE/,
+      '存在被引用 citation 但 Ledger 为空属于一致性破坏，必须显式失败'
+    );
+    assert.equal(store.get(task.id).stage, 'planning', '失败后主快照回滚');
+    assert.equal(store.getEvidenceLedger(task.id), null);
+
+    // 真正零证据且引用集合为空 → 允许空台账（不抛错）
+    assert.equal(
+      store.commitRunningStageWithLedger(
+        task.id,
+        { stage: 'verifying', progress: 90, artifacts: {} },
+        { attempt },
+        { type: 'citations', referencedCitationIds: [] }
+      ),
+      true
+    );
+  } finally {
+    cleanup();
+  }
+});
+
+test('recordEvidenceLedger 与组合提交复用同一 writeLedgerReplace：旧 diff 不残留', () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const { task, attempt } = claimedTask(store);
+    assert.equal(store.recordEvidenceLedger(
+      task.id,
+      {
+        entries: [{ evidenceId: 'ev_a', sourceChannel: 'web', canonicalSourceId: 'u1', screeningStatus: 'accepted', readingStatus: 'pending', extractionStatus: 'not_selected', citationStatus: 'pending' }],
+        artifacts: [],
+        diff: { mode: 'shadow', diagnostic: 'reading_eligibility' }
+      },
+      { attempt }
+    ), true);
+    assert.equal(store.getEvidenceLedger(task.id).diff.diagnostic, 'reading_eligibility');
+
+    // 再次写入且不带 diff：旧 diff 必须被清除，不得残留
+    assert.equal(store.recordEvidenceLedger(
+      task.id,
+      {
+        entries: [{ evidenceId: 'ev_b', sourceChannel: 'web', canonicalSourceId: 'u2', screeningStatus: 'accepted', readingStatus: 'pending', extractionStatus: 'not_selected', citationStatus: 'pending' }]
+      },
+      { attempt }
+    ), true);
+    const snapshot = store.getEvidenceLedger(task.id);
+    assert.deepEqual(snapshot.entries.map((item) => item.evidenceId), ['ev_b'], '整体替换清除旧条目');
+    assert.equal(snapshot.diff, null, '新快照无 diff 时不得残留旧值');
+  } finally {
+    cleanup();
+  }
+});
+
 test('webSearchCalls 累计：SQL 自增不被 upsertRunBudget 覆盖', () => {
   const { store, cleanup } = tempStore();
   try {

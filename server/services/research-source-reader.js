@@ -94,6 +94,9 @@ export function createResearchSourceReader({
         && typeof source.content === 'string'
         && source.content.trim().length > 0,
       read: async (source) => {
+        // 先对完整原始 content 计算全量哈希（身份用），再截断保存（artifact 用）：
+        // 160KB 截断点之后的内容变化必须仍产生不同 contentHash/evidenceId。
+        const fullContentHash = contentHashOf(source.content);
         const bounded = boundedText(source.content, maxDocumentBytes);
         return {
           sourceId: source.id,
@@ -101,7 +104,7 @@ export function createResearchSourceReader({
           contentType: 'text/plain',
           truncated: bounded.truncated,
           readerKind: 'provider_raw',
-          contentHash: contentHashOf(bounded.content),
+          contentHash: fullContentHash,
           attestation: {
             provenance: 'reader_obtained',
             reason: 'content_from_search_provider_payload'

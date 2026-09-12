@@ -1043,91 +1043,11 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
   // 供 Writer 使用，台账只记录 would-be 输入与差异。写入走 attempt 守卫事务并
   // 原子推进 updatedAt（与其他 snapshot 一致）。
 
-  function recordEvidenceLedger(runId, { entries = [], artifacts = [], diff = null, ledgerVersion = 1 } = {}, { attempt } = {}) {
-    if (!Array.isArray(entries)) return false;
+  function recordEvidenceLedger(runId, payload, { attempt } = {}) {
+    // 与组合提交统一复用唯一的 writeLedgerReplace（不再保留第二套 DELETE/INSERT）；
+    // 使用组合事务传入的同一个 now，保证 diff 先删后写、无旧值残留。
     return withRunSnapshotWrite(runId, attempt, ['running', 'completed'], (now) => {
-      // 台账按 Run 整体重建：同一 attempt 内重复写入（如重评）以最新快照为准。
-      // diff 必须先删后写：新快照无 diff 时不得残留旧值。
-      db.prepare('DELETE FROM research_evidence_ledger WHERE run_id = ?').run(runId);
-      db.prepare('DELETE FROM research_evidence_artifacts WHERE run_id = ?').run(runId);
-      db.prepare('DELETE FROM research_evidence_ledger_diffs WHERE run_id = ?').run(runId);
-      const insertEntry = db.prepare(`
-        INSERT INTO research_evidence_ledger (
-          run_id, evidence_id, source_channel, canonical_source_id, canonical_url,
-          title, domain, published_at, source_type,
-          provenance_before, provenance_after, provenance_transition_json,
-          subquestion_id, query, provider, reader_kind, content_hash, truncated,
-          artifact_id, screening_status, screening_reason, reading_status,
-          reading_reason, extraction_status, extraction_reason,
-          reader_attestation, reader_attestation_reason,
-          citation_status, citation_id,
-          ledger_version, created_at, updated_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const item of entries) {
-        insertEntry.run(
-          runId,
-          String(item.evidenceId || ''),
-          String(item.sourceChannel || ''),
-          String(item.canonicalSourceId || ''),
-          String(item.canonicalUrl || ''),
-          String(item.title || ''),
-          String(item.domain || ''),
-          String(item.publishedAt || ''),
-          String(item.sourceType || ''),
-          String(item.provenanceBefore || 'unknown'),
-          String(item.provenanceAfter || 'unknown'),
-          JSON.stringify(item.provenanceTransition || null),
-          String(item.subquestionId || ''),
-          String(item.query || ''),
-          String(item.provider || ''),
-          String(item.readerKind || ''),
-          String(item.contentHash || ''),
-          item.truncated === true ? 1 : 0,
-          String(item.artifactId || ''),
-          String(item.screeningStatus || 'pending'),
-          String(item.screeningReason || ''),
-          String(item.readingStatus || 'pending'),
-          String(item.readingReason || ''),
-          String(item.extractionStatus || 'not_selected'),
-          String(item.extractionReason || ''),
-          String(item.readerAttestation || ''),
-          String(item.readerAttestationReason || ''),
-          String(item.citationStatus || 'pending'),
-          String(item.citationId || ''),
-          Number(item.ledgerVersion || ledgerVersion),
-          now,
-          now
-        );
-      }
-      const insertArtifact = db.prepare(`
-        INSERT INTO research_evidence_artifacts (
-          artifact_id, run_id, kind, content_hash, byte_size, truncated, content, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `);
-      for (const artifact of artifacts) {
-        insertArtifact.run(
-          String(artifact.artifactId || ''),
-          runId,
-          String(artifact.kind || 'source_content'),
-          String(artifact.contentHash || ''),
-          Math.max(0, Math.round(Number(artifact.byteSize) || 0)),
-          artifact.truncated === true ? 1 : 0,
-          String(artifact.content || ''),
-          now
-        );
-      }
-      if (diff) {
-        db.prepare(`
-          INSERT INTO research_evidence_ledger_diffs (run_id, mode, ledger_version, diff_json, created_at)
-          VALUES (?, ?, ?, ?, ?)
-          ON CONFLICT(run_id) DO UPDATE SET
-            mode = excluded.mode,
-            ledger_version = excluded.ledger_version,
-            diff_json = excluded.diff_json,
-            created_at = excluded.created_at
-        `).run(runId, String(diff.mode || 'shadow'), Number(ledgerVersion), JSON.stringify(diff), now);
-      }
+      writeLedgerReplace(runId, payload || {}, now);
     });
   }
 
@@ -1297,6 +1217,14 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     const rows = db.prepare(
       'SELECT evidence_id, citation_id FROM research_evidence_ledger WHERE run_id = ?'
     ).all(runId);
+    // 空台账 + 非空引用集合属于一致性破坏，必须显式失败，不得静默成功；
+    // 只有真正零证据且引用集合为空才允许空台账。
+    if (!rows.length && referenced.size) {
+      throw Object.assign(
+        new Error(`LEDGER_MISSING_FOR_FINALIZE: citation finalize 失败——Ledger 为空但存在 ${referenced.size} 个被引用的 citation`),
+        { code: 'LEDGER_MISSING_FOR_FINALIZE' }
+      );
+    }
     const update = db.prepare(
       'UPDATE research_evidence_ledger SET citation_status = ?, updated_at = ? WHERE run_id = ? AND evidence_id = ?'
     );
