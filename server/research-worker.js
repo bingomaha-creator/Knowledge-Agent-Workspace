@@ -865,19 +865,18 @@ export function createResearchWorker({
             shadowWarn(id, currentStage, 'LEDGER_COMMIT_FAILED', ledgerError);
           }
           if (!committed && !commitFailed) {
-            // 布尔 false = 守卫拒绝（已取消 / attempt 变化 / 状态竞态）：重读 Run，
-            // 按现有竞态语义停止，不得盲目 fallback 写入。
+            // 布尔 false = 守卫拒绝（已取消 / attempt 变化 / 状态竞态）：重读 Run。
+            // - 已取消 / attempt 变化 / 非 running：立即停止并返回当前权威快照，
+            //   不进入失败收敛（不得调用 store.fail/recordRunError/旧 attempt 预算
+            //   写入，更不得把新 attempt 从 running 覆盖成 failed）；
+            // - 重读后仍是同 attempt 且 running：Store contract violation，fail closed。
             const current = store.get(id);
             if (!current || current.status === 'cancelled' || current.cancelRequested || signal.aborted) {
               return current || task;
             }
             if (Number(current.attempt) !== attempt || current.status !== 'running') {
-              throw Object.assign(new Error('研究任务已失去运行权（attempt/状态竞态）'), {
-                code: 'RESEARCH_LEASE_LOST'
-              });
+              return current;
             }
-            // 重读后仍是同 attempt 且 running：Store contract violation，fail closed
-            // （任务失败并留明确错误），不得走普通 persist shadow fallback。
             throw Object.assign(
               new Error('LEDGER_COMMIT_CONTRACT_VIOLATION: commitRunningStageWithLedger 返回 false 但 Run 仍为同 attempt/running'),
               { code: 'LEDGER_COMMIT_CONTRACT_VIOLATION' }
@@ -944,6 +943,12 @@ export function createResearchWorker({
     } catch (error) {
       const current = store.get(id);
       if (cancelled(error, current, signal)) return current;
+      // 竞态守卫（Codex 收敛修正第 1 点）：attempt 已变化或主快照不再是本 attempt
+      // 的 running——立即返回当前权威快照，不进入失败收敛：不调用无 attempt 守卫的
+      // store.fail 覆盖新 attempt/竞态赢家，也不用旧 attempt 写错误分类或预算。
+      if (current && (Number(current.attempt) !== attempt || current.status !== 'running')) {
+        return current;
+      }
       const failedTask = store.fail(id, {
         failedStage: currentStage,
         error: readableError(error),
@@ -960,7 +965,7 @@ export function createResearchWorker({
           retryable: classification.retryable
         }, { attempt });
       } catch (shadowError) {
-        shadowWarn(id, currentStage, 'ERROR_CLASSIFY_PERSIST_FAILED', shadowError, attempt);
+        shadowWarn(id, currentStage, 'ERROR_CLASSIFY_PERSIST_FAILED', shadowError);
       }
       return failedTask;
     }

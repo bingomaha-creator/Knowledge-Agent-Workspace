@@ -354,22 +354,31 @@ function migrateDatabase(db) {
     }
   }
 
-  // 旧数据幂等回填（Codex 收敛修正第 2 点）：为存在 ledger rows 但缺失 meta 的
-  // Run 聚合生成 meta——entryCount 取实际行数、ledgerVersion 取行内最大值、
-  // mode 优先取 diff 否则 shadow；只补缺失（NOT EXISTS），不覆盖已有记录。
-  // 建库即执行，开销为零行时为空操作。
+  // 旧数据幂等回填（Codex 收敛修正第 2 点）：为存在 ledger rows 或 diff（并集）
+  // 但缺失 meta 的 Run 聚合生成 meta——
+  // - 有 rows：entryCount=实际行数、ledgerVersion=行内最大值、mode 优先取 diff；
+  // - 仅有 diff（旧库只有差异报告、无 evidence rows）：status='empty'、
+  //   entryCount=0、mode/version 优先取 diff；
+  // 只补缺失（NOT EXISTS），不覆盖已有记录。建库即执行，零行为空操作。
   db.exec(`
     INSERT INTO research_evidence_ledger_meta (run_id, mode, status, entry_count, ledger_version, created_at)
     SELECT
-      l.run_id,
-      COALESCE((SELECT d.mode FROM research_evidence_ledger_diffs d WHERE d.run_id = l.run_id LIMIT 1), 'shadow'),
-      'written',
-      COUNT(*),
-      COALESCE(MAX(l.ledger_version), 1),
+      u.run_id,
+      COALESCE((SELECT d.mode FROM research_evidence_ledger_diffs d WHERE d.run_id = u.run_id LIMIT 1), 'shadow'),
+      CASE WHEN u.row_count > 0 THEN 'written' ELSE 'empty' END,
+      u.row_count,
+      COALESCE(u.max_version, COALESCE((SELECT d.ledger_version FROM research_evidence_ledger_diffs d WHERE d.run_id = u.run_id LIMIT 1), 1)),
       CAST(strftime('%s', 'now') AS INTEGER) * 1000
-    FROM research_evidence_ledger l
-    WHERE NOT EXISTS (SELECT 1 FROM research_evidence_ledger_meta m WHERE m.run_id = l.run_id)
-    GROUP BY l.run_id
+    FROM (
+      SELECT l.run_id, COUNT(*) AS row_count, MAX(l.ledger_version) AS max_version
+      FROM research_evidence_ledger l
+      GROUP BY l.run_id
+      UNION
+      SELECT d.run_id, 0 AS row_count, NULL AS max_version
+      FROM research_evidence_ledger_diffs d
+      WHERE d.run_id NOT IN (SELECT run_id FROM research_evidence_ledger)
+    ) u
+    WHERE NOT EXISTS (SELECT 1 FROM research_evidence_ledger_meta m WHERE m.run_id = u.run_id)
   `);
 
   const columns = tableColumns(db, 'research_tasks');
@@ -1281,7 +1290,7 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     // citation 终态只依据 verifying 阶段的 verification.referencedCitationIds：
     // 进入 Writer 输入（writer_selected）不等于最终被报告引用。
     const referenced = new Set(Array.isArray(referencedCitationIds) ? referencedCitationIds : []);
-    // 存在性语义（Codex Phase 2A 收敛修正第 1 点）：finalize 前必须存在 ledger meta。
+    // 存在性语义（Codex 收敛修正第 1 点）：finalize 前必须存在 ledger meta。
     // - 无 meta（台账从未写入）：无论引用集合是否为空都显式失败；
     // - 有 meta 且 entryCount=0、引用为空：合法空台账，放行；
     // - 有 meta 但行缺失而引用非空：一致性破坏，显式失败。
@@ -1297,10 +1306,24 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     const rows = db.prepare(
       'SELECT evidence_id, citation_id FROM research_evidence_ledger WHERE run_id = ?'
     ).all(runId);
-    if (!rows.length && referenced.size) {
+    // 一致性门禁（Codex 收敛修正第 3 点）：meta.entryCount 必须是有效非负整数且
+    // 严格等于实际 rows 数；所有非空 referencedCitationIds 必须能映射到当前台账
+    // 的非空 citationId。不一致时 fail closed（LEDGER_INCONSISTENT_FOR_FINALIZE）。
+    const declared = Number(meta.entry_count);
+    if (!Number.isInteger(declared) || declared < 0 || declared !== rows.length) {
       throw Object.assign(
-        new Error(`LEDGER_MISSING_FOR_FINALIZE: citation finalize 失败——Ledger meta 声明 entryCount=${meta.entry_count} 但行为空，且存在 ${referenced.size} 个被引用的 citation`),
-        { code: 'LEDGER_MISSING_FOR_FINALIZE' }
+        new Error(`LEDGER_INCONSISTENT_FOR_FINALIZE: citation finalize 失败——meta.entryCount=${meta.entry_count} 与实际 Ledger 行数 ${rows.length} 不一致`),
+        { code: 'LEDGER_INCONSISTENT_FOR_FINALIZE' }
+      );
+    }
+    const knownCitationIds = new Set(
+      rows.map((row) => row.citation_id).filter(Boolean)
+    );
+    const unknownReferences = [...referenced].filter((id) => !knownCitationIds.has(id));
+    if (unknownReferences.length) {
+      throw Object.assign(
+        new Error(`LEDGER_INCONSISTENT_FOR_FINALIZE: citation finalize 失败——${unknownReferences.length} 个被引用 citation 无法映射到当前 Ledger（${unknownReferences.join('、')}）`),
+        { code: 'LEDGER_INCONSISTENT_FOR_FINALIZE' }
       );
     }
     const update = db.prepare(

@@ -536,13 +536,14 @@ test('合法零证据的空台账与未写入台账不再共用 null 语义（me
 // 重读后仍是同 attempt 且 running → Store contract violation，fail closed，
 // 不得走普通 persist shadow fallback。
 
-test('false 返回（attempt 变化）：按 RESEARCH_LEASE_LOST 失败，不写降级标记', async () => {
+test('false 返回（attempt 变化）：旧 Worker 立即停止，新 attempt 状态与产物保持不变', async () => {
   const { store, cleanup } = tempStore();
   try {
     const faultyStore = {
       ...store,
       commitRunningStageWithLedger: (id, patch, options, ledger) => {
         if (ledger?.type === 'replace') {
+          // 模拟新 attempt 已被另一个 Worker 认领（attempt 前进、状态 running）
           store.update(id, { attempt: 999 });
           return false;
         }
@@ -553,10 +554,14 @@ test('false 返回（attempt 变化）：按 RESEARCH_LEASE_LOST 失败，不写
     const created = faultyStore.create({ question: 'attempt 竞态', searchMode: 'web', knowledgeBaseIds: [] });
     const finalTask = await worker.enqueue(created.id);
 
-    assert.equal(finalTask.status, 'failed');
-    assert.match(finalTask.error, /运行权/);
-    assert.equal(finalTask.artifacts.ledgerShadow, undefined, '竞态失败不写 shadow 降级标记');
-    assert.equal(store.getEvidenceLedger(created.id), null);
+    assert.equal(finalTask.status, 'running',
+      '旧 Worker 不得把新 attempt 从 running 覆盖成 failed（立即停止并返回权威快照）');
+    assert.equal(finalTask.attempt, 999, '新 attempt 保持不变');
+    assert.equal(finalTask.artifacts.ledgerShadow, undefined, '竞态停止不写 shadow 降级标记');
+    assert.equal(finalTask.error, '', '不进入失败收敛，无失败错误');
+    assert.equal(store.listRunErrors(created.id).length, 0, '不得用旧 attempt 写错误分类');
+    assert.equal(store.getRunBudget(created.id)?.webSearchCalls, 2,
+      '竞态前的两次 Provider 调用计数合法保留；竞态后不得再有用旧 attempt 的预算写入');
   } finally {
     cleanup();
   }

@@ -234,70 +234,183 @@ test('组合提交：未知 ledger type 必须 fail closed（表驱动）', () =
   }
 });
 
-test('finalize 存在性语义：无 meta 一律失败；empty meta + 空引用合法；empty meta + 非空引用失败', () => {
+test('finalize 存在性与一致性门禁：缺失/计数不一致/未知引用/合法空/正常完整', () => {
   const { store, cleanup } = tempStore();
   try {
     const { task, attempt } = claimedTask(store);
+    const finalize = (refs) => store.commitRunningStageWithLedger(
+      task.id,
+      { stage: 'verifying', progress: 90, artifacts: {} },
+      { attempt },
+      { type: 'citations', referencedCitationIds: refs }
+    );
+    const replaceWith = (count) => store.commitRunningStageWithLedger(
+      task.id,
+      { stage: 'extracting', progress: 45, artifacts: {} },
+      { attempt },
+      {
+        type: 'replace',
+        entries: Array.from({ length: count }, (_, index) => ({
+          evidenceId: `ev_${index + 1}`,
+          sourceChannel: 'web',
+          canonicalSourceId: `https://example.org/${index + 1}`,
+          screeningStatus: 'accepted',
+          readingStatus: 'succeeded',
+          extractionStatus: 'extracted',
+          readerAttestation: 'reader_obtained',
+          citationStatus: 'writer_selected',
+          citationId: `web-s${index + 1}`
+        })),
+        artifacts: [],
+        diff: null
+      }
+    );
 
-    // 无 meta（台账从未写入）：无论引用是否为空都显式失败
-    assert.throws(
-      () => store.commitRunningStageWithLedger(
-        task.id,
-        { stage: 'verifying', progress: 90, artifacts: {} },
-        { attempt },
-        { type: 'citations', referencedCitationIds: ['web-s1'] }
-      ),
-      /LEDGER_MISSING_FOR_FINALIZE/
-    );
-    assert.throws(
-      () => store.commitRunningStageWithLedger(
-        task.id,
-        { stage: 'verifying', progress: 90, artifacts: {} },
-        { attempt },
-        { type: 'citations', referencedCitationIds: [] }
-      ),
-      /LEDGER_MISSING_FOR_FINALIZE/,
-      '无 meta 时空引用也必须失败（此前静默放行是缺陷）'
-    );
+    // 1. 无 meta（台账从未写入）：无论引用是否为空都显式失败
+    assert.throws(() => finalize(['web-s1']), /LEDGER_MISSING_FOR_FINALIZE/);
+    assert.throws(() => finalize([]), /LEDGER_MISSING_FOR_FINALIZE/,
+      '无 meta 时空引用也必须失败（此前静默放行是缺陷）');
     assert.equal(store.get(task.id).stage, 'planning', '失败后主快照回滚');
-    assert.equal(store.getEvidenceLedger(task.id), null);
 
-    // 先 replace 生成 empty meta（合法零证据），finalize 空引用成功
-    assert.equal(
-      store.commitRunningStageWithLedger(
-        task.id,
-        { stage: 'extracting', progress: 45, artifacts: {} },
-        { attempt },
-        { type: 'replace', entries: [], artifacts: [], diff: null }
-      ),
-      true
-    );
+    // 2. 合法空台账：meta entryCount=0 + 行为空 + 引用为空
+    assert.equal(replaceWith(0), true);
+    assert.equal(finalize([]), true, 'empty meta + 空引用 = 合法空台账');
+
+    // 3. 未知引用：无法映射到当前 Ledger 的非空 citationId → 显式失败
+    // （meta/rows 计数错配需绕过公开 API 制造，单独在 raw 层测试，见下）
+    const r1 = replaceWith(1);
+    console.error('[debug] replaceWith(1) =', r1, '| ledger =', JSON.stringify(store.getEvidenceLedger(task.id)));
+    assert.throws(() => finalize(['web-unknown']), /LEDGER_INCONSISTENT_FOR_FINALIZE/,
+      '未知引用必须显式失败');
+
+    // 4. 正常完整 Ledger：1 行，引用其 citationId → cited；未引用 → not_cited
+    assert.equal(finalize(['web-s1']), true);
     const ledger = store.getEvidenceLedger(task.id);
-    assert.equal(ledger.meta.status, 'empty');
-    assert.equal(ledger.meta.entryCount, 0);
-    assert.equal(
-      store.commitRunningStageWithLedger(
-        task.id,
-        { stage: 'verifying', progress: 90, artifacts: {} },
-        { attempt },
-        { type: 'citations', referencedCitationIds: [] }
-      ),
-      true,
-      'empty meta + 空引用 = 合法空台账'
-    );
-
-    // empty meta + 非空引用：行缺失且引用非空 → 一致性破坏，显式失败
-    assert.throws(
-      () => store.commitRunningStageWithLedger(
-        task.id,
-        { stage: 'verifying', progress: 91, artifacts: {} },
-        { attempt },
-        { type: 'citations', referencedCitationIds: ['web-s1'] }
-      ),
-      /LEDGER_MISSING_FOR_FINALIZE/
-    );
+    assert.equal(ledger.entries.length, 1);
+    assert.equal(ledger.entries[0].citation.status, 'cited');
+    assert.equal(finalize([]), true);
+    assert.equal(store.getEvidenceLedger(task.id).entries[0].citation.status, 'not_cited');
   } finally {
     cleanup();
+  }
+});
+
+test('finalize 一致性门禁（raw 层）：meta/rows 计数错配 fail closed', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'research-finalize-'));
+  const dbPath = path.join(dir, 'mismatch.sqlite');
+  // 构造方式与迁移测试相同：先手工建旧 schema 库并写入数据，再交给新 store 打开，
+  // 随后用 raw DatabaseSync 直接改 meta.entry_count 制造 store 公开 API 无法产生的错配。
+  const legacy = new DatabaseSync(dbPath);
+  legacy.exec(`
+    CREATE TABLE research_tasks (
+      id TEXT PRIMARY KEY, question TEXT NOT NULL, status TEXT NOT NULL,
+      stage TEXT NOT NULL, progress INTEGER NOT NULL, error TEXT NOT NULL,
+      report TEXT NOT NULL, citations_json TEXT NOT NULL,
+      attempt INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+    );
+    CREATE TABLE research_evidence_ledger (
+      run_id TEXT NOT NULL, evidence_id TEXT NOT NULL,
+      source_channel TEXT NOT NULL DEFAULT '', canonical_source_id TEXT NOT NULL DEFAULT '',
+      canonical_url TEXT NOT NULL DEFAULT '', title TEXT NOT NULL DEFAULT '',
+      domain TEXT NOT NULL DEFAULT '', published_at TEXT NOT NULL DEFAULT '',
+      source_type TEXT NOT NULL DEFAULT '', provenance_before TEXT NOT NULL DEFAULT 'unknown',
+      provenance_after TEXT NOT NULL DEFAULT 'unknown', provenance_transition_json TEXT NOT NULL DEFAULT 'null',
+      subquestion_id TEXT NOT NULL DEFAULT '', query TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL DEFAULT '', reader_kind TEXT NOT NULL DEFAULT '',
+      content_hash TEXT NOT NULL DEFAULT '', truncated INTEGER NOT NULL DEFAULT 0,
+      artifact_id TEXT NOT NULL DEFAULT '', screening_status TEXT NOT NULL DEFAULT 'pending',
+      screening_reason TEXT NOT NULL DEFAULT '', reading_status TEXT NOT NULL DEFAULT 'pending',
+      reading_reason TEXT NOT NULL DEFAULT '', extraction_status TEXT NOT NULL DEFAULT 'not_selected',
+      citation_status TEXT NOT NULL DEFAULT 'pending', citation_id TEXT NOT NULL DEFAULT '',
+      ledger_version INTEGER NOT NULL DEFAULT 1, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, evidence_id)
+    );
+    CREATE TABLE research_evidence_ledger_diffs (
+      run_id TEXT PRIMARY KEY, mode TEXT NOT NULL DEFAULT 'shadow',
+      ledger_version INTEGER NOT NULL DEFAULT 1, diff_json TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL
+    );
+  `);
+  const now = Date.now();
+  // 必须存在 running 状态的 research_tasks 行：组合提交守卫会校验 attempt/状态
+  legacy.prepare(`
+    INSERT INTO research_tasks (
+      id, question, status, stage, progress, error, report, citations_json,
+      attempt, created_at, updated_at
+    ) VALUES ('r-mis', 'raw mismatch 测试', 'running', 'verifying', 90, '', '', '[]', 1, ?, ?)
+  `).run(now, now);
+  legacy.prepare(`
+    INSERT INTO research_evidence_ledger (
+      run_id, evidence_id, source_channel, canonical_source_id, reader_kind, content_hash,
+      screening_status, reading_status, extraction_status, citation_status, citation_id,
+      ledger_version, created_at, updated_at
+    ) VALUES ('r-mis', 'ev_1', 'web', 'https://example.org/1', 'github_readme', 'h1', 'accepted', 'succeeded', 'extracted', 'writer_selected', 'web-s1', 1, ?, ?)
+  `).run(now, now);
+  legacy.close();
+
+  const store = createResearchStore(dbPath);
+  try {
+    // 回填后 meta=1、rows=1（一致基线）
+    assert.equal(store.getEvidenceLedger('r-mis').meta.entryCount, 1);
+    const finalize = (refs) => store.commitRunningStageWithLedger(
+      'r-mis',
+      { stage: 'verifying', progress: 90, artifacts: {} },
+      { attempt: 1 },
+      { type: 'citations', referencedCitationIds: refs }
+    );
+    // 用 raw DatabaseSync 把 meta.entry_count 改成 2（制造公开 API 无法产生的错配）
+    const raw = new DatabaseSync(dbPath);
+    raw.prepare('UPDATE research_evidence_ledger_meta SET entry_count = 2 WHERE run_id = ?').run('r-mis');
+    raw.close();
+    assert.throws(() => finalize(['web-s1']), /LEDGER_INCONSISTENT_FOR_FINALIZE/,
+      'meta.entryCount 与实际行数不一致必须 fail closed');
+
+    // 反向错配：meta=0、rows=1
+    const raw2 = new DatabaseSync(dbPath);
+    raw2.prepare('UPDATE research_evidence_ledger_meta SET entry_count = 0 WHERE run_id = ?').run('r-mis');
+    raw2.close();
+    assert.throws(() => finalize(['web-s1']), /LEDGER_INCONSISTENT_FOR_FINALIZE/);
+  } finally {
+    store.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test('meta 迁移回填覆盖 diff-only 空 Ledger：旧库只有 diff、无 evidence rows', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'research-diff-only-'));
+  const dbPath = path.join(dir, 'diff-only.sqlite');
+  const legacy = new DatabaseSync(dbPath);
+  legacy.exec(`
+    CREATE TABLE research_evidence_ledger (
+      run_id TEXT NOT NULL, evidence_id TEXT NOT NULL,
+      ledger_version INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, evidence_id)
+    );
+    CREATE TABLE research_evidence_ledger_diffs (
+      run_id TEXT PRIMARY KEY, mode TEXT NOT NULL DEFAULT 'shadow',
+      ledger_version INTEGER NOT NULL DEFAULT 2, diff_json TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL
+    );
+  `);
+  legacy.prepare(`
+    INSERT INTO research_evidence_ledger_diffs (run_id, mode, ledger_version, diff_json, created_at)
+    VALUES ('r-diff-only', 'shadow', 2, '{}', ?)
+  `).run(Date.now());
+  legacy.close();
+
+  const store = createResearchStore(dbPath);
+  try {
+    const ledger = store.getEvidenceLedger('r-diff-only');
+    assert.ok(ledger, 'diff-only 空 Ledger 升级后可读（不再与未写入混淆）');
+    assert.equal(ledger.meta.status, 'empty');
+    assert.equal(ledger.meta.entryCount, 0, '无 evidence rows → entryCount=0');
+    assert.equal(ledger.meta.mode, 'shadow', 'mode 优先取 diff');
+    assert.equal(ledger.meta.ledgerVersion, 2, 'version 优先取 diff');
+    assert.deepEqual(ledger.entries, []);
+  } finally {
+    store.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 
