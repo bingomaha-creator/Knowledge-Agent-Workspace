@@ -392,10 +392,11 @@ function withFaultyLedgerStore(realStore, fault) {
         throw Object.assign(new Error('injected extracting ledger fault'), { code: 'INJECTED_FAULT' });
       }
       if (fault === 'skip-replace') {
-        // 模拟"替换写入被跳过"：主快照照常提交，台账无行；citations finalize 照常
-        // 透传（空台账 + 非空引用 → store 显式失败）。
+        // 真实化注入（Codex Phase 2A 修正第 4 点）：主快照真实提交（updateRunning），
+        // 但跳过 Ledger 写入——模拟"组合提交只完成一半"的故障；随后 verifying 的
+        // citations finalize 会命中"空台账 + 非空引用"诊断。
         return ledger?.type === 'replace'
-          ? true
+          ? (realStore.updateRunning(id, patch) ? true : false)
           : realStore.commitRunningStageWithLedger(id, patch, options, ledger);
       }
       return realStore.commitRunningStageWithLedger(id, patch, options, ledger);
@@ -460,6 +461,71 @@ test('成功路径不写 ledgerShadow 失败标记：不得表现成 Ledger 不�
     assert.equal(finalTask.artifacts.ledgerShadow, undefined,
       '成功路径不得携带 ledgerShadow 失败标记');
     assert.ok(store.getEvidenceLedger(created.id));
+  } finally {
+    cleanup();
+  }
+});
+
+// —— 组合提交布尔 false 的竞态语义（Codex Phase 2A 修正第 1 点）——
+
+test('组合提交返回 false（取消竞态）：重读 Run 按竞态语义停止，不盲目 fallback 写入', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    let falseReturned = false;
+    const faultyStore = {
+      ...store,
+      commitRunningStageWithLedger: (id, patch, options, ledger) => {
+        if (ledger?.type === 'replace') {
+          // 模拟守卫拒绝竞态：任务已在组合提交前被取消，返回 false
+          store.cancel(id);
+          falseReturned = true;
+          return false;
+        }
+        return store.commitRunningStageWithLedger(id, patch, options, ledger);
+      }
+    };
+    const worker = createResearchWorker({ store: faultyStore, concurrency: 1, ...fixtureAdapters() });
+    const created = faultyStore.create({ question: 'false 返回竞态', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(falseReturned, true);
+    assert.equal(finalTask.status, 'cancelled', '取消竞态按现有语义停止');
+    assert.equal(finalTask.artifacts.ledgerShadow, undefined,
+      '竞态停止不得写 ledgerShadow 降级标记（那是非竞态故障专属）');
+    assert.equal(store.getEvidenceLedger(created.id), null);
+  } finally {
+    cleanup();
+  }
+});
+
+test('合法零证据的空台账与未写入台账不再共用 null 语义（meta 消歧）', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    // 从未写入的任务：getEvidenceLedger 保持 null
+    const untouched = store.create({ question: '未写入研究', searchMode: 'web', knowledgeBaseIds: [] });
+    assert.equal(store.getEvidenceLedger(untouched.id), null, '未写入台账必须返回 null');
+
+    // 零证据 run：meta.status='empty'，entries 为合法空集（不伪造 evidence entry）
+    const worker = createResearchWorker({
+      store,
+      concurrency: 1,
+      ...fixtureAdapters({
+        searchResults: {
+          子问题一: { webSearchStatus: 'available' },
+          子问题二: { webSearchStatus: 'available' }
+        }
+      })
+    });
+    const created = store.create({ question: '零证据研究', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+    assert.equal(finalTask.status, 'completed');
+    const ledger = store.getEvidenceLedger(created.id);
+    assert.ok(ledger, '零证据但已写入的台账不得返回 null');
+    assert.deepEqual(ledger.entries, []);
+    assert.equal(ledger.meta.status, 'empty');
+    assert.equal(ledger.meta.entryCount, 0);
+    assert.equal(ledger.diff.diagnostic, 'reading_eligibility');
+    assert.equal(ledger.diff.counts.actual, 0, '零证据时差异诊断为全零，而非缺失');
   } finally {
     cleanup();
   }

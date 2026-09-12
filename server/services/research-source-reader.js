@@ -1,11 +1,9 @@
-import { createHash } from 'node:crypto';
+// 全文指纹唯一权威实现：与 Evidence Ledger 共用 computeContentHash/normalize，
+// 保证 Reader 与 Ledger 对同一正文的哈希完全一致（Codex Phase 2A 修正第 3 点）。
+import { computeContentHash } from '../research-evidence-ledger.js';
 
 const MAX_DOCUMENT_BYTES = 160_000;
 const DEFAULT_TIMEOUT_MS = 8_000;
-
-function contentHashOf(content) {
-  return createHash('sha256').update(String(content || '').replace(/\r/g, '').replace(/\u0000/g, '').trim()).digest('hex');
-}
 
 function githubRepository(value) {
   try {
@@ -96,7 +94,7 @@ export function createResearchSourceReader({
       read: async (source) => {
         // 先对完整原始 content 计算全量哈希（身份用），再截断保存（artifact 用）：
         // 160KB 截断点之后的内容变化必须仍产生不同 contentHash/evidenceId。
-        const fullContentHash = contentHashOf(source.content);
+        const fullContentHash = computeContentHash(source.content);
         const bounded = boundedText(source.content, maxDocumentBytes);
         return {
           sourceId: source.id,
@@ -148,7 +146,7 @@ export function createResearchSourceReader({
             contentType: response.headers?.get?.('content-type') || 'text/plain',
             truncated: bounded.truncated,
             readerKind: 'github_readme',
-            contentHash: contentHashOf(bounded.content),
+            contentHash: computeContentHash(bounded.content),
             attestation: {
               provenance: 'reader_obtained',
               reason: 'content_from_github_readme_endpoint'
@@ -176,7 +174,7 @@ export function createResearchSourceReader({
         contentType: 'text/plain',
         truncated: bounded.truncated,
         readerKind: 'local_evidence',
-        contentHash: contentHashOf(bounded.content),
+        contentHash: computeContentHash(bounded.content),
         attestation: {
           provenance: 'reader_obtained',
           reason: 'local_project_knowledge_evidence'

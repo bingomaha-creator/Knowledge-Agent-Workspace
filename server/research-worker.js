@@ -855,16 +855,36 @@ export function createResearchWorker({
 
         if (ledgerPayload && typeof store.commitRunningStageWithLedger === 'function') {
           let committed = false;
+          let commitFailed = null;
           try {
-            store.commitRunningStageWithLedger(id, patch, { attempt }, ledgerPayload);
-            committed = true;
+            // 严格采用布尔返回值：只有 true 才视为提交成功。
+            committed = store.commitRunningStageWithLedger(id, patch, { attempt }, ledgerPayload) === true;
           } catch (ledgerError) {
+            commitFailed = ledgerError;
             ledgerShadowFailure = `LEDGER_COMMIT_FAILED${ledgerError?.code ? `:${ledgerError.code}` : ''}: ${readableError(ledgerError)}`;
             shadowWarn(id, currentStage, 'LEDGER_COMMIT_FAILED', ledgerError);
+          }
+          if (!committed && !commitFailed) {
+            // 布尔 false = 守卫拒绝（已取消 / attempt 变化 / 状态竞态）：重读 Run，
+            // 按现有竞态语义停止，不得盲目 fallback 写入。
+            const current = store.get(id);
+            if (!current || current.status === 'cancelled' || current.cancelRequested || signal.aborted) {
+              return current || task;
+            }
+            if (Number(current.attempt) !== attempt || current.status !== 'running') {
+              throw Object.assign(new Error('研究任务已失去运行权（attempt/状态竞态）'), {
+                code: 'RESEARCH_LEASE_LOST'
+              });
+            }
+            commitFailed = new Error('commitRunningStageWithLedger 返回 false 且无竞态特征');
+            ledgerShadowFailure = `LEDGER_COMMIT_FAILED: ${readableError(commitFailed)}`;
+            shadowWarn(id, currentStage, 'LEDGER_COMMIT_FAILED', commitFailed);
           }
           if (committed) {
             task = store.get(id);
           } else {
+            // shadow 降级（仅限 commit 抛错的非竞态故障）：主快照照常推进，
+            // 但明确标记 ledger shadow 缺失，后续验收排除该 Run。
             artifacts = { ...artifacts, ledgerShadow: { status: 'failed', reason: ledgerShadowFailure } };
             patch.artifacts = artifacts;
             task = persistStage(id, patch, signal);

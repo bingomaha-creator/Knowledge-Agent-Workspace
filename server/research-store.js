@@ -324,6 +324,17 @@ function migrateDatabase(db) {
       diff_json TEXT NOT NULL DEFAULT '{}',
       created_at INTEGER NOT NULL
     );
+
+    -- 轻量 snapshot/meta：区分"合法零证据的空台账"与"台账从未写入"（两者此前
+    -- 都表现为 getEvidenceLedger 返回 null 的歧义）。不伪造 evidence entry。
+    CREATE TABLE IF NOT EXISTS research_evidence_ledger_meta (
+      run_id TEXT PRIMARY KEY,
+      mode TEXT NOT NULL DEFAULT 'shadow',
+      status TEXT NOT NULL DEFAULT 'written',
+      entry_count INTEGER NOT NULL DEFAULT 0,
+      ledger_version INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL
+    );
   `);
 
   const checkColumns = tableColumns(db, 'research_contract_checks');
@@ -1052,15 +1063,27 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
   }
 
   function getEvidenceLedger(runId) {
+    // meta 优先：有 meta 即"台账已写入"（entries 可为合法空集）；无 meta 才是
+    // "台账从未写入"——两者不再共用 null 语义。
+    const meta = db.prepare(
+      'SELECT * FROM research_evidence_ledger_meta WHERE run_id = ?'
+    ).get(runId);
+    if (!meta) return null;
     const rows = db.prepare(
       'SELECT * FROM research_evidence_ledger WHERE run_id = ? ORDER BY evidence_id'
     ).all(runId);
-    if (!rows.length) return null;
     const diffRow = db.prepare(
       'SELECT mode, ledger_version, diff_json, created_at FROM research_evidence_ledger_diffs WHERE run_id = ?'
     ).get(runId);
     return {
-      ledgerVersion: rows[0].ledger_version,
+      meta: {
+        mode: meta.mode,
+        status: meta.status,
+        entryCount: meta.entry_count,
+        ledgerVersion: meta.ledger_version,
+        createdAt: meta.created_at
+      },
+      ledgerVersion: meta.ledger_version,
       entries: rows.map((row) => ({
         evidenceId: row.evidence_id,
         sourceChannel: row.source_channel,
@@ -1117,6 +1140,13 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
    *   将 citation_status 从 writer_selected/pending 收敛为 cited/not_cited。
    */
   function commitRunningStageWithLedger(runId, patch, { attempt } = {}, ledger = null) {
+    // 未知 ledger type 必须 fail closed：静默当作"无 Ledger"会丢掉 shadow 快照。
+    if (ledger !== null && !['replace', 'citations'].includes(ledger?.type)) {
+      throw Object.assign(
+        new Error(`LEDGER_PAYLOAD_TYPE_INVALID: 未知的 ledger payload type：${ledger?.type}`),
+        { code: 'LEDGER_PAYLOAD_TYPE_INVALID' }
+      );
+    }
     return withRunSnapshotWrite(runId, attempt, ['running'], () => {
       const updated = updateRunning(runId, patch);
       if (!updated) {
@@ -1136,6 +1166,25 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     db.prepare('DELETE FROM research_evidence_ledger WHERE run_id = ?').run(runId);
     db.prepare('DELETE FROM research_evidence_artifacts WHERE run_id = ?').run(runId);
     db.prepare('DELETE FROM research_evidence_ledger_diffs WHERE run_id = ?').run(runId);
+    // meta 记录：区分"合法零证据的空台账"与"台账从未写入"（Spec 歧义消解），
+    // 不伪造 evidence entry。
+    db.prepare(`
+      INSERT INTO research_evidence_ledger_meta (run_id, mode, status, entry_count, ledger_version, created_at)
+      VALUES (?, ?, ?, ?, ?, ?)
+      ON CONFLICT(run_id) DO UPDATE SET
+        mode = excluded.mode,
+        status = excluded.status,
+        entry_count = excluded.entry_count,
+        ledger_version = excluded.ledger_version,
+        created_at = excluded.created_at
+    `).run(
+      runId,
+      String(diff?.mode || 'shadow'),
+      entries.length ? 'written' : 'empty',
+      entries.length,
+      Number(ledgerVersion || 1),
+      now
+    );
     const insertEntry = db.prepare(`
       INSERT INTO research_evidence_ledger (
         run_id, evidence_id, source_channel, canonical_source_id, canonical_url,

@@ -204,6 +204,35 @@ test('组合提交：Ledger 写入失败时主快照一并回滚，不存在中�
   }
 });
 
+test('组合提交：未知 ledger type 必须 fail closed（表驱动）', () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const { task, attempt } = claimedTask(store);
+    const payloadFor = (type) => ({
+      type,
+      entries: [{ evidenceId: 'ev_x', sourceChannel: 'web', canonicalSourceId: 'u', screeningStatus: 'accepted', readingStatus: 'pending', extractionStatus: 'not_selected', citationStatus: 'pending' }],
+      artifacts: [],
+      diff: null
+    });
+    for (const bad of ['bogus', '', 123, {}, { type: 'unknown_kind' }]) {
+      assert.throws(
+        () => store.commitRunningStageWithLedger(task.id, { stage: 'extracting', progress: 45, artifacts: {} }, { attempt }, payloadFor(bad)),
+        /LEDGER_PAYLOAD_TYPE_INVALID/,
+        `未知 type ${JSON.stringify(bad)} 必须 fail closed`
+      );
+    }
+    assert.equal(store.get(task.id).stage, 'planning', 'fail closed 不得推进主快照');
+    // 合法 type 与 null（无 Ledger 侧写）不受影响
+    assert.equal(
+      store.commitRunningStageWithLedger(task.id, { stage: 'extracting', progress: 45, artifacts: {} }, { attempt }, null),
+      true
+    );
+    assert.equal(store.get(task.id).stage, 'extracting');
+  } finally {
+    cleanup();
+  }
+});
+
 test('citation finalize：空台账 + 非空引用集显式失败并回滚；真正零证据才允许空台账', () => {
   const { store, cleanup } = tempStore();
   try {
