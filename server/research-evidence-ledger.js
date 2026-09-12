@@ -296,40 +296,6 @@ export function buildLedgerEntries({
   return { entries, artifacts };
 }
 
-/**
- * 读取资格差异诊断（shadow 模式产物）：Ledger 按"筛选通过 + 读取成功 + 已抽取"
- * 判定合格的 Writer 输入来源，与实际 Writer 输入对比，暴露读取失败却经 snippet
- * 回退进入报告的来源。
- *
- * 注意（Spec §12 Phase 2A）：这只是**读取资格差异诊断**，不是 Ledger primary
- * 验收结果——真正的 would-be Evidence Pack/citations 需要 Ledger 按自身准入与
- * passage 选择规则独立产出（primary 验收工作的一部分），在此之前第二交付门
- * 保持未达成。
- */
-export function buildReadingEligibilityDiff({ entries, citations = [] }) {
-  const wouldInclude = entries
-    .filter((item) => item.screeningStatus === 'accepted'
-      && item.readingStatus === 'succeeded'
-      && item.extractionStatus === 'extracted')
-    .map((item) => item.citationId || item.evidenceId);
-  const actual = (Array.isArray(citations) ? citations : []).map((item) => item.id);
-
-  const wouldSet = new Set(wouldInclude);
-  const actualSet = new Set(actual);
-  return {
-    diagnostic: 'reading_eligibility',
-    ledgerWouldIncludeCitationIds: wouldInclude,
-    actualWriterCitationIds: actual,
-    ledgerIncludedButWriterMissed: wouldInclude.filter((id) => !actualSet.has(id)),
-    ledgerExcludedButWriterUsed: actual.filter((id) => !wouldSet.has(id)),
-    counts: {
-      ledger: wouldInclude.length,
-      actual: actual.length,
-      ledgerIncludedButWriterMissed: wouldInclude.filter((id) => !actualSet.has(id)).length,
-      ledgerExcludedButWriterUsed: actual.filter((id) => !wouldSet.has(id)).length
-    }
-  };
-}
 
 // —— would-be Evidence Pack（Spec §12 第二交付门）——
 // Ledger 按自身准入、passage 选择与稳定 citation 分配规则独立产出 would-be
@@ -342,6 +308,14 @@ export const WOULD_BE_DEFAULT_LIMITS = Object.freeze({
   maxPassages: 12,
   maxPassagesPerSource: 2
 });
+
+/**
+ * 不含 runId 的稳定来源键：同一来源在任何 Run 中键值相同，作为 would-be
+ * citation 分配的最终 tie-break（Codex 修正第 2 点）。
+ */
+function stableSourceKey(entry) {
+  return [entry.sourceChannel || '', entry.canonicalSourceId || '', entry.canonicalUrl || ''].join('|');
+}
 
 function querySignalsOf(value) {
   return uniqueTokens(expandCjkBigrams(tokenize(String(value || ''))));
@@ -428,7 +402,7 @@ export function buildWouldBeEvidencePack({
     if (left.contentHash !== right.contentHash) {
       return left.contentHash < right.contentHash ? -1 : 1;
     }
-    return left.entry.evidenceId < right.entry.evidenceId ? -1 : 1;
+    return stableSourceKey(left.entry).localeCompare(stableSourceKey(right.entry));
   });
 
   const admittedSources = admitted.slice(0, maxSources);
@@ -457,6 +431,9 @@ export function buildWouldBeEvidencePack({
       admissionExcluded.push({ evidenceId: entry.evidenceId, reason: 'no_usable_passage' });
       continue;
     }
+    // passage 内容指纹（Codex 修正第 1 点）：与 source 内容身份（entry.contentHash）
+    // 分离——全文层为选段所依据的 artifact 内容，薄层为发现摘要本身。
+    const passageContentHash = computeContentHash(content);
     citations.push({
       id: citationId,
       index: citationNumber,
@@ -464,10 +441,12 @@ export function buildWouldBeEvidencePack({
       url: entry.canonicalUrl,
       kind: entry.sourceChannel,
       subquestionId: entry.subquestionId,
+      queries: [entry.query].filter(Boolean),
       sourceEntryId: entry.evidenceId,
       tier,
       readerKind: tier === 'thin' ? 'search_snippet' : entry.readerKind,
-      contentHash: entry.contentHash
+      contentHash: entry.contentHash,
+      passageContentHash
     });
     selected.forEach((passage, passageIndex) => {
       evidence.push({
@@ -476,6 +455,7 @@ export function buildWouldBeEvidencePack({
         citationNumber,
         claim: deriveClaim(passage),
         passage,
+        passageContentHash,
         sourceId: entry.canonicalSourceId,
         subquestionId: entry.subquestionId,
         readerKind: tier === 'thin' ? 'search_snippet' : entry.readerKind,
@@ -502,7 +482,6 @@ export function buildWouldBeEvidencePack({
  * 分类（按旧 citation 逐项）：
  * - kept_fulltext：would-be 以全文层保留；
  * - kept_thin_downgraded（预期降级）：would-be 以搜索摘要薄证据保留（Reader 失败）；
- * - expected_merge（预期合并）：多个旧 citation 因同源合并为一个 would-be citation；
  * - unexpected_loss（意外丢失）：would-be 中不存在且无正当理由——primary 门槛 2 计数项；
  * - ledger_added：would-be 新纳入（信息项，非丢失）。
  */
@@ -523,7 +502,6 @@ export function buildWouldBePackDiff({
   );
 
   const items = [];
-  const mergeByWouldBeId = new Map();
   for (const oldCitation of Array.isArray(oldCitations) ? oldCitations : []) {
     const entry = entryByOldCitationId.get(oldCitation.id);
     const wouldBeCitation = entry ? wouldBeByEntryId.get(entry.evidenceId) : null;
@@ -531,21 +509,12 @@ export function buildWouldBePackDiff({
     let classification;
     let reason;
     if (wouldBeCitation) {
-      if (mergeByWouldBeId.has(wouldBeCitation.id)) {
-        mergeByWouldBeId.get(wouldBeCitation.id).oldCitationIds.push(oldCitation.id);
-        classification = 'expected_merge';
-        reason = '同一来源的多个旧 citation 合并为一个 would-be citation。';
+      if (entry.readingStatus === 'succeeded') {
+        classification = 'kept_fulltext';
+        reason = 'would-be 以全文层保留该来源。';
       } else {
-        mergeByWouldBeId.set(wouldBeCitation.id, { oldCitationIds: [oldCitation.id] });
-      }
-      if (!classification) {
-        if (entry.readingStatus === 'succeeded') {
-          classification = 'kept_fulltext';
-          reason = 'would-be 以全文层保留该来源。';
-        } else {
-          classification = 'kept_thin_downgraded';
-          reason = 'Reader 读取失败，would-be 以搜索摘要薄证据保留（预期降级）。';
-        }
+        classification = 'kept_thin_downgraded';
+        reason = 'Reader 读取失败，would-be 以搜索摘要薄证据保留（预期降级）。';
       }
     } else if (entry) {
       classification = 'unexpected_loss';
@@ -578,7 +547,6 @@ export function buildWouldBePackDiff({
 
   const keptItems = items.filter((item) => item.classification === 'kept_fulltext').length;
   const thinItems = items.filter((item) => item.classification === 'kept_thin_downgraded').length;
-  const mergeItems = items.filter((item) => item.classification === 'expected_merge').length;
   const lossItems = items.filter((item) => item.classification === 'unexpected_loss').length;
   const addedItems = (wouldBe?.citations || []).filter(
     (item) => !items.some((old) => old.wouldBeCitationId === item.id)
@@ -591,7 +559,6 @@ export function buildWouldBePackDiff({
       oldCitations: items.length,
       keptFulltext: keptItems,
       keptThinDowngraded: thinItems,
-      expectedMerge: mergeItems,
       unexpectedLoss: lossItems,
       ledgerAdded: addedItems
     },

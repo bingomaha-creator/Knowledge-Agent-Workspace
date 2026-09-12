@@ -1,33 +1,108 @@
 {
   "diagnostic": "would_be_pack_diff_report",
-  "generatedAt": "2026-09-12T15:13:43.029Z",
-  "caseCount": 12,
+  "status": "pending_review",
+  "generatedAt": "2026-09-12T16:07:09.529Z",
+  "note": "机器验收报告：humanReview 字段为 pending_review，人工复核（差异清单逐项确认）由用户/Codex 执行后才可判定第二交付门达成。Ledger 保持 shadow。",
+  "humanReview": {
+    "reviewer": null,
+    "reviewedAt": null,
+    "decision": "pending_review",
+    "notes": ""
+  },
   "cases": [
     {
       "caseId": "hybrid-mixed-channels",
       "searchMode": "hybrid",
-      "oldCitationCount": 2,
-      "wouldBeContentHashes": [
-        "66bc6c5981c957ab5384ec1f8029ee98ab44bc04266519e6504d7c30e44ed537",
-        "d3d1246696181923b0cb60e0635805e9439466dd693da6839911a7302b60c2b5"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/etcd-architecture",
+            "title": "etcd 架构文档"
+          },
+          {
+            "citationId": "local-l1",
+            "url": "",
+            "title": "ZooKeeper 内部笔记"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_c3b110b97376a50af605c3bae4b10f85",
+            "evidenceId": "ev_c3b110b97376a50af605c3bae4b10f85",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "66bc6c5981c957ab5384ec1f8029ee98ab44bc04266519e6504d7c30e44ed537"
+          },
+          {
+            "citationId": "ledger-ev_8aa82f4d54d50c1051aa8b6b9d0a02cb",
+            "evidenceId": "ev_8aa82f4d54d50c1051aa8b6b9d0a02cb",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "d3d1246696181923b0cb60e0635805e9439466dd693da6839911a7302b60c2b5"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_c3b110b97376a50af605c3bae4b10f85",
+          "title": "etcd 架构文档",
+          "oldIdentity": {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/etcd-architecture"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_c3b110b97376a50af605c3bae4b10f85",
+            "evidenceId": "ev_c3b110b97376a50af605c3bae4b10f85",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "66bc6c5981c957ab5384ec1f8029ee98ab44bc04266519e6504d7c30e44ed537"
+          },
+          "passages": [
+            {
+              "passageDigest": "Raft 的选主与日志复制逻辑独立成库，etcd 在其上实现了 MVCC 与事务语义。",
+              "passageLength": 43,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 2,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "local-l1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_8aa82f4d54d50c1051aa8b6b9d0a02cb",
+          "title": "ZooKeeper 内部笔记",
+          "oldIdentity": {
+            "citationId": "local-l1",
+            "url": ""
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_8aa82f4d54d50c1051aa8b6b9d0a02cb",
+            "evidenceId": "ev_8aa82f4d54d50c1051aa8b6b9d0a02cb",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "d3d1246696181923b0cb60e0635805e9439466dd693da6839911a7302b60c2b5"
+          },
+          "passages": [
+            {
+              "passageDigest": "ZooKeeper 的 ZAB 协议包含崩溃恢复与消息广播两个阶段。",
+              "passageLength": 34,
+              "tier": "fulltext"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 2,
         "keptFulltext": 2,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -37,33 +112,88 @@
         "totalSubquestions": 2,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "thin_evidence_pack"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "hybrid-web-error",
       "searchMode": "hybrid",
-      "oldCitationCount": 1,
-      "wouldBeContentHashes": [
-        "43429f11ed4141f590fcf363f07be5b25deec878fa4caecaa6212416dcb6f1f4"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "local-l1",
+            "url": "",
+            "title": "Kafka 副本机制笔记"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_87ab1be1f0f5f66c4eed887672b3a522",
+            "evidenceId": "ev_87ab1be1f0f5f66c4eed887672b3a522",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "43429f11ed4141f590fcf363f07be5b25deec878fa4caecaa6212416dcb6f1f4"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "local-l1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_87ab1be1f0f5f66c4eed887672b3a522",
+          "title": "Kafka 副本机制笔记",
+          "oldIdentity": {
+            "citationId": "local-l1",
+            "url": ""
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_87ab1be1f0f5f66c4eed887672b3a522",
+            "evidenceId": "ev_87ab1be1f0f5f66c4eed887672b3a522",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "43429f11ed4141f590fcf363f07be5b25deec878fa4caecaa6212416dcb6f1f4"
+          },
+          "passages": [
+            {
+              "passageDigest": "follower 通过持续拉取日志保持同步，落后超过阈值的副本会被移出 ISR。",
+              "passageLength": 40,
+              "tier": "fulltext"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 1,
         "keptFulltext": 1,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -73,39 +203,137 @@
         "totalSubquestions": 1,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_evidence_not_included",
+            "thin_evidence_pack"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_evidence_not_included",
+            "thin_evidence_pack"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "local-full-coverage",
       "searchMode": "local",
-      "oldCitationCount": 2,
-      "wouldBeContentHashes": [
-        "3b458b7173da3400ca35d883cb0dbd051239f3640f8f5d467b6567cc934fe5c8",
-        "b1eab30aafc5c869694ed2ba44a86e2f9a1fe42d1c99b8f36d0cde756900a23e"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "local-l1",
+            "url": "",
+            "title": "检索服务设计笔记"
+          },
+          {
+            "citationId": "local-l2",
+            "url": "",
+            "title": "多路召回说明"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_7b70af7229cb96f9213399bcdfc9bb1b",
+            "evidenceId": "ev_7b70af7229cb96f9213399bcdfc9bb1b",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "3b458b7173da3400ca35d883cb0dbd051239f3640f8f5d467b6567cc934fe5c8"
+          },
+          {
+            "citationId": "ledger-ev_b644613f317ccd3647c77214c1396e6d",
+            "evidenceId": "ev_b644613f317ccd3647c77214c1396e6d",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "b1eab30aafc5c869694ed2ba44a86e2f9a1fe42d1c99b8f36d0cde756900a23e"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "local-l1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_7b70af7229cb96f9213399bcdfc9bb1b",
+          "title": "检索服务设计笔记",
+          "oldIdentity": {
+            "citationId": "local-l1",
+            "url": ""
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_7b70af7229cb96f9213399bcdfc9bb1b",
+            "evidenceId": "ev_7b70af7229cb96f9213399bcdfc9bb1b",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "3b458b7173da3400ca35d883cb0dbd051239f3640f8f5d467b6567cc934fe5c8"
+          },
+          "passages": [
+            {
+              "passageDigest": "检索服务对外的查询入口共支持三种查询模式：关键词查询、语义向量查询与混合查询。三种模式在召回路径、打分方式与适用场景上完全不同，调用方需要根据查询意图选择合适的模式。选错模式最常见的表现是召回结果与问题相关但排序明显不合理，排查时应先确认查",
+              "passageLength": 146,
+              "tier": "fulltext"
+            },
+            {
+              "passageDigest": "混合查询会同时执行两路召回，并把两路结果交给融合阶段统一排序后返回给调用方。由于同时覆盖精确命中与语义泛化两类需求，混合模式在绝大多数业务场景下的召回质量最稳定，也是服务对外默认推荐的查询模式。代价是单次查询的延迟与计算成本略高于单路模式，",
+              "passageLength": 141,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 2,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "local-l2",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_b644613f317ccd3647c77214c1396e6d",
+          "title": "多路召回说明",
+          "oldIdentity": {
+            "citationId": "local-l2",
+            "url": ""
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_b644613f317ccd3647c77214c1396e6d",
+            "evidenceId": "ev_b644613f317ccd3647c77214c1396e6d",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "b1eab30aafc5c869694ed2ba44a86e2f9a1fe42d1c99b8f36d0cde756900a23e"
+          },
+          "passages": [
+            {
+              "passageDigest": "多路召回的结果通过 RRF 融合分数统一排序。RRF 融合公式只依赖每个通道内部的排名位置，不依赖各路原始分数的量纲，因此关键词与向量两路可以各自独立调参、独立扩容，而不会因为分数分布不同互相污染最终排序。运维上也因此可以把两路召回作为两个",
+              "passageLength": 156,
+              "tier": "fulltext"
+            },
+            {
+              "passageDigest": "融合阶段不会改变原始召回来源标注，每条进入最终结果的记录都会保留来自哪一路召回的信息，以及该路内部的原始排名。这为下游的引用追溯、结果解释与针对单路召回质量的专项回归提供了完整依据。当业务方反馈某类问题召回不准时，可以按来源标注快速定位是哪",
+              "passageLength": 159,
+              "tier": "fulltext"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 2,
         "keptFulltext": 2,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -115,25 +343,42 @@
         "totalSubquestions": 2,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "sufficient",
+          "coverageRatio": 1,
+          "limitations": []
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "sufficient",
+          "coverageRatio": 1,
+          "limitations": []
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "local-empty-insufficient",
       "searchMode": "local",
-      "oldCitationCount": 0,
-      "wouldBeContentHashes": [],
-      "wouldBeAllocation": [],
+      "oldIdentity": {
+        "citations": []
+      },
+      "wouldBeIdentity": {
+        "citations": []
+      },
+      "diffItems": [],
       "counts": {
         "oldCitations": 0,
         "keptFulltext": 0,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -143,63 +388,297 @@
         "totalSubquestions": 1,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "fallback",
+          "requiredCheckFailures": [],
+          "quality": "insufficient",
+          "coverageRatio": 0,
+          "limitations": [
+            "no_relevant_evidence"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "fallback",
+          "requiredCheckFailures": [],
+          "quality": "insufficient",
+          "coverageRatio": 0,
+          "limitations": [
+            "no_relevant_evidence"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "web-full-coverage",
       "searchMode": "web",
-      "oldCitationCount": 6,
-      "wouldBeContentHashes": [
-        "1dde64c291ae225807b4d9edd3ca4324a2510067347b394aabcac9354e9f72c9",
-        "e8572006775e70b98b929a4acd4fe6dcb2abda86e09d22ccbabd071b3050ba0f",
-        "cf16ffbb916fae2157c50ae9256f6d625b7334b6d6f780529b251779e177dce2",
-        "f3afdd999d1c6a5c273ba49ccacef5f42217efea9d2d971804cd76594a943b14",
-        "5b2fc28e1e2d29a4bec3c3b98dd7a1e8ae5076094a70cb04fdcec5601d1c332b",
-        "b622738a287f3424e4603a554baaadd0b930aaa51f17e12b07cee9a4d62c3d32"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/sqlite-ops",
+            "title": "SQLite 运维手册"
+          },
+          {
+            "citationId": "web-s2",
+            "url": "https://wiki.example.org/embedded-ops",
+            "title": "嵌入式数据库运维指南"
+          },
+          {
+            "citationId": "web-s3",
+            "url": "https://docs.example.org/postgres-ops",
+            "title": "PostgreSQL 运维清单"
+          },
+          {
+            "citationId": "web-s4",
+            "url": "https://wiki.example.org/postgres-capacity",
+            "title": "PostgreSQL 容量规划"
+          },
+          {
+            "citationId": "web-s5",
+            "url": "https://docs.example.org/backup-compare",
+            "title": "两种数据库备份对比"
+          },
+          {
+            "citationId": "web-s6",
+            "url": "https://wiki.example.org/upgrade-path",
+            "title": "升级路径差异说明"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_7ea24adc0b04a621983fe73acd6cef4f",
+            "evidenceId": "ev_7ea24adc0b04a621983fe73acd6cef4f",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "1dde64c291ae225807b4d9edd3ca4324a2510067347b394aabcac9354e9f72c9"
+          },
+          {
+            "citationId": "ledger-ev_21e80324b8b54ffb111a7b3e9b53e70d",
+            "evidenceId": "ev_21e80324b8b54ffb111a7b3e9b53e70d",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "e8572006775e70b98b929a4acd4fe6dcb2abda86e09d22ccbabd071b3050ba0f"
+          },
+          {
+            "citationId": "ledger-ev_b166cb5ce1b26600890e03f5065ff6e3",
+            "evidenceId": "ev_b166cb5ce1b26600890e03f5065ff6e3",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "cf16ffbb916fae2157c50ae9256f6d625b7334b6d6f780529b251779e177dce2"
+          },
+          {
+            "citationId": "ledger-ev_a84c0831e1a7276e5dd9fadb6bb3912a",
+            "evidenceId": "ev_a84c0831e1a7276e5dd9fadb6bb3912a",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "f3afdd999d1c6a5c273ba49ccacef5f42217efea9d2d971804cd76594a943b14"
+          },
+          {
+            "citationId": "ledger-ev_8679fb829259b8c87f38f7c18ef40efb",
+            "evidenceId": "ev_8679fb829259b8c87f38f7c18ef40efb",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "5b2fc28e1e2d29a4bec3c3b98dd7a1e8ae5076094a70cb04fdcec5601d1c332b"
+          },
+          {
+            "citationId": "ledger-ev_92310b8a9b6c5c95b59fd917f2375232",
+            "evidenceId": "ev_92310b8a9b6c5c95b59fd917f2375232",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "b622738a287f3424e4603a554baaadd0b930aaa51f17e12b07cee9a4d62c3d32"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_7ea24adc0b04a621983fe73acd6cef4f",
+          "title": "SQLite 运维手册",
+          "oldIdentity": {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/sqlite-ops"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_7ea24adc0b04a621983fe73acd6cef4f",
+            "evidenceId": "ev_7ea24adc0b04a621983fe73acd6cef4f",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "1dde64c291ae225807b4d9edd3ca4324a2510067347b394aabcac9354e9f72c9"
+          },
+          "passages": [
+            {
+              "passageDigest": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级三部分组成。",
+              "passageLength": 37,
+              "tier": "fulltext"
+            },
+            {
+              "passageDigest": "由于 SQLite 以单文件形式存在，运维人员只需复制数据库文件即可完成备份，无需独立的备份服务。",
+              "passageLength": 49,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 2,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s2",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_21e80324b8b54ffb111a7b3e9b53e70d",
+          "title": "嵌入式数据库运维指南",
+          "oldIdentity": {
+            "citationId": "web-s2",
+            "url": "https://wiki.example.org/embedded-ops"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_21e80324b8b54ffb111a7b3e9b53e70d",
+            "evidenceId": "ev_21e80324b8b54ffb111a7b3e9b53e70d",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "e8572006775e70b98b929a4acd4fe6dcb2abda86e09d22ccbabd071b3050ba0f"
+          },
+          "passages": [
+            {
+              "passageDigest": "其成本集中在磁盘空间监控与文件完整性校验两部分，社区文档提供了标准化的检查清单。",
+              "passageLength": 40,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 3,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s3",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_a84c0831e1a7276e5dd9fadb6bb3912a",
+          "title": "PostgreSQL 运维清单",
+          "oldIdentity": {
+            "citationId": "web-s3",
+            "url": "https://docs.example.org/postgres-ops"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_a84c0831e1a7276e5dd9fadb6bb3912a",
+            "evidenceId": "ev_a84c0831e1a7276e5dd9fadb6bb3912a",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "f3afdd999d1c6a5c273ba49ccacef5f42217efea9d2d971804cd76594a943b14"
+          },
+          "passages": [
+            {
+              "passageDigest": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。",
+              "passageLength": 42,
+              "tier": "fulltext"
+            },
+            {
+              "passageDigest": "生产环境还需要为大版本升级预留停机窗口或配置逻辑复制，这些都计入长期运维成本。",
+              "passageLength": 39,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 4,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s4",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_b166cb5ce1b26600890e03f5065ff6e3",
+          "title": "PostgreSQL 容量规划",
+          "oldIdentity": {
+            "citationId": "web-s4",
+            "url": "https://wiki.example.org/postgres-capacity"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_b166cb5ce1b26600890e03f5065ff6e3",
+            "evidenceId": "ev_b166cb5ce1b26600890e03f5065ff6e3",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "cf16ffbb916fae2157c50ae9256f6d625b7334b6d6f780529b251779e177dce2"
+          },
+          "passages": [
+            {
+              "passageDigest": "这部分维护工作构成了其长期运维成本的主要组成，通常由数据库管理员按周执行。",
+              "passageLength": 37,
+              "tier": "fulltext"
+            },
+            {
+              "passageDigest": "PostgreSQL 需要定期执行 VACUUM 与索引重建来控制表膨胀。",
+              "passageLength": 37,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 5,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s5",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_8679fb829259b8c87f38f7c18ef40efb",
+          "title": "两种数据库备份对比",
+          "oldIdentity": {
+            "citationId": "web-s5",
+            "url": "https://docs.example.org/backup-compare"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_8679fb829259b8c87f38f7c18ef40efb",
+            "evidenceId": "ev_8679fb829259b8c87f38f7c18ef40efb",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "5b2fc28e1e2d29a4bec3c3b98dd7a1e8ae5076094a70cb04fdcec5601d1c332b"
+          },
+          "passages": [
+            {
+              "passageDigest": "SQLite 通过文件复制即可完成备份，PostgreSQL 需要基础备份叠加 WAL 归档才能保证恢复点目标。",
+              "passageLength": 56,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 6,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s6",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_92310b8a9b6c5c95b59fd917f2375232",
+          "title": "升级路径差异说明",
+          "oldIdentity": {
+            "citationId": "web-s6",
+            "url": "https://wiki.example.org/upgrade-path"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_92310b8a9b6c5c95b59fd917f2375232",
+            "evidenceId": "ev_92310b8a9b6c5c95b59fd917f2375232",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "b622738a287f3424e4603a554baaadd0b930aaa51f17e12b07cee9a4d62c3d32"
+          },
+          "passages": [
+            {
+              "passageDigest": "PostgreSQL 的大版本升级需要 pg_upgrade 工具或逻辑复制迁移数据。",
+              "passageLength": 43,
+              "tier": "fulltext"
+            },
+            {
+              "passageDigest": "SQLite 的版本升级通常随应用程序发布自动完成，几乎不产生额外的运维成本。",
+              "passageLength": 39,
+              "tier": "fulltext"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 6,
         "keptFulltext": 6,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -209,39 +688,127 @@
         "totalSubquestions": 3,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "web-partial-coverage",
       "searchMode": "web",
-      "oldCitationCount": 2,
-      "wouldBeContentHashes": [
-        "c62cec547fc0a847bdb49f43bb446b3fae380ad93852ad36f071a3484d7c716f",
-        "6de722f40ae3a6ab66b39694bf7b284a02ae2029620eb3ecfa0fbf30666e8bc6"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/sqlite-ops",
+            "title": "SQLite 运维手册"
+          },
+          {
+            "citationId": "web-s2",
+            "url": "https://docs.example.org/postgres-ops",
+            "title": "PostgreSQL 运维清单"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_216bee258d748c091dc9c5761ef762a4",
+            "evidenceId": "ev_216bee258d748c091dc9c5761ef762a4",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "c62cec547fc0a847bdb49f43bb446b3fae380ad93852ad36f071a3484d7c716f"
+          },
+          {
+            "citationId": "ledger-ev_7c53e7e7d1c8bf2acd1d5bce1671ab2d",
+            "evidenceId": "ev_7c53e7e7d1c8bf2acd1d5bce1671ab2d",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "6de722f40ae3a6ab66b39694bf7b284a02ae2029620eb3ecfa0fbf30666e8bc6"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_216bee258d748c091dc9c5761ef762a4",
+          "title": "SQLite 运维手册",
+          "oldIdentity": {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/sqlite-ops"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_216bee258d748c091dc9c5761ef762a4",
+            "evidenceId": "ev_216bee258d748c091dc9c5761ef762a4",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "c62cec547fc0a847bdb49f43bb446b3fae380ad93852ad36f071a3484d7c716f"
+          },
+          "passages": [
+            {
+              "passageDigest": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级组成。",
+              "passageLength": 34,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 2,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s2",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_7c53e7e7d1c8bf2acd1d5bce1671ab2d",
+          "title": "PostgreSQL 运维清单",
+          "oldIdentity": {
+            "citationId": "web-s2",
+            "url": "https://docs.example.org/postgres-ops"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_7c53e7e7d1c8bf2acd1d5bce1671ab2d",
+            "evidenceId": "ev_7c53e7e7d1c8bf2acd1d5bce1671ab2d",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "6de722f40ae3a6ab66b39694bf7b284a02ae2029620eb3ecfa0fbf30666e8bc6"
+          },
+          "passages": [
+            {
+              "passageDigest": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。",
+              "passageLength": 42,
+              "tier": "fulltext"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 2,
         "keptFulltext": 2,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -251,25 +818,49 @@
         "totalSubquestions": 3,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 0.6667,
+          "limitations": [
+            "low_subquestion_coverage",
+            "thin_evidence_pack"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 0.6667,
+          "limitations": [
+            "low_subquestion_coverage",
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "web-no-results",
       "searchMode": "web",
-      "oldCitationCount": 0,
-      "wouldBeContentHashes": [],
-      "wouldBeAllocation": [],
+      "oldIdentity": {
+        "citations": []
+      },
+      "wouldBeIdentity": {
+        "citations": []
+      },
+      "diffItems": [],
       "counts": {
         "oldCitations": 0,
         "keptFulltext": 0,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -279,25 +870,46 @@
         "totalSubquestions": 2,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "fallback",
+          "requiredCheckFailures": [],
+          "quality": "insufficient",
+          "coverageRatio": 0,
+          "limitations": [
+            "no_relevant_evidence"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "fallback",
+          "requiredCheckFailures": [],
+          "quality": "insufficient",
+          "coverageRatio": 0,
+          "limitations": [
+            "no_relevant_evidence"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "web-provider-unavailable",
       "searchMode": "web",
-      "oldCitationCount": 0,
-      "wouldBeContentHashes": [],
-      "wouldBeAllocation": [],
+      "oldIdentity": {
+        "citations": []
+      },
+      "wouldBeIdentity": {
+        "citations": []
+      },
+      "diffItems": [],
       "counts": {
         "oldCitations": 0,
         "keptFulltext": 0,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -307,39 +919,125 @@
         "totalSubquestions": 1,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "fallback",
+          "requiredCheckFailures": [],
+          "quality": "insufficient",
+          "coverageRatio": 0,
+          "limitations": [
+            "no_relevant_evidence"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "fallback",
+          "requiredCheckFailures": [],
+          "quality": "insufficient",
+          "coverageRatio": 0,
+          "limitations": [
+            "no_relevant_evidence"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "web-snippet-only",
       "searchMode": "web",
-      "oldCitationCount": 2,
-      "wouldBeContentHashes": [
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/oauth21-draft",
+            "title": "OAuth 2.1 草案摘要"
+          },
+          {
+            "citationId": "web-s2",
+            "url": "https://wiki.example.org/oauth21-pkce",
+            "title": "PKCE 新要求说明"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_82ab74a6b8ebdcc82d95b0606a0bf4f0",
+            "evidenceId": "ev_82ab74a6b8ebdcc82d95b0606a0bf4f0",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "thin",
+            "passageContentHash": "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b"
+          },
+          {
+            "citationId": "ledger-ev_ff5d06c6c929bb105015801ff2359619",
+            "evidenceId": "ev_ff5d06c6c929bb105015801ff2359619",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "thin",
+            "passageContentHash": "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "thin",
-          "readerKind": "search_snippet"
+          "oldCitationId": "web-s1",
+          "classification": "kept_thin_downgraded",
+          "reason": "Reader 读取失败，would-be 以搜索摘要薄证据保留（预期降级）。",
+          "wouldBeCitationId": "ledger-ev_82ab74a6b8ebdcc82d95b0606a0bf4f0",
+          "title": "OAuth 2.1 草案摘要",
+          "oldIdentity": {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/oauth21-draft"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_82ab74a6b8ebdcc82d95b0606a0bf4f0",
+            "evidenceId": "ev_82ab74a6b8ebdcc82d95b0606a0bf4f0",
+            "canonicalSourceId": "",
+            "tier": "thin",
+            "passageContentHash": "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b"
+          },
+          "passages": [
+            {
+              "passageDigest": "OAuth 2.1 移除了隐式授权流程与密码授权流程，并新增了设备授权流程的规范化描述。",
+              "passageLength": 44,
+              "tier": "thin"
+            }
+          ]
         },
         {
-          "index": 2,
-          "tier": "thin",
-          "readerKind": "search_snippet"
+          "oldCitationId": "web-s2",
+          "classification": "kept_thin_downgraded",
+          "reason": "Reader 读取失败，would-be 以搜索摘要薄证据保留（预期降级）。",
+          "wouldBeCitationId": "ledger-ev_ff5d06c6c929bb105015801ff2359619",
+          "title": "PKCE 新要求说明",
+          "oldIdentity": {
+            "citationId": "web-s2",
+            "url": "https://wiki.example.org/oauth21-pkce"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_ff5d06c6c929bb105015801ff2359619",
+            "evidenceId": "ev_ff5d06c6c929bb105015801ff2359619",
+            "canonicalSourceId": "",
+            "tier": "thin",
+            "passageContentHash": "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773"
+          },
+          "passages": [
+            {
+              "passageDigest": "OAuth 2.1 要求所有授权码流程的客户端默认使用 PKCE，不再区分公共客户端与机密客户端。",
+              "passageLength": 49,
+              "tier": "thin"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 2,
         "keptFulltext": 0,
         "keptThinDowngraded": 2,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -349,45 +1047,170 @@
         "totalSubquestions": 2,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "web-read-partial",
       "searchMode": "web",
-      "oldCitationCount": 3,
-      "wouldBeContentHashes": [
-        "0dc413d935e9c9b9198f80c3082662fe0b4b06f8e96c032c14a2acb398e5ada5",
-        "5554cd56a221ae1a3f47b56980b12b0870afde3506d568399b734766939da622",
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/wasm-runtimes",
+            "title": "Wasm 运行时盘点"
+          },
+          {
+            "citationId": "web-s2",
+            "url": "https://wiki.example.org/wasm-server-cases",
+            "title": "Wasm 服务端案例"
+          },
+          {
+            "citationId": "web-s3",
+            "url": "https://docs.example.org/wasm-performance",
+            "title": "Wasm 性能报告"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_fe3227d41e2ec0d77d89920badbf0a9a",
+            "evidenceId": "ev_fe3227d41e2ec0d77d89920badbf0a9a",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "0dc413d935e9c9b9198f80c3082662fe0b4b06f8e96c032c14a2acb398e5ada5"
+          },
+          {
+            "citationId": "ledger-ev_bde6a490eae1081e4bddc61c05c81e5e",
+            "evidenceId": "ev_bde6a490eae1081e4bddc61c05c81e5e",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "5554cd56a221ae1a3f47b56980b12b0870afde3506d568399b734766939da622"
+          },
+          {
+            "citationId": "ledger-ev_fb92245a78ebb1cc445014f3cadae304",
+            "evidenceId": "ev_fb92245a78ebb1cc445014f3cadae304",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "thin",
+            "passageContentHash": "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_fe3227d41e2ec0d77d89920badbf0a9a",
+          "title": "Wasm 运行时盘点",
+          "oldIdentity": {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/wasm-runtimes"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_fe3227d41e2ec0d77d89920badbf0a9a",
+            "evidenceId": "ev_fe3227d41e2ec0d77d89920badbf0a9a",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "0dc413d935e9c9b9198f80c3082662fe0b4b06f8e96c032c14a2acb398e5ada5"
+          },
+          "passages": [
+            {
+              "passageDigest": "服务端常见的 WebAssembly 运行时包括 Wasmtime、WasmEdge 与 Wasmer。",
+              "passageLength": 52,
+              "tier": "fulltext"
+            },
+            {
+              "passageDigest": "Wasmtime 强调安全隔离，WasmEdge 侧重云端部署，Wasmer 支持多后端编译。",
+              "passageLength": 47,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 2,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s2",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_bde6a490eae1081e4bddc61c05c81e5e",
+          "title": "Wasm 服务端案例",
+          "oldIdentity": {
+            "citationId": "web-s2",
+            "url": "https://wiki.example.org/wasm-server-cases"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_bde6a490eae1081e4bddc61c05c81e5e",
+            "evidenceId": "ev_bde6a490eae1081e4bddc61c05c81e5e",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "5554cd56a221ae1a3f47b56980b12b0870afde3506d568399b734766939da622"
+          },
+          "passages": [
+            {
+              "passageDigest": "WebAssembly 在服务端的落地案例集中在插件系统、边缘函数与数据预处理。",
+              "passageLength": 40,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 3,
-          "tier": "thin",
-          "readerKind": "search_snippet"
+          "oldCitationId": "web-s3",
+          "classification": "kept_thin_downgraded",
+          "reason": "Reader 读取失败，would-be 以搜索摘要薄证据保留（预期降级）。",
+          "wouldBeCitationId": "ledger-ev_fb92245a78ebb1cc445014f3cadae304",
+          "title": "Wasm 性能报告",
+          "oldIdentity": {
+            "citationId": "web-s3",
+            "url": "https://docs.example.org/wasm-performance"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_fb92245a78ebb1cc445014f3cadae304",
+            "evidenceId": "ev_fb92245a78ebb1cc445014f3cadae304",
+            "canonicalSourceId": "",
+            "tier": "thin",
+            "passageContentHash": "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41"
+          },
+          "passages": [
+            {
+              "passageDigest": "WebAssembly 服务端运行的性能接近原生代码的七成以上，冷启动显著快于传统容器方案。",
+              "passageLength": 46,
+              "tier": "thin"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 3,
         "keptFulltext": 2,
         "keptThinDowngraded": 1,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -397,39 +1220,132 @@
         "totalSubquestions": 3,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "web-github-primary",
       "searchMode": "web",
-      "oldCitationCount": 2,
-      "wouldBeContentHashes": [
-        "7d67c92d5f94015f02ada81149634b9ddc7e17d0c73452f30198bba84eb1ac60",
-        "de1b296ed3d02d0deae9128f34188f146fdeb76ce17809723a66d19c6abc9620"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "web-s2",
+            "url": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES",
+            "title": "Redis 7.2 release notes"
+          },
+          {
+            "citationId": "web-s1",
+            "url": "https://github.com/redis/redis/releases",
+            "title": "Redis 7.0 release notes"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_a1ef2757985801790e6a6d83495a7dd5",
+            "evidenceId": "ev_a1ef2757985801790e6a6d83495a7dd5",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "7d67c92d5f94015f02ada81149634b9ddc7e17d0c73452f30198bba84eb1ac60"
+          },
+          {
+            "citationId": "ledger-ev_a0aa1488c8dd23141ac4c802f80091aa",
+            "evidenceId": "ev_a0aa1488c8dd23141ac4c802f80091aa",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "de1b296ed3d02d0deae9128f34188f146fdeb76ce17809723a66d19c6abc9620"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s2",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_a0aa1488c8dd23141ac4c802f80091aa",
+          "title": "Redis 7.2 release notes",
+          "oldIdentity": {
+            "citationId": "web-s2",
+            "url": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_a0aa1488c8dd23141ac4c802f80091aa",
+            "evidenceId": "ev_a0aa1488c8dd23141ac4c802f80091aa",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "de1b296ed3d02d0deae9128f34188f146fdeb76ce17809723a66d19c6abc9620"
+          },
+          "passages": [
+            {
+              "passageDigest": "Redis 7.2 的 release notes 记录了 Lua 脚本执行改进与新的集合命令。",
+              "passageLength": 48,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 2,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_a1ef2757985801790e6a6d83495a7dd5",
+          "title": "Redis 7.0 release notes",
+          "oldIdentity": {
+            "citationId": "web-s1",
+            "url": "https://github.com/redis/redis/releases"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_a1ef2757985801790e6a6d83495a7dd5",
+            "evidenceId": "ev_a1ef2757985801790e6a6d83495a7dd5",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "7d67c92d5f94015f02ada81149634b9ddc7e17d0c73452f30198bba84eb1ac60"
+          },
+          "passages": [
+            {
+              "passageDigest": "Redis 7.x 引入了 Redis Functions、多部分 AOF 持久化与 Sharded Pub/Sub。",
+              "passageLength": 59,
+              "tier": "fulltext"
+            },
+            {
+              "passageDigest": "这些新特性在 release notes 中有完整清单，并附带了对应的命令说明。",
+              "passageLength": 40,
+              "tier": "fulltext"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 2,
         "keptFulltext": 2,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -439,39 +1355,127 @@
         "totalSubquestions": 1,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     },
     {
       "caseId": "writer-invalid-citations",
       "searchMode": "web",
-      "oldCitationCount": 2,
-      "wouldBeContentHashes": [
-        "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61",
-        "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
-      ],
-      "wouldBeAllocation": [
+      "oldIdentity": {
+        "citations": [
+          {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/quic-handshake",
+            "title": "QUIC 握手说明"
+          },
+          {
+            "citationId": "web-s2",
+            "url": "https://wiki.example.org/quic-tls",
+            "title": "QUIC 与 TLS 集成"
+          }
+        ]
+      },
+      "wouldBeIdentity": {
+        "citations": [
+          {
+            "citationId": "ledger-ev_f9e5ed08ead920973cd368a15a11b243",
+            "evidenceId": "ev_f9e5ed08ead920973cd368a15a11b243",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61"
+          },
+          {
+            "citationId": "ledger-ev_eabe7fa9c12f8b213d040cf4935a0885",
+            "evidenceId": "ev_eabe7fa9c12f8b213d040cf4935a0885",
+            "canonicalSourceId": "",
+            "canonicalUrl": "",
+            "tier": "fulltext",
+            "passageContentHash": "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
+          }
+        ]
+      },
+      "diffItems": [
         {
-          "index": 1,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s1",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_eabe7fa9c12f8b213d040cf4935a0885",
+          "title": "QUIC 握手说明",
+          "oldIdentity": {
+            "citationId": "web-s1",
+            "url": "https://docs.example.org/quic-handshake"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_eabe7fa9c12f8b213d040cf4935a0885",
+            "evidenceId": "ev_eabe7fa9c12f8b213d040cf4935a0885",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
+          },
+          "passages": [
+            {
+              "passageDigest": "QUIC 将传输层握手与 TLS 握手合并为同一往返。\n\n首次连接只需一个往返即可建立加密会话，重复连接可零往返恢复。",
+              "passageLength": 59,
+              "tier": "fulltext"
+            }
+          ]
         },
         {
-          "index": 2,
-          "tier": "fulltext",
-          "readerKind": "fixture_fulltext"
+          "oldCitationId": "web-s2",
+          "classification": "kept_fulltext",
+          "reason": "would-be 以全文层保留该来源。",
+          "wouldBeCitationId": "ledger-ev_f9e5ed08ead920973cd368a15a11b243",
+          "title": "QUIC 与 TLS 集成",
+          "oldIdentity": {
+            "citationId": "web-s2",
+            "url": "https://wiki.example.org/quic-tls"
+          },
+          "wouldBeIdentity": {
+            "citationId": "ledger-ev_f9e5ed08ead920973cd368a15a11b243",
+            "evidenceId": "ev_f9e5ed08ead920973cd368a15a11b243",
+            "canonicalSourceId": "",
+            "tier": "fulltext",
+            "passageContentHash": "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61"
+          },
+          "passages": [
+            {
+              "passageDigest": "QUIC 内置 TLS 1.3，不再依赖分离的 TCP 握手。\n\n这消除了传统方案中传输层与加密层各自协商造成的额外往返次数。",
+              "passageLength": 63,
+              "tier": "fulltext"
+            }
+          ]
         }
       ],
       "counts": {
         "oldCitations": 2,
         "keptFulltext": 2,
         "keptThinDowngraded": 0,
-        "expectedMerge": 0,
         "unexpectedLoss": 0,
         "ledgerAdded": 0
       },
@@ -481,20 +1485,33 @@
         "totalSubquestions": 1,
         "lostSubquestions": []
       },
-      "gates": {
-        "traceabilityRate": 1,
-        "unexpectedLoss": 0,
-        "coverageNonRegression": true,
-        "deterministic": true,
-        "classificationComplete": true
+      "deliveryComparison": {
+        "old": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "wouldBe": {
+          "deliveryLegal": true,
+          "citationValidity": true,
+          "writerMode": "model",
+          "requiredCheckFailures": [],
+          "quality": "limited",
+          "coverageRatio": 1,
+          "limitations": [
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
+          ]
+        },
+        "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
     }
-  ],
-  "gates": {
-    "traceabilityRate100": true,
-    "unexpectedLossZero": true,
-    "coverageNonRegression": true,
-    "deterministicAllocation": true,
-    "classificationComplete": true
-  }
+  ]
 }

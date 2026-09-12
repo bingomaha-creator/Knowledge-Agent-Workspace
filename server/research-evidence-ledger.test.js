@@ -9,14 +9,16 @@
  *   verified_primary；只有 Adapter 显式声明 verified_primary 才升级；
  * - 四维生命周期独立表达 + extraction 固定枚举（原因独立字段）；
  * - citation 维度在 extracting 阶段只标记 writer_selected/pending；
- * - would-be diff 是读取资格差异诊断，不是 primary 验收结果。
+ * - would-be diff 为逐项分类的差异报告（kept/预期降级/unexpected_loss），
+ *   不是 primary 验收结果；人工复核字段为 pending_review。
  */
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
   boundArtifactContent,
   buildLedgerEntries,
-  buildReadingEligibilityDiff,
+  buildWouldBeEvidencePack,
+  buildWouldBePackDiff,
   computeContentHash,
   computeEvidenceIdentity,
   normalizeEvidenceLedgerMode
@@ -211,28 +213,39 @@ test('筛选拒绝的来源进入台账并保持原 provenance', () => {
   assert.equal(entry.provenanceTransition.reason, 'screening_rejected:low_relevance');
 });
 
-test('读取资格差异诊断：读取失败的 snippet 回退来源被显式暴露', () => {
-  const { entries } = buildLedgerEntries({
-    runId: 'r1',
+test('would-be Pack 差异：读取失败的 snippet 回退来源按预期降级保留，无意外丢失', () => {
+  const runId = 'r1';
+  const { entries, artifacts } = buildLedgerEntries({
+    runId,
     acceptedSources: [
       webSource({ id: 's1', provenance: 'candidate_primary' }),
       webSource({ id: 's2', url: 'https://example.org/2', provenance: 'candidate_primary' })
     ],
     documents: [{ sourceId: 's1', content: '来源一完整正文', readerKind: 'github_readme' }],
     readingFailures: [{ sourceId: 's2', code: 'upstream_error', message: 'x', retryable: true }],
+    subquestionIdBySourceId: { s1: 'q1', s2: 'q2' },
     evidence: [
-      { sourceId: 's1', citationId: 'web-s1', claim: 'a', citationNumber: 1 },
-      { sourceId: 's2', citationId: 'web-s2', claim: 'b', citationNumber: 2 }
+      { sourceId: 's1', citationId: 'web-s1', claim: 'a', citationNumber: 1, subquestionId: 'q1' },
+      { sourceId: 's2', citationId: 'web-s2', claim: 'b', citationNumber: 2, subquestionId: 'q2' }
     ],
     citations: [{ id: 'web-s1', index: 1 }, { id: 'web-s2', index: 2 }]
   });
-  const diff = buildReadingEligibilityDiff({ entries, citations: [{ id: 'web-s1' }, { id: 'web-s2' }] });
-  assert.equal(diff.diagnostic, 'reading_eligibility',
-    '当前 diff 是读取资格差异诊断，不是 Ledger primary 验收结果');
-  assert.deepEqual(diff.ledgerWouldIncludeCitationIds, ['web-s1']);
-  assert.deepEqual(diff.ledgerExcludedButWriterUsed, ['web-s2']);
-  assert.equal(diff.counts.ledger, 1);
-  assert.equal(diff.counts.actual, 2);
+  const wouldBe = buildWouldBeEvidencePack({
+    runId, entries, artifacts, subquestionOrder: ['q1', 'q2']
+  });
+  const diff = buildWouldBePackDiff({
+    entries,
+    wouldBe,
+    oldCitations: [{ id: 'web-s1' }, { id: 'web-s2' }],
+    oldEvidence: [{ subquestionId: 'q1' }, { subquestionId: 'q2' }],
+    subquestionOrder: ['q1', 'q2']
+  });
+  assert.equal(diff.diagnostic, 'would_be_pack_diff');
+  const byOld = Object.fromEntries(diff.items.map((item) => [item.oldCitationId, item]));
+  assert.equal(byOld['web-s1'].classification, 'kept_fulltext', '全文层来源保留');
+  assert.equal(byOld['web-s2'].classification, 'kept_thin_downgraded', '读取失败来源预期降级为薄证据');
+  assert.equal(diff.counts.unexpectedLoss, 0, '无意外丢失');
+  assert.equal(diff.coverage.wouldBe, diff.coverage.old, '覆盖率不劣化');
 });
 
 test('normalizeEvidenceLedgerMode：三态归一，primary 未过门槛前抛错', () => {
@@ -286,4 +299,169 @@ test('Reader→Ledger 全链路：160KB 后内容不同 → 身份不同，artif
   assert.equal(a.artifacts[0].content, b.artifacts[0].content, 'artifact 保存相同的 160KB 截断前缀');
   assert.equal(a.artifacts[0].byteSize, b.artifacts[0].byteSize);
   assert.notEqual(a.artifacts[0].contentHash, b.artifacts[0].contentHash, 'artifact 记录的是全量哈希');
+});
+
+// —— buildWouldBeEvidencePack 表驱动单测（Codex 修正第 7 点）——
+// 覆盖 fulltext、thin、pending/no-content、source cap、passage cap、每来源上限、
+// 相同 contentHash 稳定排序；不再依赖大型 Phase 0 集成测试自证。
+
+function wouldBeFixture({ sourceCount = 2, reading = 'succeeded', runId = 'r-wb', snippets = null } = {}) {
+  const subquestionOrder = ['q1', 'q2'];
+  const acceptedSources = Array.from({ length: sourceCount }, (_, index) => webSource({
+    id: `s${index + 1}`,
+    url: `https://example.org/${index + 1}`,
+    provenance: 'candidate_primary',
+    queries: [index % 2 === 0 ? '子问题一是什么？' : '子问题二是什么？']
+  }));
+  const entriesInput = acceptedSources.map((source, index) => ({
+    ...source,
+    readingStatusOverride: reading
+  }));
+  const documents = reading === 'succeeded'
+    ? acceptedSources.map((source) => ({
+      sourceId: source.id,
+      content: `${source.id} 的完整正文，${source.snippet}`,
+      readerKind: 'github_readme'
+    }))
+    : [];
+  const readingFailures = reading === 'failed'
+    ? acceptedSources.map((source) => ({ sourceId: source.id, code: 'upstream_error', message: 'x', retryable: true }))
+    : [];
+  return { runId, subquestionOrder, acceptedSources, documents, readingFailures, snippets };
+}
+
+test('would-be Pack：fulltext 准入并从原文 artifact 选段', () => {
+  const { entries, artifacts } = buildLedgerEntries({
+    runId: 'r-wb',
+    acceptedSources: [webSource({ id: 's1' }), webSource({ id: 's2', url: 'https://example.org/2' })],
+    documents: [
+      { sourceId: 's1', content: '来源一完整正文，包含足够长的段落。', readerKind: 'github_readme' },
+      { sourceId: 's2', content: '来源二完整正文，包含足够长的段落。', readerKind: 'github_readme' }
+    ],
+    citations: [{ id: 'web-s1', index: 1 }, { id: 'web-s2', index: 2 }]
+  });
+  const pack = buildWouldBeEvidencePack({
+    runId: 'r-wb', entries, artifacts, subquestionOrder: ['q1', 'q2']
+  });
+  assert.equal(pack.citations.length, 2);
+  assert.ok(pack.citations.every((item) => item.tier === 'fulltext' && item.passageContentHash));
+  assert.ok(pack.evidence.length >= 2);
+  assert.ok(pack.evidence.every((item) => item.passageContentHash));
+});
+
+test('would-be Pack：thin 准入使用发现摘要，snippet 变化改变 passageContentHash', () => {
+  const build = (snippet) => {
+    const { entries, artifacts } = buildLedgerEntries({
+      runId: 'r-wb',
+      acceptedSources: [webSource({ id: 's1', snippet })],
+      readingFailures: [{ sourceId: 's1', code: 'upstream_error', message: 'x', retryable: true }],
+      citations: []
+    });
+    return buildWouldBeEvidencePack({
+      runId: 'r-wb', entries, artifacts, subquestionOrder: ['q1']
+    });
+  };
+  const packA = build('原始摘要内容');
+  const packB = build('变化后的摘要内容');
+  assert.equal(packA.citations[0].tier, 'thin');
+  assert.equal(packA.citations[0].readerKind, 'search_snippet');
+  assert.notEqual(
+    packA.citations[0].passageContentHash,
+    packB.citations[0].passageContentHash,
+    'snippet 内容变化必须改变 passageContentHash（Codex 修正第 1 点）'
+  );
+  // source 内容身份（contentHash，读取失败时空正文哈希）与 passage 身份分离
+  assert.equal(packA.citations[0].contentHash, packB.citations[0].contentHash);
+});
+
+test('would-be Pack：reading pending 与无内容来源不准入并记录原因', () => {
+  const { entries, artifacts } = buildLedgerEntries({
+    runId: 'r-wb',
+    acceptedSources: [webSource({ id: 's1' })],
+    citations: []
+  });
+  const pack = buildWouldBeEvidencePack({
+    runId: 'r-wb', entries, artifacts, subquestionOrder: ['q1']
+  });
+  assert.equal(pack.citations.length, 0);
+  assert.ok(pack.admission.excluded.some((item) => item.reason === 'reading_pending'));
+});
+
+test('would-be Pack：source cap 超出部分排除并记录 source_cap', () => {
+  const sources = Array.from({ length: 10 }, (_, index) => webSource({
+    id: `s${index + 1}`,
+    url: `https://example.org/${index + 1}`,
+    provenance: 'candidate_primary'
+  }));
+  const { entries, artifacts } = buildLedgerEntries({
+    runId: 'r-wb',
+    acceptedSources: sources,
+    documents: sources.map((source) => ({
+      sourceId: source.id,
+      content: `${source.id} 的完整正文，包含足够长的段落内容用于证据装配与选择。`,
+      readerKind: 'github_readme'
+    })),
+    citations: []
+  });
+  const pack = buildWouldBeEvidencePack({
+    runId: 'r-wb', entries, artifacts, subquestionOrder: [], limits: { maxSources: 8, maxPassages: 12, maxPassagesPerSource: 2 }
+  });
+  assert.equal(pack.citations.length, 8, '来源上限 8 生效');
+  assert.ok(pack.admission.excluded.filter((item) => item.reason === 'source_cap').length === 2);
+});
+
+test('would-be Pack：passage cap 与每来源上限生效', () => {
+  const sources = Array.from({ length: 8 }, (_, index) => webSource({
+    id: `s${index + 1}`,
+    url: `https://example.org/${index + 1}`,
+    provenance: 'candidate_primary',
+    queries: ['共享查询词']
+  }));
+  const { entries, artifacts } = buildLedgerEntries({
+    runId: 'r-wb',
+    acceptedSources: sources,
+    documents: sources.map((source) => ({
+      sourceId: source.id,
+      content: `${source.id} 的完整正文段落一。\n\n${source.id} 的完整正文段落二。\n\n${source.id} 的完整正文段落三。`,
+      readerKind: 'github_readme'
+    })),
+    citations: []
+  });
+  const pack = buildWouldBeEvidencePack({
+    runId: 'r-wb', entries, artifacts, subquestionOrder: [], limits: { maxSources: 8, maxPassages: 12, maxPassagesPerSource: 2 }
+  });
+  assert.ok(pack.evidence.length <= 12, 'passage 总量上限 12 生效');
+  const perSource = {};
+  for (const item of pack.evidence) {
+    perSource[item.sourceId] = (perSource[item.sourceId] || 0) + 1;
+  }
+  assert.ok(Object.values(perSource).every((count) => count <= 2), '每来源不超过 2 段');
+});
+
+test('would-be Pack：相同 contentHash 的两个来源按稳定来源键排序，跨 Run 一致', () => {
+  const build = (runId) => {
+    const sources = [
+      webSource({ id: 's-b', url: 'https://b.example.org/x', provenance: 'candidate_primary' }),
+      webSource({ id: 's-a', url: 'https://a.example.org/x', provenance: 'candidate_primary' })
+    ];
+    const { entries, artifacts } = buildLedgerEntries({
+      runId,
+      acceptedSources: sources,
+      documents: sources.map((source) => ({
+        sourceId: source.id,
+        content: '两个来源的正文内容完全相同，用于验证相同 contentHash 下的稳定来源键排序。',
+        readerKind: 'github_readme'
+      })),
+      citations: []
+    });
+    const pack = buildWouldBeEvidencePack({
+      runId, entries, artifacts, subquestionOrder: ['q1']
+    });
+    return pack.citations.map((item) => item.canonicalSourceId || item.url);
+  };
+  const orderRunA = build('r-aaaa');
+  const orderRunB = build('r-bbbb');
+  assert.deepEqual(orderRunB, orderRunA, '不同 runId 下 canonicalSourceId → citation index 映射完全一致');
+  assert.deepEqual(orderRunA, ['https://a.example.org/x', 'https://b.example.org/x'],
+    '相同 contentHash 时按稳定来源键（canonicalSourceId）排序');
 });

@@ -8,6 +8,9 @@
  */
 import { createResearchStore } from '../../research-store.js';
 import { createResearchWorker } from '../../research-worker.js';
+import { verifyReport } from '../../research-report.js';
+import { assessResearchQuality } from '../../research-quality.js';
+import { evaluateCompletionContract } from '../../research-completion-policy.js';
 import { computeCaseMetrics } from './metrics.js';
 
 /**
@@ -154,4 +157,80 @@ export async function runEvalCase({ testCase, adapters, mode, dbPath, includeLed
   } finally {
     store.close();
   }
+}
+
+/**
+ * 让指定 Evidence Pack（旧路径或 Ledger would-be）经历同一确定性 Writer、
+ * verifyReport 与 Completion Contract（shadow 口径），返回交付结果摘要。
+ * 用于第二交付门的"报告质量不劣化"对比：交付合法性、required checks、
+ * 引用有效性、子问题覆盖、局限披露、Writer 采纳状态。语义支持率等无法
+ * 离线评估的指标显式 not_evaluated（Spec research-harness §8.1/§13.4）。
+ *
+ * @param {object} input
+ * @param {object} input.pack { citations, evidence }——待评估的 Evidence Pack
+ * @param {string} input.question 研究问题
+ * @param {string} [input.searchMode] 检索模式
+ * @param {Array} [input.subquestions] 子问题（含 question），供覆盖率评估
+ * @param {string} [input.writerMode] faithful | invalid_citations
+ */
+export function runPackThroughDelivery({ pack, question, searchMode = 'web', subquestions = [], writerMode = 'faithful' }) {
+  const citations = Array.isArray(pack.citations) ? pack.citations : [];
+  const evidence = Array.isArray(pack.evidence) ? pack.evidence : [];
+  const lines = writerMode === 'invalid_citations'
+    ? evidence.map((item) => `- ${item.claim} [99]`)
+    : evidence.map((item) => `- ${item.claim} [${item.citationNumber}]`);
+  const draftReport = [
+    '## 研究范围与方法',
+    '评测基线。',
+    ...lines,
+    '## 综合结论、限制与下一步',
+    '以上结论仅基于本轮证据。'
+  ].join('\n');
+  // 上面的 join 使用真实换行：这里手工构造与 worker 写作阶段一致的报告结构。
+  const verified = verifyReport(draftReport, citations);
+  const adopted = verified.verification.valid && verified.verification.referencedCitationIds.length > 0;
+  const writer = adopted
+    ? { mode: 'model', status: 'success', reasonCode: '', fallbackReason: '' }
+    : { mode: 'fallback', status: 'degraded', reasonCode: 'invalid_citations', fallbackReason: '引用未通过校验' };
+
+  const snippetFallbackCount = evidence.filter((item) => item.readerKind === 'search_snippet').length;
+  const quality = assessResearchQuality(
+    { question, searchMode, knowledgeBaseIds: [] },
+    {
+      citations,
+      evidence,
+      verification: verified.verification,
+      evidencePack: {
+        acceptedCount: citations.length,
+        readSourceCount: evidence.filter((item) => item.readerKind !== 'search_snippet').length,
+        passageCount: evidence.length,
+        totalCharacters: evidence.reduce((sum, item) => sum + item.passage.length, 0),
+        snippetFallbackCount
+      },
+      writer,
+      subquestions: subquestions.map((item) => item.question)
+    }
+  );
+  const verdict = evaluateCompletionContract({
+    task: { report: verified.report, resultQuality: quality.quality, searchMode },
+    artifacts: {
+      citations,
+      evidence,
+      verification: verified.verification,
+      diagnostics: { writing: writer },
+      plan: { subquestions: subquestions.map((item) => ({ id: item.id, question: item.question })) },
+      quality
+    },
+    mode: 'shadow'
+  });
+
+  return {
+    report: verified.report,
+    verification: verified.verification,
+    writer,
+    quality,
+    verdict,
+    deliveryLegal: verdict.passed === true,
+    citationValidity: verified.verification.valid === true
+  };
 }

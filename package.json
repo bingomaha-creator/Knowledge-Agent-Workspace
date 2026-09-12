@@ -27,6 +27,7 @@
     "start": "node ./server/index.js",
     "test": "node --test \"server/**/*.test.js\"",
     "eval:research": "node server/regression/research-eval/research-eval-live.js",
+    "eval:ledger-report": "node server/regression/research-eval/generate-ledger-diff-report.js",
     "test:client": "npm run test:vue",
     "test:vue": "vitest run --config vitest.vue.config.ts",
     "test:react": "npm run test --workspace @matthews-workspace/react",
