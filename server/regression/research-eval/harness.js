@@ -118,8 +118,9 @@ export function createFixtureAdapters(testCase) {
 /**
  * 在一次性 SQLite 上执行一个 case，返回该 case 的基线指标。
  * Worker/Store 均为生产实现；取消、续跑等语义因此也在评测路径上被真实执行。
+ * includeLedger=true 时额外返回台账快照（would-be Pack 门槛验证用）。
  */
-export async function runEvalCase({ testCase, adapters, mode, dbPath }) {
+export async function runEvalCase({ testCase, adapters, mode, dbPath, includeLedger = false }) {
   if (typeof adapters !== 'function') throw new TypeError('adapters 必须是 (counters) => workerDeps 工厂');
   const store = createResearchStore(dbPath);
   try {
@@ -143,7 +144,13 @@ export async function runEvalCase({ testCase, adapters, mode, dbPath }) {
     const startedAt = Date.now();
     const task = await worker.enqueue(created.id);
     const latencyMs = Date.now() - startedAt;
-    return computeCaseMetrics({ testCase, task, latencyMs, counters, mode });
+    const metrics = computeCaseMetrics({ testCase, task, latencyMs, counters, mode });
+    if (!includeLedger) return { metrics };
+    return {
+      metrics,
+      task,
+      ledger: store.getEvidenceLedger(created.id)
+    };
   } finally {
     store.close();
   }

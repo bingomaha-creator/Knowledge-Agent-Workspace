@@ -150,7 +150,7 @@ async function runAll() {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'research-eval-live-'));
     const dbPath = path.join(dir, 'eval.sqlite');
     try {
-      const metrics = await runEvalCase({
+      const { metrics } = await runEvalCase({
         testCase,
         adapters: createLiveAdapters,
         mode: 'live',

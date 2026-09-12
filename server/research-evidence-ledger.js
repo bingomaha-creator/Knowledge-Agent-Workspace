@@ -20,6 +20,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { expandCjkBigrams, tokenize } from './rag-utils.js';
+import { deriveClaim, splitContentParagraphs } from './research-evidence.js';
 
 export const LEDGER_VERSION = 1;
 export const MAX_ARTIFACT_BYTES = 160_000;
@@ -125,6 +127,7 @@ export function buildLedgerEntries({
   selectionExcluded = [],
   documents = [],
   readingFailures = [],
+  subquestionIdBySourceId = {},
   evidence = [],
   citations = []
 }) {
@@ -257,10 +260,13 @@ export function buildLedgerEntries({
       provenanceBefore,
       provenanceAfter,
       provenanceTransition,
-      subquestionId: source.subquestionId || '',
+      subquestionId: subquestionIdBySourceId[source.id] || source.subquestionId || '',
       query: (source.queries || [])[0] || '',
+      discoverySnippet: String(source.snippet || '').slice(0, 1000),
       provider: PROVIDER_FIELD_BY_CHANNEL[source.kind] || source.kind || '',
-      readerKind: document?.readerKind || (failure ? failure.readerKind || '' : ''),
+      // 读取失败的来源走 snippet 回退：有效 readerKind 为 search_snippet（与
+      // assembleResearchEvidence 的回退语义一致），reading 维度仍记录读取失败。
+      readerKind: document?.readerKind || (failure ? 'search_snippet' : ''),
       contentHash,
       truncated,
       artifactId,
@@ -322,5 +328,280 @@ export function buildReadingEligibilityDiff({ entries, citations = [] }) {
       ledgerIncludedButWriterMissed: wouldInclude.filter((id) => !actualSet.has(id)).length,
       ledgerExcludedButWriterUsed: actual.filter((id) => !wouldSet.has(id)).length
     }
+  };
+}
+
+// —— would-be Evidence Pack（Spec §12 第二交付门）——
+// Ledger 按自身准入、passage 选择与稳定 citation 分配规则独立产出 would-be
+// Evidence Pack/citations，供与旧 Writer 输入对比。规则全部确定性、无时间与
+// 随机因素：同输入重跑得到逐字相同的结果。默认上限复用现有约定：8 来源、
+// 12 passages、每来源每轮 2 段。
+
+export const WOULD_BE_DEFAULT_LIMITS = Object.freeze({
+  maxSources: 8,
+  maxPassages: 12,
+  maxPassagesPerSource: 2
+});
+
+function querySignalsOf(value) {
+  return uniqueTokens(expandCjkBigrams(tokenize(String(value || ''))));
+}
+
+function uniqueTokens(tokens) {
+  return [...new Set(tokens.map((token) => String(token || '').toLowerCase())).values()]
+    .filter((token) => token.length > 1);
+}
+
+function rankParagraphsForQuery(paragraphs, query) {
+  const wanted = new Set(querySignalsOf(query));
+  return paragraphs
+    .map((paragraph, index) => {
+      const paragraphSignals = new Set(querySignalsOf(paragraph));
+      const overlap = [...wanted].filter((token) => paragraphSignals.has(token)).length;
+      return { passage: paragraph, index, overlap };
+    })
+    .sort((left, right) => right.overlap - left.overlap || left.index - right.index)
+    .map((item) => item.passage);
+}
+
+/**
+ * Ledger 自身的 would-be Evidence Pack。
+ *
+ * 准入（evidence admission）：screening=accepted 且
+ *   - reading=succeeded → 全文层（从原文 artifact 按 query 相关度选段）；
+ *   - reading=failed → 薄层（发现摘要作为单段，标记 search_snippet 降质）；
+ *   - reading=pending → 不准入（reason=reading_pending）。
+ * passage 选择：每来源按 query 相关度取最多 maxPassagesPerSource 段，来源按
+ *   （子问题顺序，evidenceId）稳定排序，总量受 maxPassages 约束。
+ * citation 分配：按同一稳定顺序编号 1..N，id = `ledger-${evidenceId}`
+ *   （内容寻址来源的血统，重跑可重复）。
+ *
+ * @param {object} input
+ * @param {Array} input.entries Ledger 条目
+ * @param {Array} input.artifacts Ledger 原文 artifact（含 content）
+ * @param {string[]} input.subquestionOrder 子问题 id 的计划顺序
+ * @param {object} [input.limits] { maxSources, maxPassages, maxPassagesPerSource }
+ */
+export function buildWouldBeEvidencePack({
+  runId,
+  entries,
+  artifacts = [],
+  subquestionOrder = [],
+  limits = {}
+} = {}) {
+  const maxSources = Math.max(1, Number(limits?.maxSources ?? WOULD_BE_DEFAULT_LIMITS.maxSources));
+  const maxPassages = Math.max(1, Number(limits?.maxPassages ?? WOULD_BE_DEFAULT_LIMITS.maxPassages));
+  const maxPassagesPerSource = Math.max(1, Number(limits?.maxPassagesPerSource ?? WOULD_BE_DEFAULT_LIMITS.maxPassagesPerSource));
+
+  const contentByArtifactId = new Map(
+    (Array.isArray(artifacts) ? artifacts : []).map((artifact) => [artifact.artifactId, artifact.content])
+  );
+  const orderIndex = new Map(subquestionOrder.map((id, index) => [String(id), index]));
+
+  // 准入：仅 accepted 来源；reading=succeeded 走全文层，failed 走薄层，pending 不准入。
+  const admitted = [];
+  const admissionExcluded = [];
+  for (const entry of Array.isArray(entries) ? entries : []) {
+    if (entry.screeningStatus !== 'accepted') {
+      admissionExcluded.push({ evidenceId: entry.evidenceId, reason: 'screening_rejected' });
+      continue;
+    }
+    if (entry.readingStatus === 'succeeded' && entry.artifactId && contentByArtifactId.has(entry.artifactId)) {
+      admitted.push({ entry, tier: 'fulltext', content: contentByArtifactId.get(entry.artifactId), contentHash: entry.contentHash });
+    } else if (entry.readingStatus === 'failed' && entry.discoverySnippet) {
+      admitted.push({ entry, tier: 'thin', content: String(entry.discoverySnippet).slice(0, 1_000), contentHash: entry.contentHash });
+    } else {
+      admissionExcluded.push({
+        evidenceId: entry.evidenceId,
+        reason: entry.readingStatus === 'pending' || !entry.artifactId ? 'reading_pending' : 'no_content'
+      });
+    }
+  }
+
+  // 稳定排序：子问题计划顺序 → contentHash（内容寻址）→ evidenceId。用
+  // contentHash 而非 evidenceId 做 tie-break，保证相同内容跨 Run 的分配顺序
+  // 也可重复（evidenceId 含 runId，跨 Run 必然不同）。
+  admitted.sort((left, right) => {
+    const leftIndex = orderIndex.get(left.entry.subquestionId) ?? Number.MAX_SAFE_INTEGER;
+    const rightIndex = orderIndex.get(right.entry.subquestionId) ?? Number.MAX_SAFE_INTEGER;
+    if (leftIndex !== rightIndex) return leftIndex - rightIndex;
+    if (left.contentHash !== right.contentHash) {
+      return left.contentHash < right.contentHash ? -1 : 1;
+    }
+    return left.entry.evidenceId < right.entry.evidenceId ? -1 : 1;
+  });
+
+  const admittedSources = admitted.slice(0, maxSources);
+  for (const overflow of admitted.slice(maxSources)) {
+    admissionExcluded.push({ evidenceId: overflow.entry.evidenceId, reason: 'source_cap' });
+  }
+
+  const citations = [];
+  const evidence = [];
+  let remaining = maxPassages;
+  for (const { entry, tier, content } of admittedSources) {
+    if (remaining <= 0) {
+      admissionExcluded.push({ evidenceId: entry.evidenceId, reason: 'passage_cap' });
+      continue;
+    }
+    const citationId = `ledger-${entry.evidenceId}`;
+    const citationNumber = citations.length + 1;
+    const paragraphs = splitContentParagraphs(content);
+    const ranked = tier === 'fulltext'
+      ? rankParagraphsForQuery(paragraphs, entry.query)
+      : paragraphs;
+    const selected = (ranked.length ? ranked : [content])
+      .slice(0, Math.min(maxPassagesPerSource, remaining))
+      .filter(Boolean);
+    if (!selected.length) {
+      admissionExcluded.push({ evidenceId: entry.evidenceId, reason: 'no_usable_passage' });
+      continue;
+    }
+    citations.push({
+      id: citationId,
+      index: citationNumber,
+      title: entry.title,
+      url: entry.canonicalUrl,
+      kind: entry.sourceChannel,
+      subquestionId: entry.subquestionId,
+      sourceEntryId: entry.evidenceId,
+      tier,
+      readerKind: tier === 'thin' ? 'search_snippet' : entry.readerKind,
+      contentHash: entry.contentHash
+    });
+    selected.forEach((passage, passageIndex) => {
+      evidence.push({
+        id: `${citationId}-p${passageIndex + 1}`,
+        citationId,
+        citationNumber,
+        claim: deriveClaim(passage),
+        passage,
+        sourceId: entry.canonicalSourceId,
+        subquestionId: entry.subquestionId,
+        readerKind: tier === 'thin' ? 'search_snippet' : entry.readerKind,
+        tier
+      });
+      remaining -= 1;
+    });
+  }
+
+  return {
+    citations,
+    evidence,
+    admission: {
+      admittedCount: admittedSources.length,
+      admittedEvidenceIds: admittedSources.map(({ entry }) => entry.evidenceId),
+      excluded: admissionExcluded
+    }
+  };
+}
+
+/**
+ * would-be Evidence Pack 与旧 Writer 输入的逐项差异分类（机器可读、可人工复核）。
+ *
+ * 分类（按旧 citation 逐项）：
+ * - kept_fulltext：would-be 以全文层保留；
+ * - kept_thin_downgraded（预期降级）：would-be 以搜索摘要薄证据保留（Reader 失败）；
+ * - expected_merge（预期合并）：多个旧 citation 因同源合并为一个 would-be citation；
+ * - unexpected_loss（意外丢失）：would-be 中不存在且无正当理由——primary 门槛 2 计数项；
+ * - ledger_added：would-be 新纳入（信息项，非丢失）。
+ */
+export function buildWouldBePackDiff({
+  entries,
+  wouldBe,
+  oldCitations = [],
+  oldEvidence = [],
+  subquestionOrder = []
+}) {
+  const entryByOldCitationId = new Map(
+    (Array.isArray(entries) ? entries : [])
+      .filter((item) => item.citationId)
+      .map((item) => [item.citationId, item])
+  );
+  const wouldBeByEntryId = new Map(
+    (wouldBe?.citations || []).map((item) => [item.sourceEntryId, item])
+  );
+
+  const items = [];
+  const mergeByWouldBeId = new Map();
+  for (const oldCitation of Array.isArray(oldCitations) ? oldCitations : []) {
+    const entry = entryByOldCitationId.get(oldCitation.id);
+    const wouldBeCitation = entry ? wouldBeByEntryId.get(entry.evidenceId) : null;
+
+    let classification;
+    let reason;
+    if (wouldBeCitation) {
+      if (mergeByWouldBeId.has(wouldBeCitation.id)) {
+        mergeByWouldBeId.get(wouldBeCitation.id).oldCitationIds.push(oldCitation.id);
+        classification = 'expected_merge';
+        reason = '同一来源的多个旧 citation 合并为一个 would-be citation。';
+      } else {
+        mergeByWouldBeId.set(wouldBeCitation.id, { oldCitationIds: [oldCitation.id] });
+      }
+      if (!classification) {
+        if (entry.readingStatus === 'succeeded') {
+          classification = 'kept_fulltext';
+          reason = 'would-be 以全文层保留该来源。';
+        } else {
+          classification = 'kept_thin_downgraded';
+          reason = 'Reader 读取失败，would-be 以搜索摘要薄证据保留（预期降级）。';
+        }
+      }
+    } else if (entry) {
+      classification = 'unexpected_loss';
+      reason = `来源已通过筛选但未进入 would-be Pack（reading=${entry.readingStatus}）——primary 门槛 2 计数项。`;
+    } else {
+      classification = 'unexpected_loss';
+      reason = '旧 citation 在台账中无对应条目——一致性破坏。';
+    }
+    items.push({
+      oldCitationId: oldCitation.id,
+      classification,
+      reason,
+      wouldBeCitationId: wouldBeCitation?.id || null,
+      title: oldCitation.title || ''
+    });
+  }
+
+  const coveredOld = new Set(
+    (Array.isArray(oldEvidence) ? oldEvidence : [])
+      .map((item) => item.subquestionId)
+      .filter(Boolean)
+  );
+  const coveredWouldBe = new Set(
+    (wouldBe?.evidence || [])
+      .map((item) => item.subquestionId)
+      .filter(Boolean)
+  );
+  const total = Math.max(1, subquestionOrder.length);
+  const ratio = (size) => Number((size / total).toFixed(4));
+
+  const keptItems = items.filter((item) => item.classification === 'kept_fulltext').length;
+  const thinItems = items.filter((item) => item.classification === 'kept_thin_downgraded').length;
+  const mergeItems = items.filter((item) => item.classification === 'expected_merge').length;
+  const lossItems = items.filter((item) => item.classification === 'unexpected_loss').length;
+  const addedItems = (wouldBe?.citations || []).filter(
+    (item) => !items.some((old) => old.wouldBeCitationId === item.id)
+  ).length;
+
+  return {
+    diagnostic: 'would_be_pack_diff',
+    items,
+    counts: {
+      oldCitations: items.length,
+      keptFulltext: keptItems,
+      keptThinDowngraded: thinItems,
+      expectedMerge: mergeItems,
+      unexpectedLoss: lossItems,
+      ledgerAdded: addedItems
+    },
+    coverage: {
+      old: ratio(coveredOld.size),
+      wouldBe: ratio(coveredWouldBe.size),
+      totalSubquestions: subquestionOrder.length,
+      lostSubquestions: [...coveredOld].filter((id) => !coveredWouldBe.has(id))
+    },
+    wouldBeCitations: wouldBe?.citations || [],
+    wouldBeEvidence: wouldBe?.evidence || []
   };
 }

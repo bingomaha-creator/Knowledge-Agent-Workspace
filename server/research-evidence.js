@@ -19,6 +19,9 @@ function paragraphs(content) {
     .slice(0, 80);
 }
 
+// 供 Evidence Ledger 的独立 passage 选择复用：同一段落切分语义只有一个权威实现。
+export { paragraphs as splitContentParagraphs };
+
 function rankPassages(source, content) {
   const wanted = new Set(signals([
     ...(Array.isArray(source.queries) ? source.queries : []),
@@ -41,6 +44,9 @@ function claimFromPassage(passage) {
   const sentence = normalized.match(/^.{1,360}?[.!?。！？](?:\s|$)/u)?.[0];
   return (sentence || normalized.slice(0, 360)).trim();
 }
+
+// 供 Evidence Ledger 的 would-be 证据 claim 推导复用：同一语义只有一个权威实现。
+export { claimFromPassage as deriveClaim };
 
 /**
  * Source 与 Passage 解耦：同一来源可贡献多段证据，但报告引用仍共享一个 [n]。

@@ -192,9 +192,9 @@ test('shadow web 路径：来源未经一手验证（reader_obtained 不升级�
     // would-be diff 是读取资格差异诊断
     assert.ok(ledger.diff, '读取资格差异诊断已持久化');
     assert.equal(ledger.diff.mode, 'shadow');
-    assert.equal(ledger.diff.diagnostic, 'reading_eligibility');
-    assert.ok(Array.isArray(ledger.diff.ledgerWouldIncludeCitationIds));
-    assert.ok(Array.isArray(ledger.diff.ledgerExcludedButWriterUsed));
+    assert.equal(ledger.diff.diagnostic, 'would_be_pack_diff');
+    assert.ok(Array.isArray(ledger.diff.wouldBeCitations), 'would-be citations 已随 diff 持久化');
+    assert.ok(Array.isArray(ledger.diff.items), '逐项差异分类已持久化');
     assert.ok(contract.artifactRefs === undefined, 'artifactRefs 挂在 check 上而非 verdict 上');
     assert.ok(contract.checks.every((item) => item.artifactRefs?.length));
   } finally {
@@ -524,15 +524,16 @@ test('合法零证据的空台账与未写入台账不再共用 null 语义（me
     assert.deepEqual(ledger.entries, []);
     assert.equal(ledger.meta.status, 'empty');
     assert.equal(ledger.meta.entryCount, 0);
-    assert.equal(ledger.diff.diagnostic, 'reading_eligibility');
-    assert.equal(ledger.diff.counts.actual, 0, '零证据时差异诊断为全零，而非缺失');
+    assert.equal(ledger.diff.diagnostic, 'would_be_pack_diff');
+    assert.equal(ledger.diff.counts.oldCitations, 0, '零证据时差异诊断为全零，而非缺失');
+    assert.equal(ledger.diff.counts.unexpectedLoss, 0, '零证据无意外丢失');
   } finally {
     cleanup();
   }
 });
 
 // —— 组合提交 false 返回的四分类语义（Codex 收敛修正第 3 点）——
-// cancel/abort 正常停止；attempt 变化或非 running 按 RESEARCH_LEASE_LOST 处理；
+// cancel/abort 正常停止；attempt 变化或非 running 立即返回当前权威快照；
 // 重读后仍是同 attempt 且 running → Store contract violation，fail closed，
 // 不得走普通 persist shadow fallback。
 
@@ -567,7 +568,7 @@ test('false 返回（attempt 变化）：旧 Worker 立即停止，新 attempt �
   }
 });
 
-test('false 返回（非 running）：按 RESEARCH_LEASE_LOST 处理，不覆盖竞态赢家状态', async () => {
+test('false 返回（非 running）：立即返回权威快照，不覆盖竞态赢家状态', async () => {
   const { store, cleanup } = tempStore();
   try {
     const faultyStore = {

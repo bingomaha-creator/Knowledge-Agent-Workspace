@@ -346,7 +346,8 @@ function migrateDatabase(db) {
   const ledgerAdditions = [
     ['reader_attestation', "TEXT NOT NULL DEFAULT ''"],
     ['reader_attestation_reason', "TEXT NOT NULL DEFAULT ''"],
-    ['extraction_reason', "TEXT NOT NULL DEFAULT ''"]
+    ['extraction_reason', "TEXT NOT NULL DEFAULT ''"],
+    ['discovery_snippet', "TEXT NOT NULL DEFAULT ''"]
   ];
   for (const [name, definition] of ledgerAdditions) {
     if (!ledgerColumns.has(name)) {
@@ -1125,6 +1126,7 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
         provenanceTransition: parseJson(row.provenance_transition_json, null),
         subquestionId: row.subquestion_id,
         query: row.query,
+        discoverySnippet: row.discovery_snippet,
         provider: row.provider,
         readerKind: row.reader_kind,
         contentHash: row.content_hash,
@@ -1217,13 +1219,14 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
         run_id, evidence_id, source_channel, canonical_source_id, canonical_url,
         title, domain, published_at, source_type,
         provenance_before, provenance_after, provenance_transition_json,
-        subquestion_id, query, provider, reader_kind, content_hash, truncated,
-        artifact_id, screening_status, screening_reason, reading_status,
+        subquestion_id, query, discovery_snippet, provider, reader_kind,
+        content_hash, truncated, artifact_id,
+        screening_status, screening_reason, reading_status,
         reading_reason, extraction_status, extraction_reason,
         reader_attestation, reader_attestation_reason,
         citation_status, citation_id,
         ledger_version, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
     for (const item of entries) {
       insertEntry.run(
@@ -1241,6 +1244,7 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
         JSON.stringify(item.provenanceTransition || null),
         String(item.subquestionId || ''),
         String(item.query || ''),
+        String(item.discoverySnippet || ''),
         String(item.provider || ''),
         String(item.readerKind || ''),
         String(item.contentHash || ''),

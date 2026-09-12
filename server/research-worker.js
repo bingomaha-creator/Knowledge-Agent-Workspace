@@ -27,7 +27,8 @@ import { evaluateCompletionContract } from './research-completion-policy.js';
 import {
   LEDGER_VERSION,
   buildLedgerEntries,
-  buildReadingEligibilityDiff,
+  buildWouldBeEvidencePack,
+  buildWouldBePackDiff,
   normalizeEvidenceLedgerMode
 } from './research-evidence-ledger.js';
 
@@ -648,7 +649,10 @@ export function createResearchWorker({
         // 供 shadow 台账推导：documents 不入 artifacts（体积），仅在阶段内使用。
         ledgerSourceData: {
           documents: reading.documents,
-          failures: reading.failures
+          failures: reading.failures,
+          subquestionIdBySourceId: Object.fromEntries(
+            evidenceSources.map((source) => [source.id, source.subquestionId || ''])
+          )
         }
       };
     }
@@ -818,6 +822,7 @@ export function createResearchWorker({
         let ledgerShadowFailure = null;
         if (ledgerMode === 'shadow') {
           try {
+            const subquestionOrder = (artifacts.plan?.subquestions || []).map((item) => item.id);
             if (result.ledgerSourceData) {
               const ledger = buildLedgerEntries({
                 runId: id,
@@ -826,8 +831,15 @@ export function createResearchWorker({
                 selectionExcluded: artifacts.evidencePack?.selectionExcluded,
                 documents: result.ledgerSourceData.documents,
                 readingFailures: result.ledgerSourceData.failures,
+                subquestionIdBySourceId: result.ledgerSourceData.subquestionIdBySourceId,
                 evidence: artifacts.evidence,
                 citations: result.citations || artifacts.citations
+              });
+              const wouldBe = buildWouldBeEvidencePack({
+                runId: id,
+                entries: ledger.entries,
+                artifacts: ledger.artifacts,
+                subquestionOrder
               });
               ledgerPayload = {
                 type: 'replace',
@@ -835,9 +847,12 @@ export function createResearchWorker({
                 artifacts: ledger.artifacts,
                 diff: {
                   mode: 'shadow',
-                  ...buildReadingEligibilityDiff({
+                  ...buildWouldBePackDiff({
                     entries: ledger.entries,
-                    citations: result.citations || artifacts.citations
+                    wouldBe,
+                    oldCitations: result.citations || artifacts.citations,
+                    oldEvidence: artifacts.evidence || [],
+                    subquestionOrder
                   })
                 }
               };

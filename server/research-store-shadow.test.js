@@ -279,7 +279,7 @@ test('finalize 存在性与一致性门禁：缺失/计数不一致/未知引用
     // 3. 未知引用：无法映射到当前 Ledger 的非空 citationId → 显式失败
     // （meta/rows 计数错配需绕过公开 API 制造，单独在 raw 层测试，见下）
     const r1 = replaceWith(1);
-    console.error('[debug] replaceWith(1) =', r1, '| ledger =', JSON.stringify(store.getEvidenceLedger(task.id)));
+    assert.equal(r1, true, 'replace 写入必须成功');
     assert.throws(() => finalize(['web-unknown']), /LEDGER_INCONSISTENT_FOR_FINALIZE/,
       '未知引用必须显式失败');
 

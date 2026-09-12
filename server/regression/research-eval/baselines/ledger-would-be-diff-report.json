@@ -1,0 +1,500 @@
+{
+  "diagnostic": "would_be_pack_diff_report",
+  "generatedAt": "2026-09-12T15:13:43.029Z",
+  "caseCount": 12,
+  "cases": [
+    {
+      "caseId": "hybrid-mixed-channels",
+      "searchMode": "hybrid",
+      "oldCitationCount": 2,
+      "wouldBeContentHashes": [
+        "66bc6c5981c957ab5384ec1f8029ee98ab44bc04266519e6504d7c30e44ed537",
+        "d3d1246696181923b0cb60e0635805e9439466dd693da6839911a7302b60c2b5"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 2,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        }
+      ],
+      "counts": {
+        "oldCitations": 2,
+        "keptFulltext": 2,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 1,
+        "wouldBe": 1,
+        "totalSubquestions": 2,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "hybrid-web-error",
+      "searchMode": "hybrid",
+      "oldCitationCount": 1,
+      "wouldBeContentHashes": [
+        "43429f11ed4141f590fcf363f07be5b25deec878fa4caecaa6212416dcb6f1f4"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        }
+      ],
+      "counts": {
+        "oldCitations": 1,
+        "keptFulltext": 1,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 1,
+        "wouldBe": 1,
+        "totalSubquestions": 1,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "local-full-coverage",
+      "searchMode": "local",
+      "oldCitationCount": 2,
+      "wouldBeContentHashes": [
+        "3b458b7173da3400ca35d883cb0dbd051239f3640f8f5d467b6567cc934fe5c8",
+        "b1eab30aafc5c869694ed2ba44a86e2f9a1fe42d1c99b8f36d0cde756900a23e"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 2,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        }
+      ],
+      "counts": {
+        "oldCitations": 2,
+        "keptFulltext": 2,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 1,
+        "wouldBe": 1,
+        "totalSubquestions": 2,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "local-empty-insufficient",
+      "searchMode": "local",
+      "oldCitationCount": 0,
+      "wouldBeContentHashes": [],
+      "wouldBeAllocation": [],
+      "counts": {
+        "oldCitations": 0,
+        "keptFulltext": 0,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 0,
+        "wouldBe": 0,
+        "totalSubquestions": 1,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "web-full-coverage",
+      "searchMode": "web",
+      "oldCitationCount": 6,
+      "wouldBeContentHashes": [
+        "1dde64c291ae225807b4d9edd3ca4324a2510067347b394aabcac9354e9f72c9",
+        "e8572006775e70b98b929a4acd4fe6dcb2abda86e09d22ccbabd071b3050ba0f",
+        "cf16ffbb916fae2157c50ae9256f6d625b7334b6d6f780529b251779e177dce2",
+        "f3afdd999d1c6a5c273ba49ccacef5f42217efea9d2d971804cd76594a943b14",
+        "5b2fc28e1e2d29a4bec3c3b98dd7a1e8ae5076094a70cb04fdcec5601d1c332b",
+        "b622738a287f3424e4603a554baaadd0b930aaa51f17e12b07cee9a4d62c3d32"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 2,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 3,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 4,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 5,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 6,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        }
+      ],
+      "counts": {
+        "oldCitations": 6,
+        "keptFulltext": 6,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 1,
+        "wouldBe": 1,
+        "totalSubquestions": 3,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "web-partial-coverage",
+      "searchMode": "web",
+      "oldCitationCount": 2,
+      "wouldBeContentHashes": [
+        "c62cec547fc0a847bdb49f43bb446b3fae380ad93852ad36f071a3484d7c716f",
+        "6de722f40ae3a6ab66b39694bf7b284a02ae2029620eb3ecfa0fbf30666e8bc6"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 2,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        }
+      ],
+      "counts": {
+        "oldCitations": 2,
+        "keptFulltext": 2,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 0.6667,
+        "wouldBe": 0.6667,
+        "totalSubquestions": 3,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "web-no-results",
+      "searchMode": "web",
+      "oldCitationCount": 0,
+      "wouldBeContentHashes": [],
+      "wouldBeAllocation": [],
+      "counts": {
+        "oldCitations": 0,
+        "keptFulltext": 0,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 0,
+        "wouldBe": 0,
+        "totalSubquestions": 2,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "web-provider-unavailable",
+      "searchMode": "web",
+      "oldCitationCount": 0,
+      "wouldBeContentHashes": [],
+      "wouldBeAllocation": [],
+      "counts": {
+        "oldCitations": 0,
+        "keptFulltext": 0,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 0,
+        "wouldBe": 0,
+        "totalSubquestions": 1,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "web-snippet-only",
+      "searchMode": "web",
+      "oldCitationCount": 2,
+      "wouldBeContentHashes": [
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "thin",
+          "readerKind": "search_snippet"
+        },
+        {
+          "index": 2,
+          "tier": "thin",
+          "readerKind": "search_snippet"
+        }
+      ],
+      "counts": {
+        "oldCitations": 2,
+        "keptFulltext": 0,
+        "keptThinDowngraded": 2,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 1,
+        "wouldBe": 1,
+        "totalSubquestions": 2,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "web-read-partial",
+      "searchMode": "web",
+      "oldCitationCount": 3,
+      "wouldBeContentHashes": [
+        "0dc413d935e9c9b9198f80c3082662fe0b4b06f8e96c032c14a2acb398e5ada5",
+        "5554cd56a221ae1a3f47b56980b12b0870afde3506d568399b734766939da622",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 2,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 3,
+          "tier": "thin",
+          "readerKind": "search_snippet"
+        }
+      ],
+      "counts": {
+        "oldCitations": 3,
+        "keptFulltext": 2,
+        "keptThinDowngraded": 1,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 1,
+        "wouldBe": 1,
+        "totalSubquestions": 3,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "web-github-primary",
+      "searchMode": "web",
+      "oldCitationCount": 2,
+      "wouldBeContentHashes": [
+        "7d67c92d5f94015f02ada81149634b9ddc7e17d0c73452f30198bba84eb1ac60",
+        "de1b296ed3d02d0deae9128f34188f146fdeb76ce17809723a66d19c6abc9620"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 2,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        }
+      ],
+      "counts": {
+        "oldCitations": 2,
+        "keptFulltext": 2,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 1,
+        "wouldBe": 1,
+        "totalSubquestions": 1,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    },
+    {
+      "caseId": "writer-invalid-citations",
+      "searchMode": "web",
+      "oldCitationCount": 2,
+      "wouldBeContentHashes": [
+        "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61",
+        "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
+      ],
+      "wouldBeAllocation": [
+        {
+          "index": 1,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        },
+        {
+          "index": 2,
+          "tier": "fulltext",
+          "readerKind": "fixture_fulltext"
+        }
+      ],
+      "counts": {
+        "oldCitations": 2,
+        "keptFulltext": 2,
+        "keptThinDowngraded": 0,
+        "expectedMerge": 0,
+        "unexpectedLoss": 0,
+        "ledgerAdded": 0
+      },
+      "coverage": {
+        "old": 1,
+        "wouldBe": 1,
+        "totalSubquestions": 1,
+        "lostSubquestions": []
+      },
+      "gates": {
+        "traceabilityRate": 1,
+        "unexpectedLoss": 0,
+        "coverageNonRegression": true,
+        "deterministic": true,
+        "classificationComplete": true
+      }
+    }
+  ],
+  "gates": {
+    "traceabilityRate100": true,
+    "unexpectedLossZero": true,
+    "coverageNonRegression": true,
+    "deterministicAllocation": true,
+    "classificationComplete": true
+  }
+}
