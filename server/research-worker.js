@@ -24,6 +24,12 @@ import {
 import { assembleResearchEvidence } from './research-evidence.js';
 import { buildOutline, buildSections, verifyReport } from './research-report.js';
 import { evaluateCompletionContract } from './research-completion-policy.js';
+import {
+  LEDGER_VERSION,
+  buildLedgerEntries,
+  buildWriterInputDiff,
+  normalizeEvidenceLedgerMode
+} from './research-evidence-ledger.js';
 
 const WEB_SEARCH_STATUSES = new Set(RESEARCH_WEB_SEARCH_STATUS_VALUES);
 
@@ -87,6 +93,11 @@ function normalizeSource(source, context) {
   const snippet = String(
     source.snippet ?? source.text ?? source.content ?? source.excerpt ?? ''
   ).replace(/\s+/g, ' ').trim().slice(0, 1000);
+  // Provider 已返回的受控 raw content（Spec research-harness §6.3 读取顺序第 1 级）：
+  // 原样透传给受控 Reader（provider_raw Adapter），不与 snippet 混用。
+  const providerContent = typeof source.content === 'string' && source.content.trim()
+    ? source.content.slice(0, 200_000)
+    : '';
   const title = String(
     source.title ?? source.documentName ?? source.name ?? '未命名资料'
   ).trim().slice(0, 240);
@@ -118,6 +129,7 @@ function normalizeSource(source, context) {
     title,
     url: safeSourceUrl(source.url ?? source.link),
     snippet,
+    content: providerContent,
     source: String(source.source || (channel === 'web' ? 'web' : '本地知识库')),
     kind: channel,
     knowledgeBaseId: typeof source.knowledgeBaseId === 'string'
@@ -297,9 +309,13 @@ export function createResearchWorker({
   resolveResearchRepositories,
   readResearchSources,
   writeResearchReport,
+  evidenceLedgerMode = 'shadow',
   concurrency = 1
 }) {
   if (!store) throw new TypeError('createResearchWorker requires a store');
+  // Evidence Ledger 三态（Spec §12 Phase 2A）：off 关闭；shadow 双写对比（默认）；
+  // primary 需通过双写验收门槛后由 Phase 2B/后续开放，请求即抛错。
+  const ledgerMode = normalizeEvidenceLedgerMode(evidenceLedgerMode);
 
   /*
    * active：task id -> 当前/待执行 entry，用于同一进程内去重与取消。
@@ -628,7 +644,12 @@ export function createResearchWorker({
             ))
           }
         },
-        citations
+        citations,
+        // 供 shadow 台账推导：documents 不入 artifacts（体积），仅在阶段内使用。
+        ledgerSourceData: {
+          documents: reading.documents,
+          failures: reading.failures
+        }
       };
     }
 
@@ -786,6 +807,34 @@ export function createResearchWorker({
         if (typeof result.report === 'string') patch.report = result.report;
         task = persistStage(id, patch, signal);
         persistBudget();
+        // Phase 2A Evidence Ledger shadow 双写（Spec §7/§12）：旧证据路径继续供
+        // Writer 使用，台账只记录 would-be Writer 输入与差异；off 模式完全跳过。
+        if (ledgerMode === 'shadow' && result.ledgerSourceData) {
+          try {
+            const ledger = buildLedgerEntries({
+              runId: id,
+              acceptedSources: artifacts.sources,
+              excludedSources: artifacts.excludedSources,
+              selectionExcluded: artifacts.evidencePack?.selectionExcluded,
+              documents: result.ledgerSourceData.documents,
+              readingFailures: result.ledgerSourceData.failures,
+              evidence: artifacts.evidence,
+              citations: result.citations || artifacts.citations
+            });
+            const diff = {
+              mode: 'shadow',
+              ...buildWriterInputDiff({
+                entries: ledger.entries,
+                citations: result.citations || artifacts.citations
+              })
+            };
+            store.recordEvidenceLedger?.(id, { ...ledger, diff, ledgerVersion: LEDGER_VERSION }, {
+              attempt: Number(task.attempt || 0)
+            });
+          } catch (ledgerError) {
+            shadowWarn(id, 'extracting', 'LEDGER_PERSIST_FAILED', ledgerError);
+          }
+        }
         currentStage = nextStage;
       }
 

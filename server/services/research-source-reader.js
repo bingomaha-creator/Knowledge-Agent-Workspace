@@ -40,9 +40,11 @@ async function readResponse(response, maxBytes) {
   return bounded;
 }
 
+const RETRYABLE_READER_CODES = new Set(['upstream_error', 'timeout', 'source_too_large']);
+
 function safeReaderFailure(source, code) {
   const messages = {
-    unsupported_source: '当前仅精读项目资料和 GitHub 仓库 README。',
+    unsupported_source: '来源未命中任何受控 Reader Adapter（通用 URL Reader 属 Phase 2B，保持关闭）。',
     not_found: '未找到可读取的仓库 README。',
     upstream_error: '来源正文读取失败。',
     source_too_large: '来源正文超过读取上限。',
@@ -51,19 +53,94 @@ function safeReaderFailure(source, code) {
   return {
     sourceId: source.id,
     code,
-    message: messages[code] || messages.upstream_error
+    message: messages[code] || messages.upstream_error,
+    retryable: RETRYABLE_READER_CODES.has(code)
   };
 }
 
 /**
- * 第一版 Reader 只开放两个受控适配器：本地命中片段与 GitHub README。
- * GitHub 请求被改写到固定 API 主机，禁止任意 URL 跳转，避免把搜索结果变成 SSRF 入口。
+ * Phase 2A 受控 Reader（Spec research-harness §6.3）。
+ *
+ * 读取顺序由 Adapter 注册表决定：
+ * 1. provider_raw——搜索 Provider 已返回的受控 raw content，避免二次访问任意 URL；
+ * 2. github_readme——明确 allowlist Adapter：GitHub 请求改写到固定 API 主机，
+ *    redirect: 'error'，禁止任意跳转，避免把搜索结果变成 SSRF 入口。
+ * 通用 HTTPS HTML/PDF Reader 属于 Phase 2B，本阶段不注册（canRead 恒 false 即
+ * 等价于不存在）；每个失败都携带 sourceId/code/message/retryable，禁止无声回退
+ * 为"已精读正文"——snippet 回退由证据装配阶段标记 readerKind='search_snippet' 并降质。
  */
 export function createResearchSourceReader({
   fetchImpl = globalThis.fetch,
   timeoutMs = DEFAULT_TIMEOUT_MS,
   maxDocumentBytes = MAX_DOCUMENT_BYTES
 } = {}) {
+  const adapters = [
+    {
+      id: 'provider_raw',
+      canRead: (source) => source.kind === 'web'
+        && typeof source.content === 'string'
+        && source.content.trim().length > 0,
+      read: async (source) => {
+        const bounded = boundedText(source.content, maxDocumentBytes);
+        return {
+          sourceId: source.id,
+          content: bounded.content,
+          contentType: 'text/plain',
+          truncated: bounded.truncated,
+          readerKind: 'provider_raw'
+        };
+      }
+    },
+    {
+      id: 'github_readme',
+      canRead: (source) => source.kind === 'web' && Boolean(githubRepository(source.url)),
+      read: async (source, signal) => {
+        const repository = githubRepository(source.url);
+        const controller = new AbortController();
+        const timer = setTimeout(() => controller.abort(new Error('timeout')), timeoutMs);
+        const combinedSignal = signal
+          ? AbortSignal.any([signal, controller.signal])
+          : controller.signal;
+        try {
+          const response = await fetchImpl(
+            `https://api.github.com/repos/${repository.owner}/${repository.repository}/readme`,
+            {
+              method: 'GET',
+              redirect: 'error',
+              signal: combinedSignal,
+              headers: {
+                Accept: 'application/vnd.github.raw+json',
+                'User-Agent': 'matthews-workspace-research-reader'
+              }
+            }
+          );
+          if (response.status === 404) {
+            throw Object.assign(new Error('README not found'), { code: 'NOT_FOUND' });
+          }
+          if (!response.ok) {
+            throw Object.assign(new Error(`GitHub ${response.status}`), { code: 'UPSTREAM_ERROR' });
+          }
+          const bounded = await readResponse(response, maxDocumentBytes);
+          return {
+            sourceId: source.id,
+            content: bounded.content,
+            contentType: response.headers?.get?.('content-type') || 'text/plain',
+            truncated: bounded.truncated,
+            readerKind: 'github_readme'
+          };
+        } catch (error) {
+          if (signal?.aborted) throw error;
+          if (controller.signal.aborted) {
+            throw Object.assign(new Error('读取超时'), { code: 'TIMEOUT' });
+          }
+          throw error;
+        } finally {
+          clearTimeout(timer);
+        }
+      }
+    }
+  ];
+
   async function readSource(source, signal) {
     if (source.kind !== 'web') {
       const bounded = boundedText(source.snippet, maxDocumentBytes);
@@ -76,49 +153,11 @@ export function createResearchSourceReader({
       };
     }
 
-    const repository = githubRepository(source.url);
-    if (!repository) throw Object.assign(new Error('不支持的来源'), { code: 'UNSUPPORTED_SOURCE' });
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(new Error('timeout')), timeoutMs);
-    const combinedSignal = signal
-      ? AbortSignal.any([signal, controller.signal])
-      : controller.signal;
-    try {
-      const response = await fetchImpl(
-        `https://api.github.com/repos/${repository.owner}/${repository.repository}/readme`,
-        {
-          method: 'GET',
-          redirect: 'error',
-          signal: combinedSignal,
-          headers: {
-            Accept: 'application/vnd.github.raw+json',
-            'User-Agent': 'matthews-workspace-research-reader'
-          }
-        }
-      );
-      if (response.status === 404) {
-        throw Object.assign(new Error('README not found'), { code: 'NOT_FOUND' });
-      }
-      if (!response.ok) {
-        throw Object.assign(new Error(`GitHub ${response.status}`), { code: 'UPSTREAM_ERROR' });
-      }
-      const bounded = await readResponse(response, maxDocumentBytes);
-      return {
-        sourceId: source.id,
-        content: bounded.content,
-        contentType: response.headers?.get?.('content-type') || 'text/plain',
-        truncated: bounded.truncated,
-        readerKind: 'github_readme'
-      };
-    } catch (error) {
-      if (signal?.aborted) throw error;
-      if (controller.signal.aborted) {
-        throw Object.assign(new Error('读取超时'), { code: 'TIMEOUT' });
-      }
-      throw error;
-    } finally {
-      clearTimeout(timer);
+    const adapter = adapters.find((candidate) => candidate.canRead(source));
+    if (!adapter) {
+      throw Object.assign(new Error('不支持的来源'), { code: 'UNSUPPORTED_SOURCE' });
     }
+    return adapter.read(source, signal);
   }
 
   async function readSelected({ sources, signal }) {
@@ -151,5 +190,5 @@ export function createResearchSourceReader({
     };
   }
 
-  return { readSource, readSelected };
+  return { readSource, readSelected, adapters };
 }

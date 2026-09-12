@@ -140,6 +140,14 @@ test('shadow 健康路径（local）：来源均为项目资料，契约 complet
       assert.ok(item.artifactRefs?.length, `${item.id} 必须携带 artifactRefs`);
     }
     assert.deepEqual(contract.notEvaluableRequired, ['writer-input-boundary']);
+
+    // local 模式台账：条目存在，但无外部来源 → 无 provenance 升级
+    const ledger = store.getEvidenceLedger(finalTask.id);
+    assert.ok(ledger, 'local 模式 shadow 台账同样持久化');
+    assert.ok(ledger.entries.length > 0);
+    assert.ok(ledger.entries.every((item) => item.provenanceAfter === item.provenanceBefore),
+      'local 来源不涉及 provenance 升级');
+    assert.ok(ledger.entries.every((item) => item.sourceChannel === 'local'));
   } finally {
     cleanup();
   }
@@ -159,7 +167,28 @@ test('shadow web 路径：来源未经一手验证 → 诚实建议 replan；Pro
     const contract = store.getContractChecks(finalTask.id);
     const byId = Object.fromEntries(contract.checks.map((item) => [item.id, item]));
     assert.equal(byId['source-provenance'].passed, false, 'example.org 未通过一手验证（candidate_primary 也不算）');
-    assert.equal(contract.nextAction, 'replan', '证据缺口建议 replan，但 Phase 1 不执行');
+    assert.equal(contract.nextAction, 'complete', 'provenance 是观察指标：缺口的补救是 Reader 验证而非补检索，不机械 replan');
+
+    // Evidence Ledger shadow 双写：旧路径 Writer 输入不变，台账记录 provenance 转换与差异
+    const ledger = store.getEvidenceLedger(finalTask.id);
+    assert.ok(ledger, 'shadow 模式下台账已持久化');
+    assert.equal(ledger.ledgerVersion, 1);
+    const upgraded = ledger.entries.filter((item) => item.provenanceAfter === 'verified_primary');
+    assert.ok(upgraded.length > 0, '经 fixture Adapter 成功读取的来源升级 verified_primary');
+    for (const item of upgraded) {
+      assert.equal(item.provenanceTransition.reason.startsWith('verified_by_reader:'), true);
+      assert.ok(item.provenanceTransition.artifactRef, '升级必须带 artifactRef');
+      assert.ok(ledger.artifacts.some((artifact) => artifact.artifactId === item.provenanceTransition.artifactRef));
+      assert.equal(item.reading.status, 'succeeded');
+      assert.equal(item.citation.status, 'cited');
+    }
+    const rejected = ledger.entries.filter((item) => item.screening.status === 'rejected');
+    assert.ok(rejected.every((item) => item.provenanceTransition.reason.startsWith('screening_rejected:')),
+      '筛选拒绝的来源记录拒绝原因且不升级 provenance');
+    assert.ok(ledger.diff, 'would-be Writer 差异报告已持久化');
+    assert.equal(ledger.diff.mode, 'shadow');
+    assert.ok(Array.isArray(ledger.diff.ledgerWouldIncludeCitationIds));
+    assert.ok(Array.isArray(ledger.diff.ledgerExcludedButWriterUsed));
     assert.ok(contract.artifactRefs === undefined, 'artifactRefs 挂在 check 上而非 verdict 上');
     assert.ok(contract.checks.every((item) => item.artifactRefs?.length));
   } finally {
@@ -302,6 +331,29 @@ test('重试后 webSearchCalls 保持累计：失败 attempt 未调 Provider 不
     const staleAttempt = Number(finalTask.attempt) - 1;
     assert.equal(store.addRunBudgetWebSearchCalls(created.id, 99, { attempt: staleAttempt }), false);
     assert.equal(store.getRunBudget(created.id)?.webSearchCalls, 2, '迟到写入不得污染累计值');
+  } finally {
+    cleanup();
+  }
+});
+
+test('Evidence Ledger 开关：off 完全跳过，primary 未过门槛前直接抛错', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const created = store.create({ question: 'off 模式研究', searchMode: 'web', knowledgeBaseIds: [] });
+    const worker = createResearchWorker({
+      store,
+      concurrency: 1,
+      evidenceLedgerMode: 'off',
+      ...fixtureAdapters()
+    });
+    const finalTask = await worker.enqueue(created.id);
+    assert.equal(finalTask.status, 'completed');
+    assert.equal(store.getEvidenceLedger(created.id), null, 'off 模式不写台账');
+    assert.throws(
+      () => createResearchWorker({ store, concurrency: 1, evidenceLedgerMode: 'primary', ...fixtureAdapters() }),
+      /Phase 2A 仅开放 shadow/,
+      'primary 未通过双写验收门槛前必须 fail closed'
+    );
   } finally {
     cleanup();
   }

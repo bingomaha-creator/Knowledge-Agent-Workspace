@@ -266,6 +266,64 @@ function migrateDatabase(db) {
 
     CREATE INDEX IF NOT EXISTS idx_research_run_errors_run
       ON research_run_errors(run_id, created_at);
+
+    CREATE TABLE IF NOT EXISTS research_evidence_artifacts (
+      artifact_id TEXT PRIMARY KEY,
+      run_id TEXT NOT NULL,
+      kind TEXT NOT NULL DEFAULT 'source_content',
+      content_hash TEXT NOT NULL,
+      byte_size INTEGER NOT NULL DEFAULT 0,
+      truncated INTEGER NOT NULL DEFAULT 0,
+      content TEXT NOT NULL,
+      created_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_research_evidence_artifacts_run
+      ON research_evidence_artifacts(run_id);
+
+    CREATE TABLE IF NOT EXISTS research_evidence_ledger (
+      run_id TEXT NOT NULL,
+      evidence_id TEXT NOT NULL,
+      source_channel TEXT NOT NULL DEFAULT '',
+      canonical_source_id TEXT NOT NULL DEFAULT '',
+      canonical_url TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      domain TEXT NOT NULL DEFAULT '',
+      published_at TEXT NOT NULL DEFAULT '',
+      source_type TEXT NOT NULL DEFAULT '',
+      provenance_before TEXT NOT NULL DEFAULT 'unknown',
+      provenance_after TEXT NOT NULL DEFAULT 'unknown',
+      provenance_transition_json TEXT NOT NULL DEFAULT 'null',
+      subquestion_id TEXT NOT NULL DEFAULT '',
+      query TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL DEFAULT '',
+      reader_kind TEXT NOT NULL DEFAULT '',
+      content_hash TEXT NOT NULL DEFAULT '',
+      truncated INTEGER NOT NULL DEFAULT 0,
+      artifact_id TEXT NOT NULL DEFAULT '',
+      screening_status TEXT NOT NULL DEFAULT 'pending',
+      screening_reason TEXT NOT NULL DEFAULT '',
+      reading_status TEXT NOT NULL DEFAULT 'pending',
+      reading_reason TEXT NOT NULL DEFAULT '',
+      extraction_status TEXT NOT NULL DEFAULT 'not_selected',
+      citation_status TEXT NOT NULL DEFAULT 'not_cited',
+      citation_id TEXT NOT NULL DEFAULT '',
+      ledger_version INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, evidence_id)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_research_evidence_ledger_run
+      ON research_evidence_ledger(run_id);
+
+    CREATE TABLE IF NOT EXISTS research_evidence_ledger_diffs (
+      run_id TEXT PRIMARY KEY,
+      mode TEXT NOT NULL DEFAULT 'shadow',
+      ledger_version INTEGER NOT NULL DEFAULT 1,
+      diff_json TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL
+    );
   `);
 
   const checkColumns = tableColumns(db, 'research_contract_checks');
@@ -771,8 +829,9 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
   // 允许的终态写入分类：
   // - contract：仅 completed（最终 verdict 在对应 attempt 完成后写入）；
   // - budget：running（增量）/ completed / failed（终态快照）；cancelled 拒绝；
-  // - error：仅 failed。shadow warning（shadow 自身的持久化故障诊断）仅校验
-  //   attempt、不限状态、不推进 updatedAt（它是事件不是快照）。
+  // - error：仅 failed；
+  // - evidence ledger / artifacts / diffs：running（extracting 阶段写入）与
+  //   completed（重评覆盖）；shadow 持久化故障只输出结构化日志（worker.shadowWarn）。
 
   function withRunSnapshotWrite(runId, attempt, allowedStatuses, write) {
     db.exec('BEGIN IMMEDIATE');
@@ -952,8 +1011,8 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     });
   }
 
-  // shadow 自身的持久化故障只输出结构化日志（worker.shadowWarn），不写库：
-  // 避免为"没能写库"再引入第二层兜底写（Codex 二次评审第 4 点，二选一取日志）。
+  // shadow 自身的持久化故障只输出结构化日志（worker.shadowWarn），不写库——
+  // 这是 Codex 终审第 4 点的二选一决定：不为"没能写库"再引入第二层兜底写。
 
   function listRunErrors(runId) {
     return db.prepare(
@@ -968,6 +1027,143 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     }));
   }
 
+  // —— Phase 2A Evidence Ledger（Spec research-harness §7）——
+  // 台账/原文 artifact/差异报告均为独立 side table；shadow 模式下旧证据路径继续
+  // 供 Writer 使用，台账只记录 would-be 输入与差异。写入走 attempt 守卫事务并
+  // 原子推进 updatedAt（与其他 snapshot 一致）。
+
+  function recordEvidenceLedger(runId, { entries = [], artifacts = [], diff = null, ledgerVersion = 1 } = {}, { attempt } = {}) {
+    if (!Array.isArray(entries)) return false;
+    return withRunSnapshotWrite(runId, attempt, ['running', 'completed'], (now) => {
+      // 台账按 Run 整体重建：同一 attempt 内重复写入（如重评）以最新快照为准。
+      db.prepare('DELETE FROM research_evidence_ledger WHERE run_id = ?').run(runId);
+      db.prepare('DELETE FROM research_evidence_artifacts WHERE run_id = ?').run(runId);
+      const insertEntry = db.prepare(`
+        INSERT INTO research_evidence_ledger (
+          run_id, evidence_id, source_channel, canonical_source_id, canonical_url,
+          title, domain, published_at, source_type,
+          provenance_before, provenance_after, provenance_transition_json,
+          subquestion_id, query, provider, reader_kind, content_hash, truncated,
+          artifact_id, screening_status, screening_reason, reading_status,
+          reading_reason, extraction_status, citation_status, citation_id,
+          ledger_version, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const item of entries) {
+        insertEntry.run(
+          runId,
+          String(item.evidenceId || ''),
+          String(item.sourceChannel || ''),
+          String(item.canonicalSourceId || ''),
+          String(item.canonicalUrl || ''),
+          String(item.title || ''),
+          String(item.domain || ''),
+          String(item.publishedAt || ''),
+          String(item.sourceType || ''),
+          String(item.provenanceBefore || 'unknown'),
+          String(item.provenanceAfter || 'unknown'),
+          JSON.stringify(item.provenanceTransition || null),
+          String(item.subquestionId || ''),
+          String(item.query || ''),
+          String(item.provider || ''),
+          String(item.readerKind || ''),
+          String(item.contentHash || ''),
+          item.truncated === true ? 1 : 0,
+          String(item.artifactId || ''),
+          String(item.screeningStatus || 'pending'),
+          String(item.screeningReason || ''),
+          String(item.readingStatus || 'pending'),
+          String(item.readingReason || ''),
+          String(item.extractionStatus || 'not_selected'),
+          String(item.citationStatus || 'not_cited'),
+          String(item.citationId || ''),
+          Number(item.ledgerVersion || ledgerVersion),
+          now,
+          now
+        );
+      }
+      const insertArtifact = db.prepare(`
+        INSERT INTO research_evidence_artifacts (
+          artifact_id, run_id, kind, content_hash, byte_size, truncated, content, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `);
+      for (const artifact of artifacts) {
+        insertArtifact.run(
+          String(artifact.artifactId || ''),
+          runId,
+          String(artifact.kind || 'source_content'),
+          String(artifact.contentHash || ''),
+          Math.max(0, Math.round(Number(artifact.byteSize) || 0)),
+          artifact.truncated === true ? 1 : 0,
+          String(artifact.content || ''),
+          now
+        );
+      }
+      if (diff) {
+        db.prepare(`
+          INSERT INTO research_evidence_ledger_diffs (run_id, mode, ledger_version, diff_json, created_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(run_id) DO UPDATE SET
+            mode = excluded.mode,
+            ledger_version = excluded.ledger_version,
+            diff_json = excluded.diff_json,
+            created_at = excluded.created_at
+        `).run(runId, String(diff.mode || 'shadow'), Number(ledgerVersion), JSON.stringify(diff), now);
+      }
+    });
+  }
+
+  function getEvidenceLedger(runId) {
+    const rows = db.prepare(
+      'SELECT * FROM research_evidence_ledger WHERE run_id = ? ORDER BY evidence_id'
+    ).all(runId);
+    if (!rows.length) return null;
+    const diffRow = db.prepare(
+      'SELECT mode, ledger_version, diff_json, created_at FROM research_evidence_ledger_diffs WHERE run_id = ?'
+    ).get(runId);
+    return {
+      ledgerVersion: rows[0].ledger_version,
+      entries: rows.map((row) => ({
+        evidenceId: row.evidence_id,
+        sourceChannel: row.source_channel,
+        canonicalSourceId: row.canonical_source_id,
+        canonicalUrl: row.canonical_url,
+        title: row.title,
+        domain: row.domain,
+        publishedAt: row.published_at,
+        sourceType: row.source_type,
+        provenanceBefore: row.provenance_before,
+        provenanceAfter: row.provenance_after,
+        provenanceTransition: parseJson(row.provenance_transition_json, null),
+        subquestionId: row.subquestion_id,
+        query: row.query,
+        provider: row.provider,
+        readerKind: row.reader_kind,
+        contentHash: row.content_hash,
+        truncated: row.truncated === 1,
+        artifactId: row.artifact_id,
+        screening: { status: row.screening_status, reason: row.screening_reason },
+        reading: { status: row.reading_status, reason: row.reading_reason },
+        extraction: { status: row.extraction_status },
+        citation: { status: row.citation_status, citationId: row.citation_id }
+      })),
+      artifacts: db.prepare(
+        'SELECT artifact_id, run_id, kind, content_hash, byte_size, truncated, created_at FROM research_evidence_artifacts WHERE run_id = ? ORDER BY artifact_id'
+      ).all(runId).map((row) => ({
+        artifactId: row.artifact_id,
+        runId: row.run_id,
+        kind: row.kind,
+        contentHash: row.content_hash,
+        byteSize: row.byte_size,
+        truncated: row.truncated === 1,
+        createdAt: row.created_at
+      })),
+      diff: diffRow
+        ? { mode: diffRow.mode, ledgerVersion: diffRow.ledger_version, ...parseJson(diffRow.diff_json, {}) }
+        : null
+    };
+  }
+
   return {
     create,
     get: readTask,
@@ -978,6 +1174,8 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     getRunBudget,
     recordRunError,
     listRunErrors,
+    recordEvidenceLedger,
+    getEvidenceLedger,
     list,
     listSession,
     continueSession,

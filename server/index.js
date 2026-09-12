@@ -20,6 +20,7 @@ import { createBugInvestigationService } from './bug-investigation/bug-investiga
 import { loadPresets } from './preset-utils.js';
 import { createResearchStore } from './research-store.js';
 import { createResearchWorker } from './research-worker.js';
+import { normalizeEvidenceLedgerMode } from './research-evidence-ledger.js';
 import { createChatRouter } from './routes/chat-routes.js';
 import { createBugKnowledgeRouter } from './routes/bug-knowledge-routes.js';
 import { createBugInvestigationRouter } from './routes/bug-investigation-routes.js';
@@ -115,13 +116,17 @@ const researchAiService = createResearchAiService({
 });
 const researchSourceReader = createResearchSourceReader();
 const researchRepositoryResolver = createResearchRepositoryResolver();
+// Evidence Ledger 三态（Spec research-harness §12 Phase 2A）：默认 shadow；
+// primary 未通过双写验收门槛前会被 createResearchWorker 拒绝（fail closed）。
+const evidenceLedgerMode = normalizeEvidenceLedgerMode(process.env.RESEARCH_EVIDENCE_LEDGER);
 const researchWorker = createResearchWorker({
   store: researchStore,
   searchSources: researchSearchService.searchSources,
   planResearch: researchAiService.planResearch,
   resolveResearchRepositories: researchRepositoryResolver.resolveRepositories,
   readResearchSources: researchSourceReader.readSelected,
-  writeResearchReport: researchAiService.writeResearchReport
+  writeResearchReport: researchAiService.writeResearchReport,
+  evidenceLedgerMode
 });
 const callMcpTool = createRouteMcpCaller({ toolExecutor });
 const callBugMcpTool = createRouteMcpCaller({ toolExecutor, caller: 'bug-ui' });

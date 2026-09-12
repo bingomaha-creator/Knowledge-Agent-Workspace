@@ -399,7 +399,10 @@ export function buildCompletionChecks({ task, artifacts }) {
       : (unverifiedWeb.length === 0
         ? '全部外部来源都已确认为 verified_primary 一手来源。'
         : `${unverifiedWeb.length} 条外部来源尚未通过一手验证（candidate_primary/unknown 均不计为已验证）；报告是否披露该局限由 limitation-disclosure 判定。`),
-    cause: 'evidence_gap'
+    // provenance 缺口的补救路径是"受控 Reader 验证"而非补检索：重复搜索返回的
+    // 仍是同样未验证的来源，机械 replan 无法改善该指标（Codex Phase 2A 评审），
+    // 因此 cause 为 observation，不驱动 replan 建议；升级由 Ledger 的读取转换承担。
+    cause: 'observation'
   }));
 
   checks.push(check({

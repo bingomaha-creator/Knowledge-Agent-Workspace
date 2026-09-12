@@ -224,7 +224,8 @@ test('provenance 与披露拆分：candidate_primary/未知来源不计为已验
     '披露情况记录在 observed，供 limitation-disclosure 与前端展示');
   assert.equal(candidateById['limitation-disclosure'].passed, true, '披露判断由 limitation-disclosure 承担');
 
-  // 未知来源但已披露：provenance 仍未通过；预算耗尽时报告可被诚实交付
+  // 未知来源但已披露：provenance 仍未通过，但它是观察指标（补救靠 Reader 验证
+  // 而非补检索），不驱动 replan；其余交付检查通过时报告可诚实交付。
   const unknownDisclosed = healthyArtifacts({
     citations: [citation('c1', 1), citation('c2', 2), citation('c3', 3)].map((item) => ({
       ...item,
@@ -238,8 +239,9 @@ test('provenance 与披露拆分：candidate_primary/未知来源不计为已验
   const exhausted = shadowNextAction(unknownDisclosed, { replans: { used: 1, limit: 1 } });
   const exhaustedById = checksById(exhausted);
   assert.equal(exhaustedById['source-provenance'].passed, false, '未知来源仍未通过 provenance');
+  assert.equal(exhaustedById['source-provenance'].cause, 'observation', 'provenance 不驱动机械 replan');
   assert.equal(exhaustedById['limitation-disclosure'].passed, true);
-  assert.equal(exhausted.nextAction, 'deliver_insufficient', '报告诚实披露时可安全交付');
+  assert.equal(exhausted.nextAction, 'complete', '观察指标失败不改变交付建议');
   assert.equal(exhausted.passed, true, '交付安全，shadow 下 passed 不受 optional 失败影响');
 });
 

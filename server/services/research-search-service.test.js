@@ -245,3 +245,69 @@ test('search service survives observer failures', async () => {
   });
   assert.equal(result.webSearchStatus, 'available', '观察者异常不影响检索结果');
 });
+
+// —— 检索模式语义（Spec research-harness §6.1，Phase 2A 修复项）——
+
+test('web mode never starts local search and never returns local evidence', async () => {
+  let localSearchCalls = 0;
+  const service = createResearchSearchService({
+    searchEvidence: async () => {
+      localSearchCalls += 1;
+      return { evidence: [{ id: 'l1', title: '本地', snippet: '本地内容', source: '本地知识库' }] };
+    },
+    toolExecutor: {
+      callTool: async () => ({ structured: { available: true, status: 'success', results: [{ id: 'w1', title: '外部', url: 'https://example.org/1', snippet: '外部内容' }] } })
+    }
+  });
+
+  const result = await service.searchSources({ query: 'q', searchMode: 'web' });
+  assert.equal(localSearchCalls, 0, 'web 模式不得启动本地检索（历史偏差修复）');
+  assert.equal(result.local.length, 0, 'web 模式不得返回本地证据');
+  assert.equal(result.web.length, 1);
+  assert.equal(result.webSearchStatus, 'available');
+});
+
+test('local mode never initiates the web provider call', async () => {
+  let toolCalls = 0;
+  const service = createResearchSearchService({
+    searchEvidence: async () => ({ evidence: [{ id: 'l1', title: '本地', snippet: '本地内容', source: '本地知识库' }] }),
+    toolExecutor: {
+      callTool: async () => {
+        toolCalls += 1;
+        return { structured: { available: true, status: 'success', results: [] } };
+      }
+    }
+  });
+
+  const result = await service.searchSources({ query: 'q', searchMode: 'local' });
+  assert.equal(toolCalls, 0);
+  assert.equal(result.webSearchStatus, 'not_requested');
+  assert.equal(result.local.length, 1);
+});
+
+test('hybrid runs local and web retrieval in parallel with channel labels preserved', async () => {
+  const timings = [];
+  const service = createResearchSearchService({
+    searchEvidence: async () => {
+      timings.push({ at: Date.now(), kind: 'local-start' });
+      await new Promise((resolve) => setTimeout(resolve, 60));
+      timings.push({ at: Date.now(), kind: 'local-end' });
+      return { evidence: [{ id: 'l1', title: '本地', snippet: '本地内容', source: '本地知识库' }] };
+    },
+    toolExecutor: {
+      callTool: async () => {
+        timings.push({ at: Date.now(), kind: 'web-start' });
+        await new Promise((resolve) => setTimeout(resolve, 60));
+        timings.push({ at: Date.now(), kind: 'web-end' });
+        return { structured: { available: true, status: 'success', results: [{ id: 'w1', title: '外部', url: 'https://example.org/1', snippet: '外部内容' }] } };
+      }
+    }
+  });
+
+  const result = await service.searchSources({ query: 'q', searchMode: 'hybrid' });
+  const localEnd = timings.find((item) => item.kind === 'local-end').at;
+  const webStart = timings.find((item) => item.kind === 'web-start').at;
+  assert.ok(webStart < localEnd, 'web 检索必须在 local 结束前启动（真实并行）');
+  assert.equal(result.local.length, 1);
+  assert.equal(result.web.length, 1);
+});
