@@ -530,3 +530,82 @@ test('合法零证据的空台账与未写入台账不再共用 null 语义（me
     cleanup();
   }
 });
+
+// —— 组合提交 false 返回的四分类语义（Codex 收敛修正第 3 点）——
+// cancel/abort 正常停止；attempt 变化或非 running 按 RESEARCH_LEASE_LOST 处理；
+// 重读后仍是同 attempt 且 running → Store contract violation，fail closed，
+// 不得走普通 persist shadow fallback。
+
+test('false 返回（attempt 变化）：按 RESEARCH_LEASE_LOST 失败，不写降级标记', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const faultyStore = {
+      ...store,
+      commitRunningStageWithLedger: (id, patch, options, ledger) => {
+        if (ledger?.type === 'replace') {
+          store.update(id, { attempt: 999 });
+          return false;
+        }
+        return store.commitRunningStageWithLedger(id, patch, options, ledger);
+      }
+    };
+    const worker = createResearchWorker({ store: faultyStore, concurrency: 1, ...fixtureAdapters() });
+    const created = faultyStore.create({ question: 'attempt 竞态', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(finalTask.status, 'failed');
+    assert.match(finalTask.error, /运行权/);
+    assert.equal(finalTask.artifacts.ledgerShadow, undefined, '竞态失败不写 shadow 降级标记');
+    assert.equal(store.getEvidenceLedger(created.id), null);
+  } finally {
+    cleanup();
+  }
+});
+
+test('false 返回（非 running）：按 RESEARCH_LEASE_LOST 处理，不覆盖竞态赢家状态', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const faultyStore = {
+      ...store,
+      commitRunningStageWithLedger: (id, patch, options, ledger) => {
+        if (ledger?.type === 'replace') {
+          store.update(id, { status: 'completed', stage: 'completed', progress: 100 });
+          return false;
+        }
+        return store.commitRunningStageWithLedger(id, patch, options, ledger);
+      }
+    };
+    const worker = createResearchWorker({ store: faultyStore, concurrency: 1, ...fixtureAdapters() });
+    const created = faultyStore.create({ question: '非 running 竞态', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(finalTask.status, 'completed', '竞态赢家的状态不被旧 worker 覆盖');
+    assert.equal(finalTask.artifacts.ledgerShadow, undefined, '竞态路径不写 shadow 降级标记');
+  } finally {
+    cleanup();
+  }
+});
+
+test('false 返回（同 attempt/running 异常）：Store contract violation → fail closed', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const faultyStore = {
+      ...store,
+      commitRunningStageWithLedger: (id, patch, options, ledger) => {
+        if (ledger?.type === 'replace') {
+          return false;
+        }
+        return store.commitRunningStageWithLedger(id, patch, options, ledger);
+      }
+    };
+    const worker = createResearchWorker({ store: faultyStore, concurrency: 1, ...fixtureAdapters() });
+    const created = faultyStore.create({ question: '契约违约研究', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(finalTask.status, 'failed', '同 attempt/running 的异常 false 必须 fail closed');
+    assert.match(finalTask.error, /LEDGER_COMMIT_CONTRACT_VIOLATION/);
+    assert.equal(finalTask.artifacts.ledgerShadow, undefined, 'fail closed 路径不走 shadow fallback，无降级标记');
+  } finally {
+    cleanup();
+  }
+});

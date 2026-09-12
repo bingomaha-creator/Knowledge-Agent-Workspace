@@ -13,6 +13,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
+import { DatabaseSync } from 'node:sqlite';
 import { createResearchStore } from './research-store.js';
 
 function tempStore() {
@@ -233,10 +234,12 @@ test('组合提交：未知 ledger type 必须 fail closed（表驱动）', () =
   }
 });
 
-test('citation finalize：空台账 + 非空引用集显式失败并回滚；真正零证据才允许空台账', () => {
+test('finalize 存在性语义：无 meta 一律失败；empty meta + 空引用合法；empty meta + 非空引用失败', () => {
   const { store, cleanup } = tempStore();
   try {
     const { task, attempt } = claimedTask(store);
+
+    // 无 meta（台账从未写入）：无论引用是否为空都显式失败
     assert.throws(
       () => store.commitRunningStageWithLedger(
         task.id,
@@ -244,13 +247,34 @@ test('citation finalize：空台账 + 非空引用集显式失败并回滚；真
         { attempt },
         { type: 'citations', referencedCitationIds: ['web-s1'] }
       ),
+      /LEDGER_MISSING_FOR_FINALIZE/
+    );
+    assert.throws(
+      () => store.commitRunningStageWithLedger(
+        task.id,
+        { stage: 'verifying', progress: 90, artifacts: {} },
+        { attempt },
+        { type: 'citations', referencedCitationIds: [] }
+      ),
       /LEDGER_MISSING_FOR_FINALIZE/,
-      '存在被引用 citation 但 Ledger 为空属于一致性破坏，必须显式失败'
+      '无 meta 时空引用也必须失败（此前静默放行是缺陷）'
     );
     assert.equal(store.get(task.id).stage, 'planning', '失败后主快照回滚');
     assert.equal(store.getEvidenceLedger(task.id), null);
 
-    // 真正零证据且引用集合为空 → 允许空台账（不抛错）
+    // 先 replace 生成 empty meta（合法零证据），finalize 空引用成功
+    assert.equal(
+      store.commitRunningStageWithLedger(
+        task.id,
+        { stage: 'extracting', progress: 45, artifacts: {} },
+        { attempt },
+        { type: 'replace', entries: [], artifacts: [], diff: null }
+      ),
+      true
+    );
+    const ledger = store.getEvidenceLedger(task.id);
+    assert.equal(ledger.meta.status, 'empty');
+    assert.equal(ledger.meta.entryCount, 0);
     assert.equal(
       store.commitRunningStageWithLedger(
         task.id,
@@ -258,10 +282,112 @@ test('citation finalize：空台账 + 非空引用集显式失败并回滚；真
         { attempt },
         { type: 'citations', referencedCitationIds: [] }
       ),
-      true
+      true,
+      'empty meta + 空引用 = 合法空台账'
+    );
+
+    // empty meta + 非空引用：行缺失且引用非空 → 一致性破坏，显式失败
+    assert.throws(
+      () => store.commitRunningStageWithLedger(
+        task.id,
+        { stage: 'verifying', progress: 91, artifacts: {} },
+        { attempt },
+        { type: 'citations', referencedCitationIds: ['web-s1'] }
+      ),
+      /LEDGER_MISSING_FOR_FINALIZE/
     );
   } finally {
     cleanup();
+  }
+});
+
+test('旧 schema/旧数据升级：meta 幂等回填后 Ledger 仍可读取', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'research-legacy-'));
+  const dbPath = path.join(dir, 'legacy.sqlite');
+  // 手工构建"旧版"数据库：存在 ledger rows 与 diff，但无 meta 表/无 meta 行，
+  // 且 ledger 缺少后加的 attestation/extraction_reason 列。
+  const legacy = new DatabaseSync(dbPath);
+  legacy.exec(`
+    CREATE TABLE research_evidence_ledger (
+      run_id TEXT NOT NULL,
+      evidence_id TEXT NOT NULL,
+      source_channel TEXT NOT NULL DEFAULT '',
+      canonical_source_id TEXT NOT NULL DEFAULT '',
+      canonical_url TEXT NOT NULL DEFAULT '',
+      title TEXT NOT NULL DEFAULT '',
+      domain TEXT NOT NULL DEFAULT '',
+      published_at TEXT NOT NULL DEFAULT '',
+      source_type TEXT NOT NULL DEFAULT '',
+      provenance_before TEXT NOT NULL DEFAULT 'unknown',
+      provenance_after TEXT NOT NULL DEFAULT 'unknown',
+      provenance_transition_json TEXT NOT NULL DEFAULT 'null',
+      subquestion_id TEXT NOT NULL DEFAULT '',
+      query TEXT NOT NULL DEFAULT '',
+      provider TEXT NOT NULL DEFAULT '',
+      reader_kind TEXT NOT NULL DEFAULT '',
+      content_hash TEXT NOT NULL DEFAULT '',
+      truncated INTEGER NOT NULL DEFAULT 0,
+      artifact_id TEXT NOT NULL DEFAULT '',
+      screening_status TEXT NOT NULL DEFAULT 'pending',
+      screening_reason TEXT NOT NULL DEFAULT '',
+      reading_status TEXT NOT NULL DEFAULT 'pending',
+      reading_reason TEXT NOT NULL DEFAULT '',
+      extraction_status TEXT NOT NULL DEFAULT 'not_selected',
+      citation_status TEXT NOT NULL DEFAULT 'pending',
+      citation_id TEXT NOT NULL DEFAULT '',
+      ledger_version INTEGER NOT NULL DEFAULT 1,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL,
+      PRIMARY KEY (run_id, evidence_id)
+    );
+    CREATE TABLE research_evidence_ledger_diffs (
+      run_id TEXT PRIMARY KEY,
+      mode TEXT NOT NULL DEFAULT 'shadow',
+      ledger_version INTEGER NOT NULL DEFAULT 1,
+      diff_json TEXT NOT NULL DEFAULT '{}',
+      created_at INTEGER NOT NULL
+    );
+  `);
+  const now = Date.now();
+  const insertLegacy = legacy.prepare(`
+    INSERT INTO research_evidence_ledger (
+      run_id, evidence_id, source_channel, canonical_source_id, reader_kind,
+      content_hash, screening_status, reading_status, extraction_status,
+      citation_status, citation_id, ledger_version, created_at, updated_at
+    ) VALUES (?, ?, 'web', ?, 'github_readme', ?, 'accepted', 'succeeded', 'extracted', 'writer_selected', ?, 1, ?, ?)
+  `);
+  insertLegacy.run('r-legacy', 'ev_1', 'https://example.org/1', 'h1', 'web-s1', now, now);
+  insertLegacy.run('r-legacy', 'ev_2', 'https://example.org/2', 'h2', 'web-s2', now, now);
+  legacy.prepare(`
+    INSERT INTO research_evidence_ledger_diffs (run_id, mode, ledger_version, diff_json, created_at)
+    VALUES ('r-legacy', 'shadow', 1, '{}', ?)
+  `).run(now);
+  legacy.close();
+
+  // 用新 store 打开旧库：迁移建表 + ALTER 补列 + meta 幂等回填
+  const store = createResearchStore(dbPath);
+  try {
+    const ledger = store.getEvidenceLedger('r-legacy');
+    assert.ok(ledger, '旧数据升级后 Ledger 仍可读取');
+    assert.equal(ledger.meta.status, 'written');
+    assert.equal(ledger.meta.entryCount, 2, 'entryCount 取实际行数');
+    assert.equal(ledger.meta.mode, 'shadow', 'mode 优先取 diff');
+    assert.equal(ledger.meta.ledgerVersion, 1, 'ledgerVersion 取行内最大值');
+    assert.equal(ledger.entries.length, 2);
+    assert.ok(ledger.entries.every((item) => typeof item.extraction.reason === 'string'), 'ALTER 补齐的列可读');
+
+    // 幂等：重复打开不覆盖、不重复计数
+    const again = createResearchStore(dbPath);
+    try {
+      const reread = again.getEvidenceLedger('r-legacy');
+      assert.equal(reread.meta.entryCount, 2, '回填幂等：不覆盖已有 meta');
+      assert.equal(reread.entries.length, 2);
+    } finally {
+      again.close();
+    }
+  } finally {
+    store.close();
+    fs.rmSync(dir, { recursive: true, force: true });
   }
 });
 

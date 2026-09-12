@@ -876,9 +876,12 @@ export function createResearchWorker({
                 code: 'RESEARCH_LEASE_LOST'
               });
             }
-            commitFailed = new Error('commitRunningStageWithLedger 返回 false 且无竞态特征');
-            ledgerShadowFailure = `LEDGER_COMMIT_FAILED: ${readableError(commitFailed)}`;
-            shadowWarn(id, currentStage, 'LEDGER_COMMIT_FAILED', commitFailed);
+            // 重读后仍是同 attempt 且 running：Store contract violation，fail closed
+            // （任务失败并留明确错误），不得走普通 persist shadow fallback。
+            throw Object.assign(
+              new Error('LEDGER_COMMIT_CONTRACT_VIOLATION: commitRunningStageWithLedger 返回 false 但 Run 仍为同 attempt/running'),
+              { code: 'LEDGER_COMMIT_CONTRACT_VIOLATION' }
+            );
           }
           if (committed) {
             task = store.get(id);

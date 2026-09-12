@@ -354,6 +354,24 @@ function migrateDatabase(db) {
     }
   }
 
+  // 旧数据幂等回填（Codex 收敛修正第 2 点）：为存在 ledger rows 但缺失 meta 的
+  // Run 聚合生成 meta——entryCount 取实际行数、ledgerVersion 取行内最大值、
+  // mode 优先取 diff 否则 shadow；只补缺失（NOT EXISTS），不覆盖已有记录。
+  // 建库即执行，开销为零行时为空操作。
+  db.exec(`
+    INSERT INTO research_evidence_ledger_meta (run_id, mode, status, entry_count, ledger_version, created_at)
+    SELECT
+      l.run_id,
+      COALESCE((SELECT d.mode FROM research_evidence_ledger_diffs d WHERE d.run_id = l.run_id LIMIT 1), 'shadow'),
+      'written',
+      COUNT(*),
+      COALESCE(MAX(l.ledger_version), 1),
+      CAST(strftime('%s', 'now') AS INTEGER) * 1000
+    FROM research_evidence_ledger l
+    WHERE NOT EXISTS (SELECT 1 FROM research_evidence_ledger_meta m WHERE m.run_id = l.run_id)
+    GROUP BY l.run_id
+  `);
+
   const columns = tableColumns(db, 'research_tasks');
   const addsResultQuality = !columns.has('result_quality');
   const addsLimitations = !columns.has('limitations_json');
@@ -1263,14 +1281,25 @@ export function createResearchStore(dbPath = DEFAULT_DB_PATH) {
     // citation 终态只依据 verifying 阶段的 verification.referencedCitationIds：
     // 进入 Writer 输入（writer_selected）不等于最终被报告引用。
     const referenced = new Set(Array.isArray(referencedCitationIds) ? referencedCitationIds : []);
+    // 存在性语义（Codex Phase 2A 收敛修正第 1 点）：finalize 前必须存在 ledger meta。
+    // - 无 meta（台账从未写入）：无论引用集合是否为空都显式失败；
+    // - 有 meta 且 entryCount=0、引用为空：合法空台账，放行；
+    // - 有 meta 但行缺失而引用非空：一致性破坏，显式失败。
+    const meta = db.prepare(
+      'SELECT entry_count FROM research_evidence_ledger_meta WHERE run_id = ?'
+    ).get(runId);
+    if (!meta) {
+      throw Object.assign(
+        new Error(`LEDGER_MISSING_FOR_FINALIZE: citation finalize 失败——Ledger 从未写入（缺少 meta 快照）`),
+        { code: 'LEDGER_MISSING_FOR_FINALIZE' }
+      );
+    }
     const rows = db.prepare(
       'SELECT evidence_id, citation_id FROM research_evidence_ledger WHERE run_id = ?'
     ).all(runId);
-    // 空台账 + 非空引用集合属于一致性破坏，必须显式失败，不得静默成功；
-    // 只有真正零证据且引用集合为空才允许空台账。
     if (!rows.length && referenced.size) {
       throw Object.assign(
-        new Error(`LEDGER_MISSING_FOR_FINALIZE: citation finalize 失败——Ledger 为空但存在 ${referenced.size} 个被引用的 citation`),
+        new Error(`LEDGER_MISSING_FOR_FINALIZE: citation finalize 失败——Ledger meta 声明 entryCount=${meta.entry_count} 但行为空，且存在 ${referenced.size} 个被引用的 citation`),
         { code: 'LEDGER_MISSING_FOR_FINALIZE' }
       );
     }
