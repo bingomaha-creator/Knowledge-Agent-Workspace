@@ -295,7 +295,14 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
       assert.equal(disclosureOf(wouldBeDelivery.verdict), disclosureOf(oldDelivery.verdict),
         `${testCase.id} 局限披露判定不得劣化`);
       // Writer 采纳状态忠实来自各 case 的 Writer 行为（invalid_citations 用例验证拒绝与 fallback 重建）
-      assert.equal(wouldBeDelivery.writerMode, oldDelivery.writerMode,
+      // Writer 状态字段非 undefined 断言（消费端先断言再比较）
+      for (const delivery of [oldDelivery, wouldBeDelivery]) {
+        assert.ok(delivery.writerStatus, `${testCase.id} writerStatus 不得为 undefined`);
+        assert.ok(typeof delivery.writerStatus.mode === 'string', `${testCase.id} writerStatus.mode 不得缺失`);
+        assert.ok(typeof delivery.writerStatus.attempted === 'boolean', `${testCase.id} writerStatus.attempted 不得缺失`);
+        assert.ok(typeof delivery.writerStatus.accepted === 'boolean', `${testCase.id} writerStatus.accepted 不得缺失`);
+      }
+      assert.equal(wouldBeDelivery.writerStatus.mode, oldDelivery.writerStatus.mode,
         `${testCase.id} 同一 writerMode 下两侧采纳状态必须一致`);
       // 语义支持率：not_evaluated（Policy 已输出 null），不自动判通过
       assert.equal(wouldBeDelivery.verdict.checks.find((item) => item.id === 'claim-support')?.passed ?? null, null);
@@ -335,7 +342,7 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
         deliveryComparison: {
           deliveryLegalEqual: wouldBeDelivery.deliveryLegal === oldDelivery.deliveryLegal,
           citationValidityEqual: wouldBeDelivery.citationValidity === oldDelivery.citationValidity,
-          writerModeEqual: wouldBeDelivery.writerMode === oldDelivery.writerMode,
+          writerModeEqual: wouldBeDelivery.writerStatus.mode === oldDelivery.writerStatus.mode,
           oldRequiredChecks: oldRequired,
           wouldBeRequiredChecks: wouldBeRequired,
           oldQuality: oldDelivery.quality.quality,

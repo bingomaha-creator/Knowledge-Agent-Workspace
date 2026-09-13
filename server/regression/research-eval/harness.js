@@ -185,6 +185,29 @@ export async function runEvalCase({ testCase, adapters, mode, dbPath, includeLed
  * 返回最终 task 快照与 shadow CompletionContract verdict（质量对比用）。
  * 语义支持率等无法离线评估的指标显式 not_evaluated（Policy 已输出 null）。
  */
+/**
+ * 让指定 Evidence Pack（旧路径或 Ledger would-be）经真实 Worker 的交付管线，
+ * 从 outlining/writing/verifying 阶段恢复运行。
+ *
+ * 注入方式（Codex 修正第 2 点）：利用 extracting 完成后的持久化 checkpoint，
+ * 构造白名单 upstream artifacts（只保留计划/来源/检索/读取等上游字段），
+ * 将 citations/evidence 替换为指定 Pack 并重算 evidencePack 统计，
+ * 从 outlining 阶段恢复真实 Worker。不展开下游产物（sections/draftReport/
+ * verifiedReport/verification/quality/writing diagnostics）。
+ * Phase B 显式设置 evidenceLedgerMode: 'off'（只验证 Pack 后交付，不触发
+ * shadow finalize）。
+ *
+ * Writer 调用边界断言（Codex 修正第 3 点）：规范化 Pack 投影 deepEqual，
+ * 覆盖 citation id/index、evidence citationId/citationNumber/claim/passage/
+ * passageContentHash/subquestionId/readerKind/稳定来源身份。
+ *
+ * 返回契约（Codex 修正第 1 点）：
+ * - deliveryLegal：来自最终 CompletionPolicy verdict；
+ * - writerStatus: { attempted, accepted, mode, reasonCode, fallbackReason }
+ *   全部来自最终 artifacts.diagnostics.writing；
+ * - citationValidity：来自最终 verification.valid。
+ * 消费端必须先断言这些字段不是 undefined 再进行比较。
+ */
 export async function runPackThroughDelivery({ testCase, pack, writerMode = 'faithful' }) {
   assert.ok(Array.isArray(pack.citations), 'pack.citations 必须是数组');
   assert.ok(Array.isArray(pack.evidence), 'pack.evidence 必须是数组');
@@ -216,47 +239,76 @@ export async function runPackThroughDelivery({ testCase, pack, writerMode = 'fai
     fs.rmSync(phaseADir, { recursive: true, force: true });
   }
 
-  // —— Phase B：checkpoint 注入指定 Pack，从 outlining 恢复真实 Worker ——
+  // —— 构造 extracting 完成后的白名单 checkpoint ——
+  // 只保留上游字段，删除全部下游产物（Codex 修正第 2 点）。
+  const packCitations = pack.citations;
+  const packEvidence = pack.evidence;
+  const fulltextSourceIds = new Set(
+    packEvidence.filter((item) => item.readerKind !== 'search_snippet').map((item) => item.sourceId)
+  );
+  const checkpointArtifacts = {
+    subquestions: baseArtifacts.subquestions,
+    plan: baseArtifacts.plan,
+    sources: baseArtifacts.sources,
+    excludedSources: baseArtifacts.excludedSources,
+    search: baseArtifacts.search,
+    reading: baseArtifacts.reading,
+    evidencePack: {
+      candidateCount: baseArtifacts.evidencePack?.candidateCount ?? 0,
+      acceptedCount: packCitations.length,
+      excludedCount: baseArtifacts.evidencePack?.excludedCount ?? 0,
+      includedCount: packEvidence.length,
+      citationCount: packCitations.length,
+      readSourceCount: fulltextSourceIds.size,
+      passageCount: packEvidence.length,
+      totalCharacters: packEvidence.reduce((sum, item) => sum + (item.passage || '').length, 0),
+      snippetFallbackCount: packEvidence.filter((item) => item.readerKind === 'search_snippet').length,
+      policy: baseArtifacts.evidencePack?.policy,
+      policyLabel: baseArtifacts.evidencePack?.policyLabel
+    },
+    citations: packCitations,
+    evidence: packEvidence
+  };
+
+  // —— Phase B：从 outlining 恢复真实 Worker ——
   const phaseBDir = fs.mkdtempSync(path.join(os.tmpdir(), 'pack-phase-b-'));
   const store = createResearchStore(path.join(phaseBDir, 'b.sqlite'));
   try {
-    // Writer 调用边界：记录实际输入，供与指定 Pack 的一致性断言
     let writerInput = null;
     const adapters = createFixtureAdapters(testCase)({});
 
     const worker = createResearchWorker({
       store,
       concurrency: 1,
+      evidenceLedgerMode: 'off',
       planResearch: adapters.planResearch,
       searchSources: adapters.searchSources,
       readResearchSources: adapters.readResearchSources,
-      writeResearchReport: async ({ evidence, citations }) => {
-        // Writer 调用边界断言：输入与指定 Pack 逐项一致（id/顺序/claims/passages）
-        writerInput = {
-          citationIds: (citations || []).map((item) => item.id),
-          claims: (evidence || []).map((item) => item.claim),
-          passages: (evidence || []).map((item) => item.passage)
-        };
-        const expectedCitationIds = pack.citations.map((item) => item.id);
-        const expectedClaims = pack.evidence.map((item) => item.claim);
-        const expectedPassages = pack.evidence.map((item) => item.passage);
-        assert.deepEqual(
-          writerInput.citationIds, expectedCitationIds,
-          'Writer 输入 citations 与指定 Pack 不一致'
-        );
-        assert.deepEqual(
-          writerInput.claims, expectedClaims,
-          'Writer 输入 claims 与指定 Pack 不一致'
-        );
-        assert.deepEqual(
-          writerInput.passages, expectedPassages,
-          'Writer 输入 passages 与指定 Pack 不一致'
-        );
-        // 有证据 case 的 Writer 输入不得为空；零证据 case 本就不调用 Writer
-        if (pack.citations.length) {
-          assert.ok((evidence || []).length > 0, '有证据 case 的 Writer 输入不得为空');
-        }
-        return adapters.writeResearchReport({ evidence, citations });
+      writeResearchReport: async (writerArgs) => {
+        // Writer 调用边界断言（Codex 修正第 3 点）：规范化 Pack 投影 deepEqual
+        const evidence = writerArgs.evidence || [];
+        const actualProjection = evidence.map((item) => ({
+          citationId: item.citationId,
+          citationNumber: item.citationNumber,
+          claim: item.claim,
+          passage: item.passage,
+          passageContentHash: item.passageContentHash,
+          subquestionId: item.subquestionId,
+          readerKind: item.readerKind
+        }));
+        const expectedProjection = packEvidence.map((item) => ({
+          citationId: item.citationId,
+          citationNumber: item.citationNumber,
+          claim: item.claim,
+          passage: item.passage,
+          passageContentHash: item.passageContentHash,
+          subquestionId: item.subquestionId,
+          readerKind: item.readerKind
+        }));
+        assert.deepEqual(actualProjection, expectedProjection,
+          'Writer 输入 evidence 与指定 Pack 不一致');
+        writerInput = { evidenceCount: evidence.length };
+        return adapters.writeResearchReport({ evidence, citations: packCitations });
       },
       readResearchSources: adapters.readResearchSources,
       resolveResearchRepositories: async () => []
@@ -267,35 +319,38 @@ export async function runPackThroughDelivery({ testCase, pack, writerMode = 'fai
       searchMode: testCase.searchMode,
       knowledgeBaseIds: testCase.knowledgeBaseIds || []
     });
-    // 构造 extracting 完成后的持久化 checkpoint：stage 前进到 outlining，
-    // artifacts 中 citations/evidence 原样替换为指定 Pack（其余元数据保留）。
-    const checkpointArtifacts = {
-      ...baseArtifacts,
-      citations: pack.citations,
-      evidence: pack.evidence
-    };
     store.update(created.id, {
       stage: 'outlining',
       progress: 60,
       artifacts: checkpointArtifacts,
-      citations: pack.citations
+      citations: packCitations
     });
 
     const finalTask = await worker.enqueue(created.id);
-    const quality = finalTask.artifacts?.quality || {};
+    const writing = finalTask.artifacts?.diagnostics?.writing || {};
     const verdict = evaluateCompletionContract({
       task: finalTask,
       artifacts: finalTask.artifacts || {},
       mode: 'shadow',
       budget: { replans: { used: 0, limit: 1 }, repairs: { used: 0, limit: 1 } }
     });
+
+    // 返回契约（Codex 修正第 1 点）：Writer 状态来自最终 artifacts.diagnostics.writing
+    const writerStatus = {
+      attempted: packEvidence.length > 0,
+      accepted: writing.mode === 'model',
+      mode: writing.mode || 'fallback',
+      reasonCode: writing.reasonCode || '',
+      fallbackReason: writing.fallbackReason || ''
+    };
     return {
       task: finalTask,
-      quality,
+      quality: finalTask.artifacts?.quality || {},
       verdict,
-      writerInputMatchesPack: writerInput !== null || pack.citations.length === 0,
-      writerInput,
-      citationValidity: finalTask.artifacts?.verification?.valid === true
+      writerStatus,
+      deliveryLegal: verdict.passed === true,
+      citationValidity: finalTask.artifacts?.verification?.valid === true,
+      writerInputMatchesPack: writerInput !== null || packEvidence.length === 0
     };
   } finally {
     store.close();

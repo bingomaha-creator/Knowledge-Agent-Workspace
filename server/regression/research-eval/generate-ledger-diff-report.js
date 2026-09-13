@@ -62,6 +62,15 @@ async function main() {
         runPackThroughDelivery({ pack: oldPack, testCase, writerMode: testCase.fixtures.writer || 'faithful' }),
         runPackThroughDelivery({ pack: wouldBePack, testCase, writerMode: testCase.fixtures.writer || 'faithful' })
       ]);
+      // 消费端先断言返回契约字段不是 undefined（Codex 修正第 1 点）
+      for (const delivery of [oldDelivery, wouldBeDelivery]) {
+        assert.ok(delivery.writerStatus, `${testCase.id} writerStatus 不得为 undefined`);
+        assert.ok(typeof delivery.writerStatus.mode === 'string', `${testCase.id} writerStatus.mode 不得缺失`);
+        assert.ok(typeof delivery.writerStatus.attempted === 'boolean', `${testCase.id} attempted 不得缺失`);
+        assert.ok(typeof delivery.writerStatus.accepted === 'boolean', `${testCase.id} accepted 不得缺失`);
+        assert.ok(delivery.verdict, `${testCase.id} verdict 不得为 undefined`);
+        assert.ok(typeof delivery.deliveryLegal === 'boolean', `${testCase.id} deliveryLegal 不得缺失`);
+      }
 
       // 逐项差异（含 passage 安全摘要 + passage 内容指纹）
       const diffItems = (ledger.diff?.items || []).map((item) => {
@@ -136,7 +145,7 @@ async function main() {
           old: {
             deliveryLegal: oldDelivery.deliveryLegal,
             citationValidity: oldDelivery.citationValidity,
-            writerMode: oldDelivery.writerMode,
+            writerMode: oldDelivery.writerStatus.mode,
             requiredCheckFailures: oldDelivery.verdict.deliveryFailures,
             quality: oldDelivery.quality.quality,
             coverageRatio: oldDelivery.quality.metrics.coverageRatio,
@@ -145,7 +154,7 @@ async function main() {
           wouldBe: {
             deliveryLegal: wouldBeDelivery.deliveryLegal,
             citationValidity: wouldBeDelivery.citationValidity,
-            writerMode: wouldBeDelivery.writerMode,
+            writerMode: wouldBeDelivery.writerStatus.mode,
             requiredCheckFailures: wouldBeDelivery.verdict.deliveryFailures,
             quality: wouldBeDelivery.quality.quality,
             coverageRatio: wouldBeDelivery.quality.metrics.coverageRatio,
