@@ -1,7 +1,7 @@
 {
   "diagnostic": "would_be_pack_diff_report",
   "status": "pending_review",
-  "generatedAt": "2026-09-13T14:04:44.711Z",
+  "generatedAt": "2026-09-13T14:32:45.865Z",
   "note": "机器验收报告：humanReview 字段为 pending_review，人工复核（差异清单逐项确认）由用户/Codex 执行后才可判定第二交付门达成。Ledger 保持 shadow。",
   "humanReview": {
     "reviewer": null,
@@ -30,15 +30,15 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_3d4de7d1e541d8f592a4a1b3c1de94a4",
-            "evidenceId": "ev_3d4de7d1e541d8f592a4a1b3c1de94a4",
+            "citationId": "ledger-ev_a83155d48de63e312d0861ccc507430a",
+            "evidenceId": "ev_a83155d48de63e312d0861ccc507430a",
             "canonicalSourceId": "https://docs.example.org/etcd-architecture",
             "canonicalUrl": "https://docs.example.org/etcd-architecture",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_ebc830cc00812d722907981ee3c06d36",
-            "evidenceId": "ev_ebc830cc00812d722907981ee3c06d36",
+            "citationId": "ledger-ev_c1764403249f4260b29ad35c4225b261",
+            "evidenceId": "ev_c1764403249f4260b29ad35c4225b261",
             "canonicalSourceId": "l1",
             "canonicalUrl": "",
             "tier": "fulltext"
@@ -50,7 +50,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_3d4de7d1e541d8f592a4a1b3c1de94a4",
+          "wouldBeCitationId": "ledger-ev_a83155d48de63e312d0861ccc507430a",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "61ec592be39b9dac000c75abee89b269afa95b85e50a7bd36c2fc3dab93f1983"
@@ -61,8 +61,8 @@
             "url": "https://docs.example.org/etcd-architecture"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_3d4de7d1e541d8f592a4a1b3c1de94a4",
-            "evidenceId": "ev_3d4de7d1e541d8f592a4a1b3c1de94a4",
+            "citationId": "ledger-ev_a83155d48de63e312d0861ccc507430a",
+            "evidenceId": "ev_a83155d48de63e312d0861ccc507430a",
             "canonicalSourceId": "https://docs.example.org/etcd-architecture",
             "tier": "fulltext",
             "selectionContentHash": "66bc6c5981c957ab5384ec1f8029ee98ab44bc04266519e6504d7c30e44ed537"
@@ -80,7 +80,7 @@
           "oldCitationId": "local-l1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_ebc830cc00812d722907981ee3c06d36",
+          "wouldBeCitationId": "ledger-ev_c1764403249f4260b29ad35c4225b261",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "9aaef211e83933950994c97700b3d71239f33e8cd98ccc5d879410364656026b"
@@ -91,8 +91,8 @@
             "url": ""
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_ebc830cc00812d722907981ee3c06d36",
-            "evidenceId": "ev_ebc830cc00812d722907981ee3c06d36",
+            "citationId": "ledger-ev_c1764403249f4260b29ad35c4225b261",
+            "evidenceId": "ev_c1764403249f4260b29ad35c4225b261",
             "canonicalSourceId": "l1",
             "tier": "fulltext",
             "selectionContentHash": "d3d1246696181923b0cb60e0635805e9439466dd693da6839911a7302b60c2b5"
@@ -123,27 +123,22 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "thin_evidence_pack"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -164,8 +159,8 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_29b7f39772f9bfa031234c20ca1bdfeb",
-            "evidenceId": "ev_29b7f39772f9bfa031234c20ca1bdfeb",
+            "citationId": "ledger-ev_fd0ca7b020120fd0431f5903ead1f263",
+            "evidenceId": "ev_fd0ca7b020120fd0431f5903ead1f263",
             "canonicalSourceId": "l1",
             "canonicalUrl": "",
             "tier": "fulltext"
@@ -177,7 +172,7 @@
           "oldCitationId": "local-l1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_29b7f39772f9bfa031234c20ca1bdfeb",
+          "wouldBeCitationId": "ledger-ev_fd0ca7b020120fd0431f5903ead1f263",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "a317a66cbebe07c25f2bf3ba7f74cee23854113bbaebd5fe67cdbd8de7e23ae0"
@@ -188,8 +183,8 @@
             "url": ""
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_29b7f39772f9bfa031234c20ca1bdfeb",
-            "evidenceId": "ev_29b7f39772f9bfa031234c20ca1bdfeb",
+            "citationId": "ledger-ev_fd0ca7b020120fd0431f5903ead1f263",
+            "evidenceId": "ev_fd0ca7b020120fd0431f5903ead1f263",
             "canonicalSourceId": "l1",
             "tier": "fulltext",
             "selectionContentHash": "43429f11ed4141f590fcf363f07be5b25deec878fa4caecaa6212416dcb6f1f4"
@@ -220,27 +215,23 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_evidence_not_included",
+            "thin_evidence_pack"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_evidence_not_included",
+            "thin_evidence_pack"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -266,15 +257,15 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_d81cb5455125105c73072ff383bbde7d",
-            "evidenceId": "ev_d81cb5455125105c73072ff383bbde7d",
+            "citationId": "ledger-ev_fdace52805ed0e9f2c7a02cc67417250",
+            "evidenceId": "ev_fdace52805ed0e9f2c7a02cc67417250",
             "canonicalSourceId": "l1",
             "canonicalUrl": "",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_12d7e6383afe4cd189c0b7464046631b",
-            "evidenceId": "ev_12d7e6383afe4cd189c0b7464046631b",
+            "citationId": "ledger-ev_4874aefd4a7cb3c2823e9813a72c0c6b",
+            "evidenceId": "ev_4874aefd4a7cb3c2823e9813a72c0c6b",
             "canonicalSourceId": "l2",
             "canonicalUrl": "",
             "tier": "fulltext"
@@ -286,7 +277,7 @@
           "oldCitationId": "local-l1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_d81cb5455125105c73072ff383bbde7d",
+          "wouldBeCitationId": "ledger-ev_fdace52805ed0e9f2c7a02cc67417250",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "f4b31d01884221cdd625d49b04ae3a9a8587d589807347d49f7b189eb7324bb0",
@@ -298,8 +289,8 @@
             "url": ""
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_d81cb5455125105c73072ff383bbde7d",
-            "evidenceId": "ev_d81cb5455125105c73072ff383bbde7d",
+            "citationId": "ledger-ev_fdace52805ed0e9f2c7a02cc67417250",
+            "evidenceId": "ev_fdace52805ed0e9f2c7a02cc67417250",
             "canonicalSourceId": "l1",
             "tier": "fulltext",
             "selectionContentHash": "3b458b7173da3400ca35d883cb0dbd051239f3640f8f5d467b6567cc934fe5c8"
@@ -323,7 +314,7 @@
           "oldCitationId": "local-l2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_12d7e6383afe4cd189c0b7464046631b",
+          "wouldBeCitationId": "ledger-ev_4874aefd4a7cb3c2823e9813a72c0c6b",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "a719e62d969ed2fa3133566adcfc822fc12588e9b183a47e4c05f9c5b9a25fad",
@@ -335,8 +326,8 @@
             "url": ""
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_12d7e6383afe4cd189c0b7464046631b",
-            "evidenceId": "ev_12d7e6383afe4cd189c0b7464046631b",
+            "citationId": "ledger-ev_4874aefd4a7cb3c2823e9813a72c0c6b",
+            "evidenceId": "ev_4874aefd4a7cb3c2823e9813a72c0c6b",
             "canonicalSourceId": "l2",
             "tier": "fulltext",
             "selectionContentHash": "b1eab30aafc5c869694ed2ba44a86e2f9a1fe42d1c99b8f36d0cde756900a23e"
@@ -373,26 +364,18 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
-          "limitations": [
-            "no_relevant_evidence"
-          ]
+          "quality": "sufficient",
+          "coverageRatio": 1,
+          "limitations": []
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
-          "limitations": [
-            "no_relevant_evidence"
-          ]
+          "quality": "sufficient",
+          "coverageRatio": 1,
+          "limitations": []
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
       }
@@ -423,9 +406,7 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
@@ -434,9 +415,7 @@
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
@@ -487,43 +466,43 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_85d998b82e23abdd425a61bdac1854d7",
-            "evidenceId": "ev_85d998b82e23abdd425a61bdac1854d7",
+            "citationId": "ledger-ev_e004c8c018783d0e3b02e2d82ec4fc54",
+            "evidenceId": "ev_e004c8c018783d0e3b02e2d82ec4fc54",
             "canonicalSourceId": "https://docs.example.org/sqlite-ops",
             "canonicalUrl": "https://docs.example.org/sqlite-ops",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_010e08a6e6d5c2b6505abf5ffdd0d3e0",
-            "evidenceId": "ev_010e08a6e6d5c2b6505abf5ffdd0d3e0",
+            "citationId": "ledger-ev_2e04cec04bb5defa0e53f1d6519b9635",
+            "evidenceId": "ev_2e04cec04bb5defa0e53f1d6519b9635",
             "canonicalSourceId": "https://wiki.example.org/embedded-ops",
             "canonicalUrl": "https://wiki.example.org/embedded-ops",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_7b5818935e1337d0d4bda30a5433d066",
-            "evidenceId": "ev_7b5818935e1337d0d4bda30a5433d066",
+            "citationId": "ledger-ev_46585445918b22be8b8e9ec5b77f800a",
+            "evidenceId": "ev_46585445918b22be8b8e9ec5b77f800a",
             "canonicalSourceId": "https://wiki.example.org/postgres-capacity",
             "canonicalUrl": "https://wiki.example.org/postgres-capacity",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_c8b03345622558b39b5a03cb6bb82f20",
-            "evidenceId": "ev_c8b03345622558b39b5a03cb6bb82f20",
+            "citationId": "ledger-ev_77bbe4f9b275c82ec76669d5922f9d08",
+            "evidenceId": "ev_77bbe4f9b275c82ec76669d5922f9d08",
             "canonicalSourceId": "https://docs.example.org/postgres-ops",
             "canonicalUrl": "https://docs.example.org/postgres-ops",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_4ab9a074cd99fcf209259f8ceeb00dac",
-            "evidenceId": "ev_4ab9a074cd99fcf209259f8ceeb00dac",
+            "citationId": "ledger-ev_797baf8a1647f30a368c63bd80cc8be8",
+            "evidenceId": "ev_797baf8a1647f30a368c63bd80cc8be8",
             "canonicalSourceId": "https://docs.example.org/backup-compare",
             "canonicalUrl": "https://docs.example.org/backup-compare",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_e572986b25106e873e8cd54329350d37",
-            "evidenceId": "ev_e572986b25106e873e8cd54329350d37",
+            "citationId": "ledger-ev_5f0d0385c0d1c99c2dcd9cc12d7c8e70",
+            "evidenceId": "ev_5f0d0385c0d1c99c2dcd9cc12d7c8e70",
             "canonicalSourceId": "https://wiki.example.org/upgrade-path",
             "canonicalUrl": "https://wiki.example.org/upgrade-path",
             "tier": "fulltext"
@@ -535,7 +514,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_85d998b82e23abdd425a61bdac1854d7",
+          "wouldBeCitationId": "ledger-ev_e004c8c018783d0e3b02e2d82ec4fc54",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "0bcee5510b6956a8b8f0d7451f2c9102230b84961e28e4f62cbb24db73c7f856",
@@ -547,8 +526,8 @@
             "url": "https://docs.example.org/sqlite-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_85d998b82e23abdd425a61bdac1854d7",
-            "evidenceId": "ev_85d998b82e23abdd425a61bdac1854d7",
+            "citationId": "ledger-ev_e004c8c018783d0e3b02e2d82ec4fc54",
+            "evidenceId": "ev_e004c8c018783d0e3b02e2d82ec4fc54",
             "canonicalSourceId": "https://docs.example.org/sqlite-ops",
             "tier": "fulltext",
             "selectionContentHash": "1dde64c291ae225807b4d9edd3ca4324a2510067347b394aabcac9354e9f72c9"
@@ -572,7 +551,7 @@
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_010e08a6e6d5c2b6505abf5ffdd0d3e0",
+          "wouldBeCitationId": "ledger-ev_2e04cec04bb5defa0e53f1d6519b9635",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "b1882757713952879b8ce56bae91065c96c4d2d9900d54b1dd04bbbd78091b5d"
@@ -583,8 +562,8 @@
             "url": "https://wiki.example.org/embedded-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_010e08a6e6d5c2b6505abf5ffdd0d3e0",
-            "evidenceId": "ev_010e08a6e6d5c2b6505abf5ffdd0d3e0",
+            "citationId": "ledger-ev_2e04cec04bb5defa0e53f1d6519b9635",
+            "evidenceId": "ev_2e04cec04bb5defa0e53f1d6519b9635",
             "canonicalSourceId": "https://wiki.example.org/embedded-ops",
             "tier": "fulltext",
             "selectionContentHash": "e8572006775e70b98b929a4acd4fe6dcb2abda86e09d22ccbabd071b3050ba0f"
@@ -602,7 +581,7 @@
           "oldCitationId": "web-s3",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_c8b03345622558b39b5a03cb6bb82f20",
+          "wouldBeCitationId": "ledger-ev_77bbe4f9b275c82ec76669d5922f9d08",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090",
@@ -614,8 +593,8 @@
             "url": "https://docs.example.org/postgres-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_c8b03345622558b39b5a03cb6bb82f20",
-            "evidenceId": "ev_c8b03345622558b39b5a03cb6bb82f20",
+            "citationId": "ledger-ev_77bbe4f9b275c82ec76669d5922f9d08",
+            "evidenceId": "ev_77bbe4f9b275c82ec76669d5922f9d08",
             "canonicalSourceId": "https://docs.example.org/postgres-ops",
             "tier": "fulltext",
             "selectionContentHash": "f3afdd999d1c6a5c273ba49ccacef5f42217efea9d2d971804cd76594a943b14"
@@ -639,7 +618,7 @@
           "oldCitationId": "web-s4",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_7b5818935e1337d0d4bda30a5433d066",
+          "wouldBeCitationId": "ledger-ev_46585445918b22be8b8e9ec5b77f800a",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "07380a99f28961e80cb0c38c5e68cf59872897538477e8fdc34243a1a6c92244",
@@ -651,8 +630,8 @@
             "url": "https://wiki.example.org/postgres-capacity"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_7b5818935e1337d0d4bda30a5433d066",
-            "evidenceId": "ev_7b5818935e1337d0d4bda30a5433d066",
+            "citationId": "ledger-ev_46585445918b22be8b8e9ec5b77f800a",
+            "evidenceId": "ev_46585445918b22be8b8e9ec5b77f800a",
             "canonicalSourceId": "https://wiki.example.org/postgres-capacity",
             "tier": "fulltext",
             "selectionContentHash": "cf16ffbb916fae2157c50ae9256f6d625b7334b6d6f780529b251779e177dce2"
@@ -676,7 +655,7 @@
           "oldCitationId": "web-s5",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_4ab9a074cd99fcf209259f8ceeb00dac",
+          "wouldBeCitationId": "ledger-ev_797baf8a1647f30a368c63bd80cc8be8",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "8b76c1262f524b6f2cdcf863a25a664850b30857a5126fc4dfb82c7e5799cf6a"
@@ -687,8 +666,8 @@
             "url": "https://docs.example.org/backup-compare"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_4ab9a074cd99fcf209259f8ceeb00dac",
-            "evidenceId": "ev_4ab9a074cd99fcf209259f8ceeb00dac",
+            "citationId": "ledger-ev_797baf8a1647f30a368c63bd80cc8be8",
+            "evidenceId": "ev_797baf8a1647f30a368c63bd80cc8be8",
             "canonicalSourceId": "https://docs.example.org/backup-compare",
             "tier": "fulltext",
             "selectionContentHash": "5b2fc28e1e2d29a4bec3c3b98dd7a1e8ae5076094a70cb04fdcec5601d1c332b"
@@ -706,7 +685,7 @@
           "oldCitationId": "web-s6",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_e572986b25106e873e8cd54329350d37",
+          "wouldBeCitationId": "ledger-ev_5f0d0385c0d1c99c2dcd9cc12d7c8e70",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "66b20f382b4048fa8082ee27c06664eddf6720c744823def38e4b7fc4800fab9",
@@ -718,8 +697,8 @@
             "url": "https://wiki.example.org/upgrade-path"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_e572986b25106e873e8cd54329350d37",
-            "evidenceId": "ev_e572986b25106e873e8cd54329350d37",
+            "citationId": "ledger-ev_5f0d0385c0d1c99c2dcd9cc12d7c8e70",
+            "evidenceId": "ev_5f0d0385c0d1c99c2dcd9cc12d7c8e70",
             "canonicalSourceId": "https://wiki.example.org/upgrade-path",
             "tier": "fulltext",
             "selectionContentHash": "b622738a287f3424e4603a554baaadd0b930aaa51f17e12b07cee9a4d62c3d32"
@@ -756,27 +735,23 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -802,15 +777,15 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_52380869a301a5d7085dfc21ed4b164f",
-            "evidenceId": "ev_52380869a301a5d7085dfc21ed4b164f",
+            "citationId": "ledger-ev_e23dfbf8a3f729223d52d97beaecdc89",
+            "evidenceId": "ev_e23dfbf8a3f729223d52d97beaecdc89",
             "canonicalSourceId": "https://docs.example.org/sqlite-ops",
             "canonicalUrl": "https://docs.example.org/sqlite-ops",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_e0a0c51d0e829e0be59ffda863ecc11c",
-            "evidenceId": "ev_e0a0c51d0e829e0be59ffda863ecc11c",
+            "citationId": "ledger-ev_7aad868878244ab28b66c7186e0a9b44",
+            "evidenceId": "ev_7aad868878244ab28b66c7186e0a9b44",
             "canonicalSourceId": "https://docs.example.org/postgres-ops",
             "canonicalUrl": "https://docs.example.org/postgres-ops",
             "tier": "fulltext"
@@ -822,7 +797,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_52380869a301a5d7085dfc21ed4b164f",
+          "wouldBeCitationId": "ledger-ev_e23dfbf8a3f729223d52d97beaecdc89",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "760c58e6b8b766a30b812ddc9b6c66e33ef23dc68c4e02a1260de80ce37cb4bf"
@@ -833,8 +808,8 @@
             "url": "https://docs.example.org/sqlite-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_52380869a301a5d7085dfc21ed4b164f",
-            "evidenceId": "ev_52380869a301a5d7085dfc21ed4b164f",
+            "citationId": "ledger-ev_e23dfbf8a3f729223d52d97beaecdc89",
+            "evidenceId": "ev_e23dfbf8a3f729223d52d97beaecdc89",
             "canonicalSourceId": "https://docs.example.org/sqlite-ops",
             "tier": "fulltext",
             "selectionContentHash": "c62cec547fc0a847bdb49f43bb446b3fae380ad93852ad36f071a3484d7c716f"
@@ -852,7 +827,7 @@
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_e0a0c51d0e829e0be59ffda863ecc11c",
+          "wouldBeCitationId": "ledger-ev_7aad868878244ab28b66c7186e0a9b44",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090"
@@ -863,8 +838,8 @@
             "url": "https://docs.example.org/postgres-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_e0a0c51d0e829e0be59ffda863ecc11c",
-            "evidenceId": "ev_e0a0c51d0e829e0be59ffda863ecc11c",
+            "citationId": "ledger-ev_7aad868878244ab28b66c7186e0a9b44",
+            "evidenceId": "ev_7aad868878244ab28b66c7186e0a9b44",
             "canonicalSourceId": "https://docs.example.org/postgres-ops",
             "tier": "fulltext",
             "selectionContentHash": "6de722f40ae3a6ab66b39694bf7b284a02ae2029620eb3ecfa0fbf30666e8bc6"
@@ -895,27 +870,24 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 0.6667,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "low_subquestion_coverage",
+            "thin_evidence_pack"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 0.6667,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "low_subquestion_coverage",
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -947,27 +919,21 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "no_relevant_evidence"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "no_relevant_evidence"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -999,27 +965,21 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "no_relevant_evidence"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "no_relevant_evidence"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -1045,15 +1005,15 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_63ac767e0f91e5351b218b943db4c7ef",
-            "evidenceId": "ev_63ac767e0f91e5351b218b943db4c7ef",
+            "citationId": "ledger-ev_a2bdd3ca9fc70b0488ad2d8b94c8d3d4",
+            "evidenceId": "ev_a2bdd3ca9fc70b0488ad2d8b94c8d3d4",
             "canonicalSourceId": "https://docs.example.org/oauth21-draft",
             "canonicalUrl": "https://docs.example.org/oauth21-draft",
             "tier": "thin"
           },
           {
-            "citationId": "ledger-ev_fde5cb9d7772f3dc7d9a969b6ab56380",
-            "evidenceId": "ev_fde5cb9d7772f3dc7d9a969b6ab56380",
+            "citationId": "ledger-ev_13a5d78ae70673b5ead40c5ef7b81ddb",
+            "evidenceId": "ev_13a5d78ae70673b5ead40c5ef7b81ddb",
             "canonicalSourceId": "https://wiki.example.org/oauth21-pkce",
             "canonicalUrl": "https://wiki.example.org/oauth21-pkce",
             "tier": "thin"
@@ -1065,7 +1025,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_thin",
           "reason": "旧路径本来就是搜索摘要薄证据，would-be 同为薄层（无降级）。",
-          "wouldBeCitationId": "ledger-ev_63ac767e0f91e5351b218b943db4c7ef",
+          "wouldBeCitationId": "ledger-ev_a2bdd3ca9fc70b0488ad2d8b94c8d3d4",
           "oldReaderKind": "search_snippet",
           "passageContentHashes": [
             "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b"
@@ -1076,8 +1036,8 @@
             "url": "https://docs.example.org/oauth21-draft"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_63ac767e0f91e5351b218b943db4c7ef",
-            "evidenceId": "ev_63ac767e0f91e5351b218b943db4c7ef",
+            "citationId": "ledger-ev_a2bdd3ca9fc70b0488ad2d8b94c8d3d4",
+            "evidenceId": "ev_a2bdd3ca9fc70b0488ad2d8b94c8d3d4",
             "canonicalSourceId": "https://docs.example.org/oauth21-draft",
             "tier": "thin",
             "selectionContentHash": "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b"
@@ -1095,7 +1055,7 @@
           "oldCitationId": "web-s2",
           "classification": "kept_thin",
           "reason": "旧路径本来就是搜索摘要薄证据，would-be 同为薄层（无降级）。",
-          "wouldBeCitationId": "ledger-ev_fde5cb9d7772f3dc7d9a969b6ab56380",
+          "wouldBeCitationId": "ledger-ev_13a5d78ae70673b5ead40c5ef7b81ddb",
           "oldReaderKind": "search_snippet",
           "passageContentHashes": [
             "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773"
@@ -1106,8 +1066,8 @@
             "url": "https://wiki.example.org/oauth21-pkce"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_fde5cb9d7772f3dc7d9a969b6ab56380",
-            "evidenceId": "ev_fde5cb9d7772f3dc7d9a969b6ab56380",
+            "citationId": "ledger-ev_13a5d78ae70673b5ead40c5ef7b81ddb",
+            "evidenceId": "ev_13a5d78ae70673b5ead40c5ef7b81ddb",
             "canonicalSourceId": "https://wiki.example.org/oauth21-pkce",
             "tier": "thin",
             "selectionContentHash": "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773"
@@ -1138,27 +1098,23 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -1189,22 +1145,22 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_c841646a73b7807136bcf56066b89b5f",
-            "evidenceId": "ev_c841646a73b7807136bcf56066b89b5f",
+            "citationId": "ledger-ev_d88f68fde6439c505bdb4cda1eff2e27",
+            "evidenceId": "ev_d88f68fde6439c505bdb4cda1eff2e27",
             "canonicalSourceId": "https://docs.example.org/wasm-runtimes",
             "canonicalUrl": "https://docs.example.org/wasm-runtimes",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_2ca0a4eddc2fef1a2b44f771dade0d76",
-            "evidenceId": "ev_2ca0a4eddc2fef1a2b44f771dade0d76",
+            "citationId": "ledger-ev_76aa555022220277031a89eacabd0867",
+            "evidenceId": "ev_76aa555022220277031a89eacabd0867",
             "canonicalSourceId": "https://wiki.example.org/wasm-server-cases",
             "canonicalUrl": "https://wiki.example.org/wasm-server-cases",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_556646b9bd7e794b5b3de6ad8d64d34c",
-            "evidenceId": "ev_556646b9bd7e794b5b3de6ad8d64d34c",
+            "citationId": "ledger-ev_823b89f99032e00a6271f7d0e7cbeed0",
+            "evidenceId": "ev_823b89f99032e00a6271f7d0e7cbeed0",
             "canonicalSourceId": "https://docs.example.org/wasm-performance",
             "canonicalUrl": "https://docs.example.org/wasm-performance",
             "tier": "thin"
@@ -1216,7 +1172,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_c841646a73b7807136bcf56066b89b5f",
+          "wouldBeCitationId": "ledger-ev_d88f68fde6439c505bdb4cda1eff2e27",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "f98063ce0326a34dfc982d99eaaad8125c00ecd9776d72ff6f9deca3fcc294d1",
@@ -1228,8 +1184,8 @@
             "url": "https://docs.example.org/wasm-runtimes"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_c841646a73b7807136bcf56066b89b5f",
-            "evidenceId": "ev_c841646a73b7807136bcf56066b89b5f",
+            "citationId": "ledger-ev_d88f68fde6439c505bdb4cda1eff2e27",
+            "evidenceId": "ev_d88f68fde6439c505bdb4cda1eff2e27",
             "canonicalSourceId": "https://docs.example.org/wasm-runtimes",
             "tier": "fulltext",
             "selectionContentHash": "0dc413d935e9c9b9198f80c3082662fe0b4b06f8e96c032c14a2acb398e5ada5"
@@ -1253,7 +1209,7 @@
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_2ca0a4eddc2fef1a2b44f771dade0d76",
+          "wouldBeCitationId": "ledger-ev_76aa555022220277031a89eacabd0867",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "3250043386dc823c067b1c2f9149a7ab8949eb8ff1712723c28da031dafe30e6"
@@ -1264,8 +1220,8 @@
             "url": "https://wiki.example.org/wasm-server-cases"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_2ca0a4eddc2fef1a2b44f771dade0d76",
-            "evidenceId": "ev_2ca0a4eddc2fef1a2b44f771dade0d76",
+            "citationId": "ledger-ev_76aa555022220277031a89eacabd0867",
+            "evidenceId": "ev_76aa555022220277031a89eacabd0867",
             "canonicalSourceId": "https://wiki.example.org/wasm-server-cases",
             "tier": "fulltext",
             "selectionContentHash": "5554cd56a221ae1a3f47b56980b12b0870afde3506d568399b734766939da622"
@@ -1283,7 +1239,7 @@
           "oldCitationId": "web-s3",
           "classification": "kept_thin",
           "reason": "旧路径本来就是搜索摘要薄证据，would-be 同为薄层（无降级）。",
-          "wouldBeCitationId": "ledger-ev_556646b9bd7e794b5b3de6ad8d64d34c",
+          "wouldBeCitationId": "ledger-ev_823b89f99032e00a6271f7d0e7cbeed0",
           "oldReaderKind": "search_snippet",
           "passageContentHashes": [
             "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41"
@@ -1294,8 +1250,8 @@
             "url": "https://docs.example.org/wasm-performance"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_556646b9bd7e794b5b3de6ad8d64d34c",
-            "evidenceId": "ev_556646b9bd7e794b5b3de6ad8d64d34c",
+            "citationId": "ledger-ev_823b89f99032e00a6271f7d0e7cbeed0",
+            "evidenceId": "ev_823b89f99032e00a6271f7d0e7cbeed0",
             "canonicalSourceId": "https://docs.example.org/wasm-performance",
             "tier": "thin",
             "selectionContentHash": "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41"
@@ -1326,27 +1282,23 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -1372,15 +1324,15 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_f9d51e023fe42575777b23e869b41cac",
-            "evidenceId": "ev_f9d51e023fe42575777b23e869b41cac",
+            "citationId": "ledger-ev_b39a25b71c004f8cc6c6c6339e493562",
+            "evidenceId": "ev_b39a25b71c004f8cc6c6c6339e493562",
             "canonicalSourceId": "https://github.com/redis/redis/releases",
             "canonicalUrl": "https://github.com/redis/redis/releases",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_6c0e882a65e0c3ee9322b0ce512cc3fc",
-            "evidenceId": "ev_6c0e882a65e0c3ee9322b0ce512cc3fc",
+            "citationId": "ledger-ev_5550aab209cec0121c0aed0cce00e4d0",
+            "evidenceId": "ev_5550aab209cec0121c0aed0cce00e4d0",
             "canonicalSourceId": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES",
             "canonicalUrl": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES",
             "tier": "fulltext"
@@ -1392,7 +1344,7 @@
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_6c0e882a65e0c3ee9322b0ce512cc3fc",
+          "wouldBeCitationId": "ledger-ev_5550aab209cec0121c0aed0cce00e4d0",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "79aea05af1ef2acd079a468f465d7a1a95328bd62cccd00edc2315eb763a06b6"
@@ -1403,8 +1355,8 @@
             "url": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_6c0e882a65e0c3ee9322b0ce512cc3fc",
-            "evidenceId": "ev_6c0e882a65e0c3ee9322b0ce512cc3fc",
+            "citationId": "ledger-ev_5550aab209cec0121c0aed0cce00e4d0",
+            "evidenceId": "ev_5550aab209cec0121c0aed0cce00e4d0",
             "canonicalSourceId": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES",
             "tier": "fulltext",
             "selectionContentHash": "de1b296ed3d02d0deae9128f34188f146fdeb76ce17809723a66d19c6abc9620"
@@ -1422,7 +1374,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_f9d51e023fe42575777b23e869b41cac",
+          "wouldBeCitationId": "ledger-ev_b39a25b71c004f8cc6c6c6339e493562",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "d0c9b5ca101116a0582132267c940475ff92b2c3f429331c0cdbc4c5f7457d66",
@@ -1434,8 +1386,8 @@
             "url": "https://github.com/redis/redis/releases"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_f9d51e023fe42575777b23e869b41cac",
-            "evidenceId": "ev_f9d51e023fe42575777b23e869b41cac",
+            "citationId": "ledger-ev_b39a25b71c004f8cc6c6c6339e493562",
+            "evidenceId": "ev_b39a25b71c004f8cc6c6c6339e493562",
             "canonicalSourceId": "https://github.com/redis/redis/releases",
             "tier": "fulltext",
             "selectionContentHash": "7d67c92d5f94015f02ada81149634b9ddc7e17d0c73452f30198bba84eb1ac60"
@@ -1472,27 +1424,23 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"
@@ -1518,15 +1466,15 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_75ed07b8be82b144d573e3246568699d",
-            "evidenceId": "ev_75ed07b8be82b144d573e3246568699d",
+            "citationId": "ledger-ev_7c6768801f0283aec1b118d0638f0475",
+            "evidenceId": "ev_7c6768801f0283aec1b118d0638f0475",
             "canonicalSourceId": "https://wiki.example.org/quic-tls",
             "canonicalUrl": "https://wiki.example.org/quic-tls",
             "tier": "fulltext"
           },
           {
-            "citationId": "ledger-ev_24ab729ce15ca1b800f19d4853eb07dc",
-            "evidenceId": "ev_24ab729ce15ca1b800f19d4853eb07dc",
+            "citationId": "ledger-ev_70db7361bc02b39845094b8d81aaf283",
+            "evidenceId": "ev_70db7361bc02b39845094b8d81aaf283",
             "canonicalSourceId": "https://docs.example.org/quic-handshake",
             "canonicalUrl": "https://docs.example.org/quic-handshake",
             "tier": "fulltext"
@@ -1538,7 +1486,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_24ab729ce15ca1b800f19d4853eb07dc",
+          "wouldBeCitationId": "ledger-ev_70db7361bc02b39845094b8d81aaf283",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
@@ -1549,8 +1497,8 @@
             "url": "https://docs.example.org/quic-handshake"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_24ab729ce15ca1b800f19d4853eb07dc",
-            "evidenceId": "ev_24ab729ce15ca1b800f19d4853eb07dc",
+            "citationId": "ledger-ev_70db7361bc02b39845094b8d81aaf283",
+            "evidenceId": "ev_70db7361bc02b39845094b8d81aaf283",
             "canonicalSourceId": "https://docs.example.org/quic-handshake",
             "tier": "fulltext",
             "selectionContentHash": "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
@@ -1568,7 +1516,7 @@
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_75ed07b8be82b144d573e3246568699d",
+          "wouldBeCitationId": "ledger-ev_7c6768801f0283aec1b118d0638f0475",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61"
@@ -1579,8 +1527,8 @@
             "url": "https://wiki.example.org/quic-tls"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_75ed07b8be82b144d573e3246568699d",
-            "evidenceId": "ev_75ed07b8be82b144d573e3246568699d",
+            "citationId": "ledger-ev_7c6768801f0283aec1b118d0638f0475",
+            "evidenceId": "ev_7c6768801f0283aec1b118d0638f0475",
             "canonicalSourceId": "https://wiki.example.org/quic-tls",
             "tier": "fulltext",
             "selectionContentHash": "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61"
@@ -1611,27 +1559,23 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "wouldBe": {
-          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
           "requiredCheckFailures": [],
-          "quality": "insufficient",
-          "coverageRatio": 0,
+          "quality": "limited",
+          "coverageRatio": 1,
           "limitations": [
-            "no_relevant_evidence",
-            "public_search_unavailable"
+            "public_source_provenance_unverified",
+            "thin_evidence_pack"
           ]
         },
         "semanticClaimSupport": "not_evaluated（人工/Judge 口径，无法离线评估）"

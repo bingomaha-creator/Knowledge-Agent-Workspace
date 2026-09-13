@@ -464,6 +464,7 @@ export function buildWouldBeEvidencePack({
         passageContentHash: computeContentHash(passage),
         sourceId: entry.canonicalSourceId,
         subquestionId: entry.subquestionId,
+        queries: [entry.query].filter(Boolean),
         readerKind: tier === 'thin' ? 'search_snippet' : entry.readerKind,
         tier
       });

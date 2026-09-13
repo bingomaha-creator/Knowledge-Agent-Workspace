@@ -269,7 +269,8 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
         runPackThroughDelivery({ pack: wouldBePack, testCase, writerMode: testCase.fixtures.writer || 'faithful' })
       ]);
       assert.equal(oldDelivery.task.status, 'completed', `${testCase.id} 旧 Pack 交付应收敛 completed`);
-      assert.equal(wouldBeDelivery.task.status, 'completed', `${testCase.id} would-be Pack 交付应收敛 completed`);
+      assert.equal(wouldBeDelivery.task.status, 'completed',
+        `${testCase.id} would-be Pack 交付应收敛 completed（error=${wouldBeDelivery.task?.error || '无'}，failedStage=${wouldBeDelivery.task?.failedStage || '无'}）`);
       // 交付合法性：两边各自独立判定，分别记录（不能用"同样失败"证明通过）
       assert.equal(wouldBeDelivery.deliveryLegal, oldDelivery.deliveryLegal,
         `${testCase.id} 交付合法性不得劣化`);
