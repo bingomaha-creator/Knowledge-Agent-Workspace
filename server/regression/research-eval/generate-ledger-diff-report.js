@@ -10,11 +10,13 @@
  *
  * 用法：npm run eval:ledger-report [-- --case <id>]
  */
+import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createFixtureAdapters, runEvalCase, runPackThroughDelivery } from './harness.js';
+import { resolveBaselineOutputPath } from './output-path.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const caseFilter = (() => {
@@ -47,8 +49,7 @@ async function main() {
         includeLedger: true
       });
       const { task, ledger } = run;
-      const planSubquestions = (task.artifacts.plan?.subquestions || []);
-      const subquestionOrder = planSubquestions.map((item) => item.id);
+      const subquestionOrder = (task.artifacts.plan?.subquestions || []).map((item) => item.id);
       const oldPack = {
         citations: task.artifacts.citations || [],
         evidence: task.artifacts.evidence || []
@@ -57,18 +58,10 @@ async function main() {
         citations: ledger.diff?.wouldBeCitations || [],
         evidence: ledger.diff?.wouldBeEvidence || []
       };
-      const oldDelivery = runPackThroughDelivery({
-        pack: oldPack,
-        question: testCase.question,
-        searchMode: testCase.searchMode,
-        subquestions: planSubquestions
-      });
-      const wouldBeDelivery = runPackThroughDelivery({
-        pack: wouldBePack,
-        question: testCase.question,
-        searchMode: testCase.searchMode,
-        subquestions: planSubquestions
-      });
+      const [oldDelivery, wouldBeDelivery] = await Promise.all([
+        runPackThroughDelivery({ pack: oldPack, testCase, writerMode: testCase.fixtures.writer || 'faithful' }),
+        runPackThroughDelivery({ pack: wouldBePack, testCase, writerMode: testCase.fixtures.writer || 'faithful' })
+      ]);
 
       // 逐项差异（含 passage 安全摘要 + passage 内容指纹）
       const diffItems = (ledger.diff?.items || []).map((item) => {
@@ -81,6 +74,7 @@ async function main() {
             .map((item) => ({
               passageDigest: item.passage.slice(0, 120),
               passageLength: item.passage.length,
+              passageContentHash: item.passageContentHash,
               tier: item.tier
             }))
           : [];
@@ -96,13 +90,25 @@ async function main() {
               evidenceId: wouldBeCitation.sourceEntryId,
               canonicalSourceId: wouldBeCitation.canonicalSourceId || '',
               tier: wouldBeCitation.tier,
-              passageContentHash: wouldBeCitation.passageContentHash
+              // citation 级汇总指纹（显式命名）；逐段指纹见 passages[].passageContentHash
+              selectionContentHash: wouldBeCitation.selectionContentHash || ''
             }
             : null,
           passages
         };
       });
 
+      // 身份完整性自检：来源身份、选段指纹与分类理由不得为空（Spec 可核对性要求）
+      for (const item of diffItems) {
+        if (item.wouldBeIdentity) {
+          assert.ok(item.wouldBeIdentity.canonicalSourceId, `${testCase.id} would-be 身份缺 canonicalSourceId`);
+          assert.ok(item.wouldBeIdentity.selectionContentHash, `${testCase.id} would-be 身份缺 selectionContentHash`);
+        }
+        assert.ok(item.reason, `${testCase.id} 差异项 ${item.oldCitationId} 缺分类理由`);
+        for (const passage of item.passages) {
+          assert.ok(passage.passageDigest, `${testCase.id} passage 摘要不得为空`);
+        }
+      }
       reportCases.push({
         caseId: testCase.id,
         searchMode: testCase.searchMode,
@@ -130,7 +136,7 @@ async function main() {
           old: {
             deliveryLegal: oldDelivery.deliveryLegal,
             citationValidity: oldDelivery.citationValidity,
-            writerMode: oldDelivery.writer.mode,
+            writerMode: oldDelivery.writerMode,
             requiredCheckFailures: oldDelivery.verdict.deliveryFailures,
             quality: oldDelivery.quality.quality,
             coverageRatio: oldDelivery.quality.metrics.coverageRatio,
@@ -139,7 +145,7 @@ async function main() {
           wouldBe: {
             deliveryLegal: wouldBeDelivery.deliveryLegal,
             citationValidity: wouldBeDelivery.citationValidity,
-            writerMode: wouldBeDelivery.writer.mode,
+            writerMode: wouldBeDelivery.writerMode,
             requiredCheckFailures: wouldBeDelivery.verdict.deliveryFailures,
             quality: wouldBeDelivery.quality.quality,
             coverageRatio: wouldBeDelivery.quality.metrics.coverageRatio,
@@ -169,14 +175,22 @@ async function main() {
 
   const outputDir = path.join(here, 'baselines');
   fs.mkdirSync(outputDir, { recursive: true });
-  const outputPath = path.join(outputDir, 'ledger-would-be-diff-report.json');
+  // 路径守卫：--case 子集运行只能写 diagnostics，绝不覆盖 canonical 报告。
+  const resolvedOutput = resolveBaselineOutputPath({
+    baselineDir: outputDir,
+    partialRun: Boolean(caseFilter),
+    caseIds: selectedCases.map((item) => item.id),
+    timestamp: new Date(),
+    fileName: 'ledger-would-be-diff-report.json'
+  });
+  const outputPath = resolvedOutput.path;
   fs.writeFileSync(outputPath, `${JSON.stringify(report, null, 2)}\n`);
   console.log(`差异报告已写入 ${outputPath}（status=pending_review，共 ${reportCases.length} 个 case）`);
   for (const item of reportCases) {
     const counts = item.counts || {};
     console.log(
       `[report] ${item.caseId}: unexpectedLoss=${counts.unexpectedLoss ?? 0}` +
-      ` keptFulltext=${counts.keptFulltext ?? 0} keptThinDowngraded=${counts.keptThinDowngraded ?? 0}` +
+      ` keptFulltext=${counts.keptFulltext ?? 0} keptThin=${counts.keptThin ?? 0} downgraded=${counts.downgraded ?? 0}` +
       ` coverage ${item.coverage.old}→${item.coverage.wouldBe}`
     );
   }

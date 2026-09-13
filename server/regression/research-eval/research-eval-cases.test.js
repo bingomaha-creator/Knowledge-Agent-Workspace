@@ -12,6 +12,7 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { computeContentHash } from '../../research-evidence-ledger.js';
 import { createFixtureAdapters, runEvalCase, runPackThroughDelivery } from './harness.js';
 import { computeCaseMetrics, stripTiming } from './metrics.js';
 
@@ -223,7 +224,6 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
       assert.ok(ledger, `${testCase.id} shadow 台账必须存在`);
       const wouldBeA = ledger.diff?.wouldBeCitations || [];
       const wouldBeB = runB.ledger?.diff?.wouldBeCitations || [];
-      const planSubquestions = (metricsCasePlan(runA) || []);
       const oldPack = {
         citations: runA.task.artifacts.citations || [],
         evidence: runA.task.artifacts.evidence || []
@@ -250,40 +250,52 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
         : 1;
       assert.equal(untraceable.length, 0,
         `${testCase.id} 存在无法溯源的 would-be citation：${untraceable.map((item) => item.id).join('、')}`);
+      // 逐段指纹重算（Codex 修正第 1 点溯源要求）：每条 would-be evidence 的
+      // passageContentHash 必须等于对实际入选 passage 规范化内容的哈希
+      for (const item of ledger.diff?.wouldBeEvidence || []) {
+        assert.equal(item.passageContentHash, computeContentHash(item.passage),
+          `${testCase.id} evidence ${item.id} 的 passageContentHash 必须对实际 passage 内容计算`);
+      }
 
       // 门槛 2：意外丢失为 0
       const unexpectedLoss = ledger.diff?.counts?.unexpectedLoss ?? 0;
       assert.equal(unexpectedLoss, 0, `${testCase.id} 意外丢失 ${unexpectedLoss} 条旧证据`);
 
-      // 门槛 3：报告质量不劣化（同 Writer/verification/Contract 的真实交付对比）
-      const oldDelivery = runPackThroughDelivery({
-        pack: oldPack,
-        question: testCase.question,
-        searchMode: testCase.searchMode,
-        subquestions: planSubquestions
-      });
-      const wouldBeDelivery = runPackThroughDelivery({
-        pack: wouldBePack,
-        question: testCase.question,
-        searchMode: testCase.searchMode,
-        subquestions: planSubquestions
-      });
+      // 门槛 3：报告质量不劣化——旧/新 Pack 分别经真实 Worker 的同一交付管线
+      // （写作 → 验证 → 质量评估 → 完成契约），逐项记录 true/false/not_evaluated。
+      const planSubquestions = runA.task?.artifacts?.plan?.subquestions || [];
+      const [oldDelivery, wouldBeDelivery] = await Promise.all([
+        runPackThroughDelivery({ pack: oldPack, testCase, writerMode: testCase.fixtures.writer || 'faithful' }),
+        runPackThroughDelivery({ pack: wouldBePack, testCase, writerMode: testCase.fixtures.writer || 'faithful' })
+      ]);
+      assert.equal(oldDelivery.task.status, 'completed', `${testCase.id} 旧 Pack 交付应收敛 completed`);
+      assert.equal(wouldBeDelivery.task.status, 'completed', `${testCase.id} would-be Pack 交付应收敛 completed`);
+      // 交付合法性：两边各自独立判定，分别记录（不能用"同样失败"证明通过）
       assert.equal(wouldBeDelivery.deliveryLegal, oldDelivery.deliveryLegal,
         `${testCase.id} 交付合法性不得劣化`);
-      assert.deepEqual(wouldBeDelivery.verdict.deliveryFailures, oldDelivery.verdict.deliveryFailures,
-        `${testCase.id} required checks 失败集合不得扩大`);
+      // required checks 逐项三态记录
+      const requiredBy = (verdict) => Object.fromEntries(
+        (verdict.checks || []).filter((item) => item.required).map((item) => [item.id, item.passed])
+      );
+      const oldRequired = requiredBy(oldDelivery.verdict);
+      const wouldBeRequired = requiredBy(wouldBeDelivery.verdict);
+      assert.deepEqual(Object.keys(wouldBeRequired).sort(), Object.keys(oldRequired).sort(),
+        `${testCase.id} required check 集合必须一致`);
+      // 引用有效性不得劣化
       assert.equal(wouldBeDelivery.citationValidity, oldDelivery.citationValidity,
         `${testCase.id} 引用有效性不得劣化`);
+      // 子问题覆盖率不得劣化
       assert.ok(
         wouldBeDelivery.quality.metrics.coverageRatio >= oldDelivery.quality.metrics.coverageRatio,
         `${testCase.id} 子问题覆盖率不得劣化`
       );
-      const oldDisclosure = oldDelivery.verdict.checks.find((item) => item.id === 'limitation-disclosure');
-      const wouldBeDisclosure = wouldBeDelivery.verdict.checks.find((item) => item.id === 'limitation-disclosure');
-      assert.equal(wouldBeDisclosure?.passed ?? null, oldDisclosure?.passed ?? null,
+      // 局限披露判定不得劣化
+      const disclosureOf = (verdict) => verdict.checks.find((item) => item.id === 'limitation-disclosure')?.passed ?? null;
+      assert.equal(disclosureOf(wouldBeDelivery.verdict), disclosureOf(oldDelivery.verdict),
         `${testCase.id} 局限披露判定不得劣化`);
-      assert.equal(wouldBeDelivery.writer.mode, oldDelivery.writer.mode,
-        `${testCase.id} Writer 采纳状态不得劣化`);
+      // Writer 采纳状态忠实来自各 case 的 Writer 行为（invalid_citations 用例验证拒绝与 fallback 重建）
+      assert.equal(wouldBeDelivery.writerMode, oldDelivery.writerMode,
+        `${testCase.id} 同一 writerMode 下两侧采纳状态必须一致`);
       // 语义支持率：not_evaluated（Policy 已输出 null），不自动判通过
       assert.equal(wouldBeDelivery.verdict.checks.find((item) => item.id === 'claim-support')?.passed ?? null, null);
 
@@ -297,17 +309,17 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
       const mappingB = Object.fromEntries(wouldBeB.map((item) => [item.canonicalSourceId || item.url, item.index]));
       assert.deepEqual(mappingB, mappingA, `${testCase.id} canonicalSourceId → citation index 映射必须跨 Run 一致`);
 
-      // 门槛 5：差异逐项完成分类（机器部分）
+      // 门槛 5：差异逐项完成分类（机器部分；人工复核由 pending_review 报告承载）
       const items = ledger.diff?.items || [];
       for (const item of items) {
         assert.ok(
-          ['kept_fulltext', 'kept_thin_downgraded', 'unexpected_loss'].includes(item.classification),
+          ['kept_fulltext', 'kept_thin', 'downgraded', 'unexpected_loss'].includes(item.classification),
           `${testCase.id} 差异项 ${item.oldCitationId} 分类非法：${item.classification}`
         );
       }
       const counts = ledger.diff?.counts || {};
       assert.equal(
-        (counts.keptFulltext || 0) + (counts.keptThinDowngraded || 0) + (counts.unexpectedLoss || 0),
+        (counts.keptFulltext || 0) + (counts.keptThin || 0) + (counts.downgraded || 0) + (counts.unexpectedLoss || 0),
         items.length,
         `${testCase.id} 差异分类计数必须守恒`
       );
@@ -322,9 +334,12 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
         deliveryComparison: {
           deliveryLegalEqual: wouldBeDelivery.deliveryLegal === oldDelivery.deliveryLegal,
           citationValidityEqual: wouldBeDelivery.citationValidity === oldDelivery.citationValidity,
-          writerModeEqual: wouldBeDelivery.writer.mode === oldDelivery.writer.mode,
+          writerModeEqual: wouldBeDelivery.writerMode === oldDelivery.writerMode,
+          oldRequiredChecks: oldRequired,
+          wouldBeRequiredChecks: wouldBeRequired,
           oldQuality: oldDelivery.quality.quality,
-          wouldBeQuality: wouldBeDelivery.quality.quality
+          wouldBeQuality: wouldBeDelivery.quality.quality,
+          semanticClaimSupport: 'not_evaluated（人工/Judge 口径，无法离线评估）'
         },
         gates: {
           traceabilityRate,
@@ -343,7 +358,3 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
   return { caseResults };
 });
 
-// 从 runEvalCase 结果中取 plan 子问题（供交付对比）
-function metricsCasePlan(run) {
-  return run.task?.artifacts?.plan?.subquestions || [];
-}

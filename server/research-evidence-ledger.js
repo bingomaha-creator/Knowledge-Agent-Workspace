@@ -431,13 +431,19 @@ export function buildWouldBeEvidencePack({
       admissionExcluded.push({ evidenceId: entry.evidenceId, reason: 'no_usable_passage' });
       continue;
     }
-    // passage 内容指纹（Codex 修正第 1 点）：与 source 内容身份（entry.contentHash）
-    // 分离——全文层为选段所依据的 artifact 内容，薄层为发现摘要本身。
-    const passageContentHash = computeContentHash(content);
+    // 内容指纹三层分离（Codex 修正第 1 点）：
+    // - entry.contentHash：来源内容身份（Reader 实际取得的完整规范化正文）；
+    // - citation.selectionContentHash：选段所依据内容的汇总指纹（全文层=artifact
+    //   内容；薄层=发现摘要），命名显式、不冒充每段哈希；
+    // - evidence.passageContentHash：对每条实际入选 passage 的规范化内容逐一计算，
+    //   可直接追溯到被 Writer 使用的 passage 内容。
+    const selectionContentHash = computeContentHash(content);
     citations.push({
       id: citationId,
       index: citationNumber,
       title: entry.title,
+      canonicalSourceId: entry.canonicalSourceId,
+      canonicalUrl: entry.canonicalUrl,
       url: entry.canonicalUrl,
       kind: entry.sourceChannel,
       subquestionId: entry.subquestionId,
@@ -446,7 +452,7 @@ export function buildWouldBeEvidencePack({
       tier,
       readerKind: tier === 'thin' ? 'search_snippet' : entry.readerKind,
       contentHash: entry.contentHash,
-      passageContentHash
+      selectionContentHash
     });
     selected.forEach((passage, passageIndex) => {
       evidence.push({
@@ -455,7 +461,7 @@ export function buildWouldBeEvidencePack({
         citationNumber,
         claim: deriveClaim(passage),
         passage,
-        passageContentHash,
+        passageContentHash: computeContentHash(passage),
         sourceId: entry.canonicalSourceId,
         subquestionId: entry.subquestionId,
         readerKind: tier === 'thin' ? 'search_snippet' : entry.readerKind,
@@ -479,11 +485,13 @@ export function buildWouldBeEvidencePack({
 /**
  * would-be Evidence Pack 与旧 Writer 输入的逐项差异分类（机器可读、可人工复核）。
  *
- * 分类（按旧 citation 逐项）：
+ * 分类（按旧 citation 逐项，区分旧路径本来形态与真正降级——Codex 修正第 4 点）：
  * - kept_fulltext：would-be 以全文层保留；
- * - kept_thin_downgraded（预期降级）：would-be 以搜索摘要薄证据保留（Reader 失败）；
+ * - kept_thin：旧路径该 citation 本来就是 snippet 薄证据，would-be 同为薄层（无降级）；
+ * - downgraded：旧路径为全文、would-be 仅为薄层——真正的质量降级（独立计数）；
  * - unexpected_loss（意外丢失）：would-be 中不存在且无正当理由——primary 门槛 2 计数项；
  * - ledger_added：would-be 新纳入（信息项，非丢失）。
+ * 每项携带 would-be evidence 的 passageContentHash（实际入选 passage 指纹）。
  */
 export function buildWouldBePackDiff({
   entries,
@@ -500,11 +508,20 @@ export function buildWouldBePackDiff({
   const wouldBeByEntryId = new Map(
     (wouldBe?.citations || []).map((item) => [item.sourceEntryId, item])
   );
+  // 旧 evidence 的实际 reader 形态（search_snippet = 旧路径本来就是薄证据）
+  const oldReaderKindByCitationId = new Map(
+    (Array.isArray(oldEvidence) ? oldEvidence : []).map((item) => [item.citationId, item.readerKind])
+  );
 
   const items = [];
   for (const oldCitation of Array.isArray(oldCitations) ? oldCitations : []) {
     const entry = entryByOldCitationId.get(oldCitation.id);
     const wouldBeCitation = entry ? wouldBeByEntryId.get(entry.evidenceId) : null;
+    const oldReaderKind = oldReaderKindByCitationId.get(oldCitation.id) || '';
+    // would-be 侧的入选 passage 指纹（该来源的全部 passage 哈希）
+    const wouldBePassageHashes = (wouldBe?.evidence || [])
+      .filter((item) => item.citationId === wouldBeCitation?.id)
+      .map((item) => item.passageContentHash);
 
     let classification;
     let reason;
@@ -512,9 +529,12 @@ export function buildWouldBePackDiff({
       if (entry.readingStatus === 'succeeded') {
         classification = 'kept_fulltext';
         reason = 'would-be 以全文层保留该来源。';
+      } else if (oldReaderKind === 'search_snippet') {
+        classification = 'kept_thin';
+        reason = '旧路径本来就是搜索摘要薄证据，would-be 同为薄层（无降级）。';
       } else {
-        classification = 'kept_thin_downgraded';
-        reason = 'Reader 读取失败，would-be 以搜索摘要薄证据保留（预期降级）。';
+        classification = 'downgraded';
+        reason = '旧路径为全文证据，would-be 仅为薄层——真正的质量降级（独立计数）。';
       }
     } else if (entry) {
       classification = 'unexpected_loss';
@@ -528,6 +548,8 @@ export function buildWouldBePackDiff({
       classification,
       reason,
       wouldBeCitationId: wouldBeCitation?.id || null,
+      oldReaderKind,
+      passageContentHashes: wouldBePassageHashes,
       title: oldCitation.title || ''
     });
   }
@@ -545,23 +567,21 @@ export function buildWouldBePackDiff({
   const total = Math.max(1, subquestionOrder.length);
   const ratio = (size) => Number((size / total).toFixed(4));
 
-  const keptItems = items.filter((item) => item.classification === 'kept_fulltext').length;
-  const thinItems = items.filter((item) => item.classification === 'kept_thin_downgraded').length;
-  const lossItems = items.filter((item) => item.classification === 'unexpected_loss').length;
-  const addedItems = (wouldBe?.citations || []).filter(
-    (item) => !items.some((old) => old.wouldBeCitationId === item.id)
-  ).length;
+  const counts = {
+    oldCitations: items.length,
+    keptFulltext: items.filter((item) => item.classification === 'kept_fulltext').length,
+    keptThin: items.filter((item) => item.classification === 'kept_thin').length,
+    downgraded: items.filter((item) => item.classification === 'downgraded').length,
+    unexpectedLoss: items.filter((item) => item.classification === 'unexpected_loss').length,
+    ledgerAdded: (wouldBe?.citations || []).filter(
+      (item) => !items.some((old) => old.wouldBeCitationId === item.id)
+    ).length
+  };
 
   return {
     diagnostic: 'would_be_pack_diff',
     items,
-    counts: {
-      oldCitations: items.length,
-      keptFulltext: keptItems,
-      keptThinDowngraded: thinItems,
-      unexpectedLoss: lossItems,
-      ledgerAdded: addedItems
-    },
+    counts,
     coverage: {
       old: ratio(coveredOld.size),
       wouldBe: ratio(coveredWouldBe.size),

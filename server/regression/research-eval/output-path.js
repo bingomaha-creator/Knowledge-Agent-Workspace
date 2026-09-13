@@ -26,19 +26,28 @@ export function slugCaseIds(caseIds) {
 }
 
 /**
- * 解析本次 live 运行的基线输出位置。
+ * 解析本次 live 运行/报告生成的输出位置。
  *
  * @param {object} input
  * @param {string} input.baselineDir baselines 目录绝对路径
  * @param {boolean} input.partialRun true 表示 --case 子集运行（只允许 diagnostics）
  * @param {string[]} input.caseIds 实际执行的 caseId（用于诊断文件名）
  * @param {Date} input.timestamp 运行完成时间（诊断文件名时间戳）
+ * @param {string} [input.fileName='phase0-baseline.json'] canonical 文件名
+ *   （差异报告生成器传 'ledger-would-be-diff-report.json'，守卫语义相同：
+ *   子集运行只允许 diagnostics，绝不覆盖 canonical）。
  * @returns {{ path: string, kind: 'canonical' | 'diagnostics' }}
  */
-export function resolveBaselineOutputPath({ baselineDir, partialRun, caseIds, timestamp }) {
+export function resolveBaselineOutputPath({
+  baselineDir,
+  partialRun,
+  caseIds,
+  timestamp,
+  fileName = 'phase0-baseline.json'
+}) {
   if (!baselineDir) throw new TypeError('resolveBaselineOutputPath requires baselineDir');
   if (!partialRun) {
-    return { path: `${baselineDir}/phase0-baseline.json`, kind: 'canonical' };
+    return { path: `${baselineDir}/${fileName}`, kind: 'canonical' };
   }
   const stamp = (timestamp instanceof Date ? timestamp : new Date())
     .toISOString()

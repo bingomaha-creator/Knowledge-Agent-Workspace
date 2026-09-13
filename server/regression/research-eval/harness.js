@@ -6,9 +6,11 @@
  * live 模式由 research-eval-live.js 注入真实 Qwen / 博查 / Reader 适配器。
  * Store 使用一次性临时 SQLite 文件，与开发数据库完全隔离。
  */
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { createResearchStore } from '../../research-store.js';
 import { createResearchWorker } from '../../research-worker.js';
-import { verifyReport } from '../../research-report.js';
 import { assessResearchQuality } from '../../research-quality.js';
 import { evaluateCompletionContract } from '../../research-completion-policy.js';
 import { computeCaseMetrics } from './metrics.js';
@@ -160,77 +162,134 @@ export async function runEvalCase({ testCase, adapters, mode, dbPath, includeLed
 }
 
 /**
- * 让指定 Evidence Pack（旧路径或 Ledger would-be）经历同一确定性 Writer、
- * verifyReport 与 Completion Contract（shadow 口径），返回交付结果摘要。
- * 用于第二交付门的"报告质量不劣化"对比：交付合法性、required checks、
- * 引用有效性、子问题覆盖、局限披露、Writer 采纳状态。语义支持率等无法
- * 离线评估的指标显式 not_evaluated（Spec research-harness §8.1/§13.4）。
+ * 让指定 Evidence Pack（旧路径或 Ledger would-be）经真实 Worker 的完整交付管线
+ * （写作 → 验证 → 质量评估 → 完成契约），返回交付结果摘要。
+ *
+ * 注入方式（Codex 修正第 2 点）：通过适配器把 Pack 注入检索/读取阶段——
+ * - 全文层来源提供 content（Reader 成功路径）；
+ * - 薄层来源仅提供 snippet（Reader 失败 → snippet 回退自然发生）；
+ * - Writer 行为忠实传入（writerMode：faithful | invalid_citations），
+ *   invalid-citations 用例真实验证拒绝与确定性 fallback 重建。
+ * 不复制 Worker 语义：readSourceCount 由真实读取诊断按独立来源去重计数。
+ * 语义支持率等无法离线评估的指标显式 not_evaluated（Policy 已输出 null）。
  *
  * @param {object} input
  * @param {object} input.pack { citations, evidence }——待评估的 Evidence Pack
- * @param {string} input.question 研究问题
- * @param {string} [input.searchMode] 检索模式
- * @param {Array} [input.subquestions] 子问题（含 question），供覆盖率评估
+ * @param {object} input.testCase Phase 0 case（提供 plan/searchQuery 映射）
  * @param {string} [input.writerMode] faithful | invalid_citations
  */
-export function runPackThroughDelivery({ pack, question, searchMode = 'web', subquestions = [], writerMode = 'faithful' }) {
-  const citations = Array.isArray(pack.citations) ? pack.citations : [];
-  const evidence = Array.isArray(pack.evidence) ? pack.evidence : [];
-  const lines = writerMode === 'invalid_citations'
-    ? evidence.map((item) => `- ${item.claim} [99]`)
-    : evidence.map((item) => `- ${item.claim} [${item.citationNumber}]`);
-  const draftReport = [
-    '## 研究范围与方法',
-    '评测基线。',
-    ...lines,
-    '## 综合结论、限制与下一步',
-    '以上结论仅基于本轮证据。'
-  ].join('\n');
-  // 上面的 join 使用真实换行：这里手工构造与 worker 写作阶段一致的报告结构。
-  const verified = verifyReport(draftReport, citations);
-  const adopted = verified.verification.valid && verified.verification.referencedCitationIds.length > 0;
-  const writer = adopted
-    ? { mode: 'model', status: 'success', reasonCode: '', fallbackReason: '' }
-    : { mode: 'fallback', status: 'degraded', reasonCode: 'invalid_citations', fallbackReason: '引用未通过校验' };
+export async function runPackThroughDelivery({ pack, testCase, writerMode = 'faithful' }) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pack-delivery-'));
+  const store = createResearchStore(path.join(dir, 'pack.sqlite'));
+  try {
+    const plan = testCase.fixtures.plan.subquestions;
+    const planByQuestion = new Map(plan.map((item) => [item.question, item]));
 
-  const snippetFallbackCount = evidence.filter((item) => item.readerKind === 'search_snippet').length;
-  const quality = assessResearchQuality(
-    { question, searchMode, knowledgeBaseIds: [] },
-    {
-      citations,
-      evidence,
-      verification: verified.verification,
-      evidencePack: {
-        acceptedCount: citations.length,
-        readSourceCount: evidence.filter((item) => item.readerKind !== 'search_snippet').length,
-        passageCount: evidence.length,
-        totalCharacters: evidence.reduce((sum, item) => sum + item.passage.length, 0),
-        snippetFallbackCount
-      },
-      writer,
-      subquestions: subquestions.map((item) => item.question)
+    // Pack citations 按子问题分组：would-be citation 带 subquestionId；
+    // 旧 citation 经 queries[0]（子问题 question）反查。
+    const sourcesByQuery = {};
+    for (const citation of Array.isArray(pack.citations) ? pack.citations : []) {
+      const sub = citation.subquestionId
+        ? plan.find((item) => item.id === citation.subquestionId)
+        : planByQuestion.get((citation.queries || [])[0]);
+      if (!sub) continue;
+      const passages = (Array.isArray(pack.evidence) ? pack.evidence : [])
+        .filter((item) => item.citationId === citation.id);
+      if (!passages.length) continue;
+      const sourceId = `src-${citation.id}`;
+      const fulltext = passages.some((item) => item.readerKind !== 'search_snippet');
+      (sourcesByQuery[sub.searchQuery] ||= []).push({
+        id: sourceId,
+        title: citation.title || '',
+        url: citation.url || `https://pack.local/${encodeURIComponent(sourceId)}`,
+        snippet: passages[0].passage.slice(0, 1_000),
+        content: fulltext ? passages.map((item) => item.passage).join('\n\n') : undefined
+      });
     }
-  );
-  const verdict = evaluateCompletionContract({
-    task: { report: verified.report, resultQuality: quality.quality, searchMode },
-    artifacts: {
-      citations,
-      evidence,
-      verification: verified.verification,
-      diagnostics: { writing: writer },
-      plan: { subquestions: subquestions.map((item) => ({ id: item.id, question: item.question })) },
-      quality
-    },
-    mode: 'shadow'
-  });
 
-  return {
-    report: verified.report,
-    verification: verified.verification,
-    writer,
-    quality,
-    verdict,
-    deliveryLegal: verdict.passed === true,
-    citationValidity: verified.verification.valid === true
-  };
+    const adapters = {
+      planResearch: async () => ({
+        planner: 'fixture',
+        subquestions: plan,
+        diagnostics: { mode: 'fixture', status: 'success', durationMs: 0, inputTokens: 0, outputTokens: 0 }
+      }),
+      searchSources: async ({ query, searchMode }) => {
+        const entry = sourcesByQuery[query] || {};
+        const web = searchMode === 'local' ? [] : (entry.web || entry.local || []);
+        const local = searchMode === 'web' ? [] : (entry.local || entry.web || []);
+        const webSearchStatus = searchMode === 'local'
+          ? 'not_requested'
+          : (web.length ? 'available' : 'unavailable');
+        return { local, web, webSearchStatus };
+      },
+      readResearchSources: async ({ sources }) => {
+        const documents = [];
+        const failures = [];
+        for (const source of sources) {
+          if (source.content) {
+            documents.push({ sourceId: source.id, content: source.content, readerKind: 'pack_fulltext' });
+          } else {
+            failures.push({
+              sourceId: source.id,
+              code: 'unsupported_source',
+              message: 'pack 薄层来源无正文',
+              retryable: false
+            });
+          }
+        }
+        return {
+          documents,
+          failures,
+          diagnostics: {
+            selectedSourceCount: sources.length,
+            readSourceCount: documents.length,
+            failedSourceCount: failures.length,
+            durationMs: 0
+          }
+        };
+      },
+      writeResearchReport: async ({ evidence }) => {
+        const refs = writerMode === 'invalid_citations'
+          ? evidence.map((item) => `- ${item.claim} [99]`)
+          : evidence.map((item) => `- ${item.claim} [${item.citationNumber}]`);
+        return {
+          draftReport: [
+            '## 研究范围与方法',
+            '评测基线。',
+            ...refs,
+            '## 综合结论、限制与下一步',
+            '以上结论仅基于本轮证据。'
+          ].join('\n'),
+          diagnostics: { mode: 'fixture', status: 'success', reasonCode: '', inputTokens: 0, outputTokens: 0 }
+        };
+      }
+    };
+
+    const worker = createResearchWorker({ store, concurrency: 1, ...adapters });
+    const created = store.create({
+      question: testCase.question,
+      searchMode: testCase.searchMode,
+      knowledgeBaseIds: testCase.knowledgeBaseIds || []
+    });
+    const task = await worker.enqueue(created.id);
+    const quality = task.artifacts?.quality || {};
+    const verdict = evaluateCompletionContract({
+      task,
+      artifacts: task.artifacts || {},
+      mode: 'shadow',
+      budget: { replans: { used: 0, limit: 1 }, repairs: { used: 0, limit: 1 } }
+    });
+    return {
+      task,
+      verification: task.artifacts?.verification || null,
+      writerMode: task.artifacts?.diagnostics?.writing?.mode || 'fallback',
+      quality,
+      verdict,
+      deliveryLegal: verdict.passed === true,
+      citationValidity: task.artifacts?.verification?.valid === true
+    };
+  } finally {
+    store.close();
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
 }

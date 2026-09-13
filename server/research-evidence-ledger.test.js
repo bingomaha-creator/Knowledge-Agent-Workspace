@@ -225,8 +225,8 @@ test('would-be Pack 差异：读取失败的 snippet 回退来源按预期降级
     readingFailures: [{ sourceId: 's2', code: 'upstream_error', message: 'x', retryable: true }],
     subquestionIdBySourceId: { s1: 'q1', s2: 'q2' },
     evidence: [
-      { sourceId: 's1', citationId: 'web-s1', claim: 'a', citationNumber: 1, subquestionId: 'q1' },
-      { sourceId: 's2', citationId: 'web-s2', claim: 'b', citationNumber: 2, subquestionId: 'q2' }
+      { sourceId: 's1', citationId: 'web-s1', claim: 'a', citationNumber: 1, subquestionId: 'q1', readerKind: 'github_readme' },
+      { sourceId: 's2', citationId: 'web-s2', claim: 'b', citationNumber: 2, subquestionId: 'q2', readerKind: 'search_snippet' }
     ],
     citations: [{ id: 'web-s1', index: 1 }, { id: 'web-s2', index: 2 }]
   });
@@ -237,15 +237,49 @@ test('would-be Pack 差异：读取失败的 snippet 回退来源按预期降级
     entries,
     wouldBe,
     oldCitations: [{ id: 'web-s1' }, { id: 'web-s2' }],
-    oldEvidence: [{ subquestionId: 'q1' }, { subquestionId: 'q2' }],
+    oldEvidence: [{ citationId: 'web-s1', subquestionId: 'q1', readerKind: 'github_readme' }, { citationId: 'web-s2', subquestionId: 'q2', readerKind: 'search_snippet' }],
     subquestionOrder: ['q1', 'q2']
   });
   assert.equal(diff.diagnostic, 'would_be_pack_diff');
   const byOld = Object.fromEntries(diff.items.map((item) => [item.oldCitationId, item]));
   assert.equal(byOld['web-s1'].classification, 'kept_fulltext', '全文层来源保留');
-  assert.equal(byOld['web-s2'].classification, 'kept_thin_downgraded', '读取失败来源预期降级为薄证据');
+  assert.equal(byOld['web-s2'].classification, 'kept_thin', '旧路径本来就是 snippet → kept_thin（无降级）');
+  assert.equal(byOld['web-s2'].oldReaderKind, 'search_snippet');
+  assert.ok(byOld['web-s2'].passageContentHashes.length > 0, '差异项携带 would-be 入选 passage 指纹');
   assert.equal(diff.counts.unexpectedLoss, 0, '无意外丢失');
+  assert.equal(diff.counts.keptThin, 1);
   assert.equal(diff.coverage.wouldBe, diff.coverage.old, '覆盖率不劣化');
+});
+
+test('would-be Pack 差异：旧路径全文、would-be 薄层 → 真正降级 downgraded 独立计数', () => {
+  // 构造"旧路径为全文、台账读取失败"的场景：台账 reading=failed（薄层），
+  // 而旧 evidence 的 readerKind 为全文——真实降级必须独立于 kept_thin 计数。
+  const runId = 'r1';
+  const { entries, artifacts } = buildLedgerEntries({
+    runId,
+    acceptedSources: [webSource({ id: 's1', provenance: 'candidate_primary' })],
+    readingFailures: [{ sourceId: 's1', code: 'upstream_error', message: 'x', retryable: true }],
+    subquestionIdBySourceId: { s1: 'q1' },
+    evidence: [{ sourceId: 's1', citationId: 'web-s1', claim: 'a', citationNumber: 1, subquestionId: 'q1', readerKind: 'github_readme' }],
+    citations: [{ id: 'web-s1', index: 1 }]
+  });
+  // 人为将台账行修正为 reading succeeded（模拟旧路径拿到过正文但台账记录失败的错配场景不可达；
+  // 此处直接以 reading=failed + 旧 evidence 全文 readerKind 构造 downgraded 分类）
+  const wouldBe = buildWouldBeEvidencePack({
+    runId, entries, artifacts, subquestionOrder: ['q1']
+  });
+  const diff = buildWouldBePackDiff({
+    entries,
+    wouldBe,
+    oldCitations: [{ id: 'web-s1' }],
+    oldEvidence: [{ citationId: 'web-s1', subquestionId: 'q1', readerKind: 'github_readme' }],
+    subquestionOrder: ['q1']
+  });
+  // 台账 reading=failed → 薄层准入；旧 evidence 为全文 readerKind → downgraded
+  assert.equal(diff.items[0].classification, 'downgraded');
+  assert.equal(diff.counts.downgraded, 1);
+  assert.equal(diff.counts.keptThin, 0);
+  assert.equal(diff.counts.unexpectedLoss, 0, '降级不是丢失');
 });
 
 test('normalizeEvidenceLedgerMode：三态归一，primary 未过门槛前抛错', () => {
@@ -344,9 +378,13 @@ test('would-be Pack：fulltext 准入并从原文 artifact 选段', () => {
     runId: 'r-wb', entries, artifacts, subquestionOrder: ['q1', 'q2']
   });
   assert.equal(pack.citations.length, 2);
-  assert.ok(pack.citations.every((item) => item.tier === 'fulltext' && item.passageContentHash));
+  assert.ok(pack.citations.every((item) => item.tier === 'fulltext' && item.selectionContentHash),
+    'citation 汇总指纹使用显式命名 selectionContentHash');
+  assert.ok(pack.citations.every((item) => item.canonicalSourceId && item.canonicalUrl),
+    'would-be citation 必须携带显式来源身份');
   assert.ok(pack.evidence.length >= 2);
-  assert.ok(pack.evidence.every((item) => item.passageContentHash));
+  assert.ok(pack.evidence.every((item) => item.passageContentHash === computeContentHash(item.passage)),
+    '每条 evidence 的 passageContentHash 必须对实际入选 passage 内容计算');
 });
 
 test('would-be Pack：thin 准入使用发现摘要，snippet 变化改变 passageContentHash', () => {
@@ -366,12 +404,19 @@ test('would-be Pack：thin 准入使用发现摘要，snippet 变化改变 passa
   assert.equal(packA.citations[0].tier, 'thin');
   assert.equal(packA.citations[0].readerKind, 'search_snippet');
   assert.notEqual(
-    packA.citations[0].passageContentHash,
-    packB.citations[0].passageContentHash,
-    'snippet 内容变化必须改变 passageContentHash（Codex 修正第 1 点）'
+    packA.evidence[0].passageContentHash,
+    packB.evidence[0].passageContentHash,
+    'snippet 内容变化必须改变对应 evidence 的 passageContentHash（Codex 修正第 1 点）'
+  );
+  assert.equal(
+    packA.evidence[0].passageContentHash,
+    computeContentHash(packA.evidence[0].passage),
+    'passageContentHash 必须对实际入选 passage 的规范化内容计算'
   );
   // source 内容身份（contentHash，读取失败时空正文哈希）与 passage 身份分离
   assert.equal(packA.citations[0].contentHash, packB.citations[0].contentHash);
+  // citation 汇总指纹也随 snippet 变化（薄层的选段依据就是摘要本身）
+  assert.notEqual(packA.citations[0].selectionContentHash, packB.citations[0].selectionContentHash);
 });
 
 test('would-be Pack：reading pending 与无内容来源不准入并记录原因', () => {
