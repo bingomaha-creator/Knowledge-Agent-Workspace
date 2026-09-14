@@ -20,6 +20,7 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const casesDir = path.join(here, 'cases');
 const caseFiles = fs.readdirSync(casesDir).filter((name) => name.endsWith('.json')).sort();
 const testCases = caseFiles.flatMap((name) => JSON.parse(fs.readFileSync(path.join(casesDir, name), 'utf8')).cases);
+const QUALITY_RANK = Object.freeze({ insufficient: 0, limited: 1, sufficient: 2 });
 
 function tempDb() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'research-eval-'));
@@ -263,7 +264,6 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
 
       // 门槛 3：报告质量不劣化——旧/新 Pack 分别经真实 Worker 的同一交付管线
       // （写作 → 验证 → 质量评估 → 完成契约），逐项记录 true/false/not_evaluated。
-      const planSubquestions = runA.task?.artifacts?.plan?.subquestions || [];
       const [oldDelivery, wouldBeDelivery] = await Promise.all([
         runPackThroughDelivery({ pack: oldPack, testCase, writerMode: testCase.fixtures.writer || 'faithful' }),
         runPackThroughDelivery({ pack: wouldBePack, testCase, writerMode: testCase.fixtures.writer || 'faithful' })
@@ -272,8 +272,8 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
       assert.equal(wouldBeDelivery.task.status, 'completed',
         `${testCase.id} would-be Pack 交付应收敛 completed（error=${wouldBeDelivery.task?.error || '无'}，failedStage=${wouldBeDelivery.task?.failedStage || '无'}）`);
       // 交付合法性：两边各自独立判定，分别记录（不能用"同样失败"证明通过）
-      assert.equal(wouldBeDelivery.deliveryLegal, oldDelivery.deliveryLegal,
-        `${testCase.id} 交付合法性不得劣化`);
+      assert.equal(oldDelivery.deliveryLegal, true, `${testCase.id} 旧 Pack 必须独立满足 shadow 交付检查`);
+      assert.equal(wouldBeDelivery.deliveryLegal, true, `${testCase.id} would-be Pack 必须独立满足 shadow 交付检查`);
       // required checks 逐项三态记录
       const requiredBy = (verdict) => Object.fromEntries(
         (verdict.checks || []).filter((item) => item.required).map((item) => [item.id, item.passed])
@@ -282,6 +282,16 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
       const wouldBeRequired = requiredBy(wouldBeDelivery.verdict);
       assert.deepEqual(Object.keys(wouldBeRequired).sort(), Object.keys(oldRequired).sort(),
         `${testCase.id} required check 集合必须一致`);
+      for (const [checkId, oldPassed] of Object.entries(oldRequired)) {
+        assert.ok([true, false, null].includes(oldPassed),
+          `${testCase.id} 旧 Pack required check ${checkId} 必须保留 boolean|null 三态`);
+        assert.ok([true, false, null].includes(wouldBeRequired[checkId]),
+          `${testCase.id} would-be Pack required check ${checkId} 必须保留 boolean|null 三态`);
+        if (oldPassed === true) {
+          assert.equal(wouldBeRequired[checkId], true,
+            `${testCase.id} required check ${checkId} 不得从 true 劣化`);
+        }
+      }
       // 引用有效性不得劣化
       assert.equal(wouldBeDelivery.citationValidity, oldDelivery.citationValidity,
         `${testCase.id} 引用有效性不得劣化`);
@@ -290,20 +300,58 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
         wouldBeDelivery.quality.metrics.coverageRatio >= oldDelivery.quality.metrics.coverageRatio,
         `${testCase.id} 子问题覆盖率不得劣化`
       );
+      assert.ok(
+        QUALITY_RANK[wouldBeDelivery.quality.quality] >= QUALITY_RANK[oldDelivery.quality.quality],
+        `${testCase.id} quality 不得从 ${oldDelivery.quality.quality} 劣化为 ${wouldBeDelivery.quality.quality}`
+      );
       // 局限披露判定不得劣化
       const disclosureOf = (verdict) => verdict.checks.find((item) => item.id === 'limitation-disclosure')?.passed ?? null;
       assert.equal(disclosureOf(wouldBeDelivery.verdict), disclosureOf(oldDelivery.verdict),
         `${testCase.id} 局限披露判定不得劣化`);
       // Writer 采纳状态忠实来自各 case 的 Writer 行为（invalid_citations 用例验证拒绝与 fallback 重建）
       // Writer 状态字段非 undefined 断言（消费端先断言再比较）
-      for (const delivery of [oldDelivery, wouldBeDelivery]) {
+      for (const [delivery, pack] of [[oldDelivery, oldPack], [wouldBeDelivery, wouldBePack]]) {
         assert.ok(delivery.writerStatus, `${testCase.id} writerStatus 不得为 undefined`);
         assert.ok(typeof delivery.writerStatus.mode === 'string', `${testCase.id} writerStatus.mode 不得缺失`);
         assert.ok(typeof delivery.writerStatus.attempted === 'boolean', `${testCase.id} writerStatus.attempted 不得缺失`);
         assert.ok(typeof delivery.writerStatus.accepted === 'boolean', `${testCase.id} writerStatus.accepted 不得缺失`);
+        assert.equal(delivery.writerStatus.callCount, pack.evidence.length ? 1 : 0,
+          `${testCase.id} Writer 调用次数必须与真实交付路径一致`);
+        assert.equal(delivery.writerStatus.attempted, delivery.writerStatus.callCount > 0);
+        assert.equal(delivery.task.artifacts.evidencePack.acceptedCount,
+          new Set(pack.citations.map((citation) => citation.canonicalSourceId || citation.url || citation.id)).size,
+          `${testCase.id} acceptedCount 必须按独立来源统计`);
+        assert.equal(delivery.task.artifacts.evidencePack.readSourceCount,
+          new Set(pack.evidence.filter((item) => item.readerKind !== 'search_snippet').map((item) => item.citationId)).size,
+          `${testCase.id} readSourceCount 必须按独立正文来源统计`);
+        assert.equal(delivery.task.artifacts.sources, undefined, `${testCase.id} 不得带入 Phase A 陈旧 sources`);
+        assert.equal(delivery.task.artifacts.search, undefined, `${testCase.id} 不得带入 Phase A 陈旧 search`);
+        assert.equal(delivery.task.artifacts.reading, undefined, `${testCase.id} 不得带入 Phase A 陈旧 reading`);
+        assert.equal(delivery.verdict.checks.find((item) => item.id === 'required-sections')?.passed, true,
+          `${testCase.id} 交付 fixture/fallback 必须真实满足 required-sections`);
       }
       assert.equal(wouldBeDelivery.writerStatus.mode, oldDelivery.writerStatus.mode,
         `${testCase.id} 同一 writerMode 下两侧采纳状态必须一致`);
+      if (testCase.fixtures.writer === 'invalid_citations') {
+        for (const delivery of [oldDelivery, wouldBeDelivery]) {
+          assert.equal(delivery.writerStatus.callCount, 1, `${testCase.id} Writer 必须实际调用一次`);
+          assert.equal(delivery.writerStatus.attempted, true, `${testCase.id} Writer attempted 必须来自实际调用`);
+          assert.equal(delivery.writerStatus.accepted, false, `${testCase.id} 非法引用输出不得被采纳`);
+          assert.equal(delivery.writerStatus.reasonCode, 'invalid_citations');
+          assert.ok(delivery.writerStatus.fallbackReason, `${testCase.id} 必须记录确定性 fallback 原因`);
+          assert.equal(delivery.citationValidity, true, `${testCase.id} fallback 最终报告必须重新验证为有效`);
+          assert.match(delivery.task.report, /研究范围与方法/u,
+            `${testCase.id} 确定性 fallback 报告必须保留完整交付章节`);
+        }
+        const faithfulDelivery = await runPackThroughDelivery({
+          pack: oldPack,
+          testCase,
+          writerMode: 'faithful'
+        });
+        assert.equal(faithfulDelivery.writerStatus.mode, 'model',
+          `${testCase.id} writerMode=faithful 必须真正覆盖 case 的 invalid_citations fixture`);
+        assert.equal(faithfulDelivery.writerStatus.accepted, true);
+      }
       // 语义支持率：not_evaluated（Policy 已输出 null），不自动判通过
       assert.equal(wouldBeDelivery.verdict.checks.find((item) => item.id === 'claim-support')?.passed ?? null, null);
 
@@ -340,7 +388,8 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
         counts: ledger.diff?.counts,
         coverage: ledger.diff?.coverage,
         deliveryComparison: {
-          deliveryLegalEqual: wouldBeDelivery.deliveryLegal === oldDelivery.deliveryLegal,
+          oldDeliveryLegal: oldDelivery.deliveryLegal,
+          wouldBeDeliveryLegal: wouldBeDelivery.deliveryLegal,
           citationValidityEqual: wouldBeDelivery.citationValidity === oldDelivery.citationValidity,
           writerModeEqual: wouldBeDelivery.writerStatus.mode === oldDelivery.writerStatus.mode,
           oldRequiredChecks: oldRequired,
@@ -366,3 +415,42 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
   return { caseResults };
 });
 
+test('Ledger 差异报告：保留三态、Writer 真实状态与旧/新成对 passage 身份', () => {
+  const reportPath = path.join(here, 'baselines', 'ledger-would-be-diff-report.json');
+  const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
+  assert.equal(report.status, 'pending_review');
+  assert.equal(report.humanReview?.decision, 'pending_review');
+  assert.deepEqual((report.cases || []).map((item) => item.caseId).sort(),
+    testCases.map((item) => item.id).sort(), 'canonical 报告必须包含完整 case 集');
+  for (const item of report.cases || []) {
+    for (const side of ['old', 'wouldBe']) {
+      const delivery = item.deliveryComparison?.[side];
+      assert.ok(delivery, `${item.caseId} 缺少 ${side} deliveryComparison`);
+      assert.ok(delivery.requiredChecks && typeof delivery.requiredChecks === 'object',
+        `${item.caseId} ${side} 缺完整 requiredChecks 三态`);
+      assert.ok(delivery.writerStatus && typeof delivery.writerStatus.callCount === 'number',
+        `${item.caseId} ${side} 缺 Writer 详细状态`);
+      assert.ok(Object.keys(delivery.requiredChecks).length > 0, `${item.caseId} ${side} requiredChecks 不得为空`);
+      for (const [checkId, passed] of Object.entries(delivery.requiredChecks)) {
+        assert.ok([true, false, null].includes(passed), `${item.caseId} ${side} ${checkId} 必须保留三态`);
+      }
+      for (const field of ['reasonCode', 'fallbackReason', 'mode']) {
+        assert.equal(typeof delivery.writerStatus[field], 'string', `${item.caseId} ${side} Writer 缺 ${field}`);
+      }
+    }
+    for (const citation of item.wouldBeIdentity?.citations || []) {
+      assert.ok(citation.selectionContentHash,
+        `${item.caseId} ${citation.citationId} 缺 selectionContentHash`);
+    }
+    for (const diffItem of item.diffItems || []) {
+      assert.ok(Array.isArray(diffItem.passages?.old), `${item.caseId} 缺旧侧 passage 摘要`);
+      assert.ok(Array.isArray(diffItem.passages?.wouldBe), `${item.caseId} 缺 would-be passage 摘要`);
+      for (const side of ['old', 'wouldBe']) {
+        for (const passage of diffItem.passages[side]) {
+          assert.ok(passage.passageDigest, `${item.caseId} ${side} passage 摘要为空`);
+          assert.ok(passage.passageContentHash, `${item.caseId} ${side} passage hash 为空`);
+        }
+      }
+    }
+  }
+});

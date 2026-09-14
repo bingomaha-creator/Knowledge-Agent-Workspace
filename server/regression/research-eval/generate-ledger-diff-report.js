@@ -15,6 +15,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { computeContentHash } from '../../research-evidence-ledger.js';
 import { createFixtureAdapters, runEvalCase, runPackThroughDelivery } from './harness.js';
 import { resolveBaselineOutputPath } from './output-path.js';
 
@@ -33,6 +34,42 @@ const selectedCases = caseFilter ? allCases.filter((item) => item.id === caseFil
 if (!selectedCases.length) {
   console.error(`没有匹配的评测 case：${caseFilter || '(空 case 集)'}`);
   process.exit(2);
+}
+
+function requiredChecks(verdict) {
+  return Object.fromEntries(
+    (verdict?.checks || [])
+      .filter((item) => item.required)
+      .map((item) => [item.id, item.passed])
+  );
+}
+
+function passageSummary(item) {
+  const passage = String(item?.passage || '');
+  const passageContentHash = computeContentHash(passage);
+  if (item?.passageContentHash) {
+    assert.equal(item.passageContentHash, passageContentHash,
+      `Evidence ${item.id} 的 passageContentHash 与实际 passage 不一致`);
+  }
+  return {
+    passageDigest: passage.slice(0, 120),
+    passageLength: passage.length,
+    passageContentHash,
+    tier: item?.tier || (item?.readerKind === 'search_snippet' ? 'thin' : 'fulltext')
+  };
+}
+
+function assertNoUndefined(value, label) {
+  if (value === undefined) throw new TypeError(`${label} 不得为 undefined`);
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => assertNoUndefined(item, `${label}[${index}]`));
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) {
+      assertNoUndefined(item, `${label}.${key}`);
+    }
+  }
 }
 
 async function main() {
@@ -77,15 +114,13 @@ async function main() {
         const wouldBeCitation = wouldBePack.citations.find(
           (citation) => citation.id === item.wouldBeCitationId
         );
-        const passages = wouldBeCitation
+        const oldPassages = oldPack.evidence
+          .filter((evidence) => evidence.citationId === item.oldCitationId)
+          .map(passageSummary);
+        const wouldBePassages = wouldBeCitation
           ? wouldBePack.evidence
-            .filter((item) => item.citationId === wouldBeCitation.id)
-            .map((item) => ({
-              passageDigest: item.passage.slice(0, 120),
-              passageLength: item.passage.length,
-              passageContentHash: item.passageContentHash,
-              tier: item.tier
-            }))
+            .filter((evidence) => evidence.citationId === wouldBeCitation.id)
+            .map(passageSummary)
           : [];
         return {
           ...item,
@@ -103,19 +138,29 @@ async function main() {
               selectionContentHash: wouldBeCitation.selectionContentHash || ''
             }
             : null,
-          passages
+          passages: {
+            old: oldPassages,
+            wouldBe: wouldBePassages
+          }
         };
       });
 
       // 身份完整性自检：来源身份、选段指纹与分类理由不得为空（Spec 可核对性要求）
+      for (const citation of wouldBePack.citations) {
+        assert.ok(citation.selectionContentHash,
+          `${testCase.id} would-be citation ${citation.id} 缺 selectionContentHash`);
+      }
       for (const item of diffItems) {
         if (item.wouldBeIdentity) {
           assert.ok(item.wouldBeIdentity.canonicalSourceId, `${testCase.id} would-be 身份缺 canonicalSourceId`);
           assert.ok(item.wouldBeIdentity.selectionContentHash, `${testCase.id} would-be 身份缺 selectionContentHash`);
         }
         assert.ok(item.reason, `${testCase.id} 差异项 ${item.oldCitationId} 缺分类理由`);
-        for (const passage of item.passages) {
-          assert.ok(passage.passageDigest, `${testCase.id} passage 摘要不得为空`);
+        for (const side of ['old', 'wouldBe']) {
+          for (const passage of item.passages[side]) {
+            assert.ok(passage.passageDigest, `${testCase.id} ${side} passage 摘要不得为空`);
+            assert.ok(passage.passageContentHash, `${testCase.id} ${side} passage hash 不得为空`);
+          }
         }
       }
       reportCases.push({
@@ -135,7 +180,7 @@ async function main() {
             canonicalSourceId: citation.canonicalSourceId || '',
             canonicalUrl: citation.canonicalUrl || '',
             tier: citation.tier,
-            passageContentHash: citation.passageContentHash
+            selectionContentHash: citation.selectionContentHash || ''
           }))
         },
         diffItems,
@@ -145,7 +190,8 @@ async function main() {
           old: {
             deliveryLegal: oldDelivery.deliveryLegal,
             citationValidity: oldDelivery.citationValidity,
-            writerMode: oldDelivery.writerStatus.mode,
+            writerStatus: oldDelivery.writerStatus,
+            requiredChecks: requiredChecks(oldDelivery.verdict),
             requiredCheckFailures: oldDelivery.verdict.deliveryFailures,
             quality: oldDelivery.quality.quality,
             coverageRatio: oldDelivery.quality.metrics.coverageRatio,
@@ -154,7 +200,8 @@ async function main() {
           wouldBe: {
             deliveryLegal: wouldBeDelivery.deliveryLegal,
             citationValidity: wouldBeDelivery.citationValidity,
-            writerMode: wouldBeDelivery.writerStatus.mode,
+            writerStatus: wouldBeDelivery.writerStatus,
+            requiredChecks: requiredChecks(wouldBeDelivery.verdict),
             requiredCheckFailures: wouldBeDelivery.verdict.deliveryFailures,
             quality: wouldBeDelivery.quality.quality,
             coverageRatio: wouldBeDelivery.quality.metrics.coverageRatio,
@@ -163,6 +210,15 @@ async function main() {
           semanticClaimSupport: 'not_evaluated（人工/Judge 口径，无法离线评估）'
         }
       });
+      for (const side of ['old', 'wouldBe']) {
+        for (const [checkId, passed] of Object.entries(
+          reportCases.at(-1).deliveryComparison[side].requiredChecks
+        )) {
+          assert.ok([true, false, null].includes(passed),
+            `${testCase.id} ${side} required check ${checkId} 必须保留 boolean|null 三态`);
+        }
+      }
+      assertNoUndefined(reportCases.at(-1), `cases.${testCase.id}`);
     } finally {
       fs.rmSync(dir, { recursive: true, force: true });
     }
@@ -170,9 +226,10 @@ async function main() {
 
   const report = {
     diagnostic: 'would_be_pack_diff_report',
+    completionMode: 'shadow',
     status: 'pending_review',
     generatedAt: new Date().toISOString(),
-    note: '机器验收报告：humanReview 字段为 pending_review，人工复核（差异清单逐项确认）由用户/Codex 执行后才可判定第二交付门达成。Ledger 保持 shadow。',
+    note: '机器验收报告：deliveryLegal 是 shadow 聚合结果，required null/not_evaluated 不表示硬门禁通过。humanReview 保持 pending_review，差异清单须经人工逐项确认后才能判定第二交付门达成。Ledger 保持 shadow。',
     humanReview: {
       reviewer: null,
       reviewedAt: null,

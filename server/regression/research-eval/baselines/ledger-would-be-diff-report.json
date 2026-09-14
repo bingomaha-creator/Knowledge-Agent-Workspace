@@ -1,8 +1,9 @@
 {
   "diagnostic": "would_be_pack_diff_report",
+  "completionMode": "shadow",
   "status": "pending_review",
-  "generatedAt": "2026-09-13T15:42:29.538Z",
-  "note": "机器验收报告：humanReview 字段为 pending_review，人工复核（差异清单逐项确认）由用户/Codex 执行后才可判定第二交付门达成。Ledger 保持 shadow。",
+  "generatedAt": "2026-09-14T02:06:21.255Z",
+  "note": "机器验收报告：deliveryLegal 是 shadow 聚合结果，required null/not_evaluated 不表示硬门禁通过。humanReview 保持 pending_review，差异清单须经人工逐项确认后才能判定第二交付门达成。Ledger 保持 shadow。",
   "humanReview": {
     "reviewer": null,
     "reviewedAt": null,
@@ -30,18 +31,20 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_1d103952a09c29d82b15171c5a68eb31",
-            "evidenceId": "ev_1d103952a09c29d82b15171c5a68eb31",
+            "citationId": "ledger-ev_81b3efc163339559baf4a9c369a456ce",
+            "evidenceId": "ev_81b3efc163339559baf4a9c369a456ce",
             "canonicalSourceId": "https://docs.example.org/etcd-architecture",
             "canonicalUrl": "https://docs.example.org/etcd-architecture",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "66bc6c5981c957ab5384ec1f8029ee98ab44bc04266519e6504d7c30e44ed537"
           },
           {
-            "citationId": "ledger-ev_5123a684ef6e4555c85286cb48074278",
-            "evidenceId": "ev_5123a684ef6e4555c85286cb48074278",
+            "citationId": "ledger-ev_5c1ed47dba3b153e2db3c9562072556f",
+            "evidenceId": "ev_5c1ed47dba3b153e2db3c9562072556f",
             "canonicalSourceId": "l1",
             "canonicalUrl": "",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "d3d1246696181923b0cb60e0635805e9439466dd693da6839911a7302b60c2b5"
           }
         ]
       },
@@ -50,7 +53,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_1d103952a09c29d82b15171c5a68eb31",
+          "wouldBeCitationId": "ledger-ev_81b3efc163339559baf4a9c369a456ce",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "61ec592be39b9dac000c75abee89b269afa95b85e50a7bd36c2fc3dab93f1983"
@@ -61,26 +64,36 @@
             "url": "https://docs.example.org/etcd-architecture"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_1d103952a09c29d82b15171c5a68eb31",
-            "evidenceId": "ev_1d103952a09c29d82b15171c5a68eb31",
+            "citationId": "ledger-ev_81b3efc163339559baf4a9c369a456ce",
+            "evidenceId": "ev_81b3efc163339559baf4a9c369a456ce",
             "canonicalSourceId": "https://docs.example.org/etcd-architecture",
             "tier": "fulltext",
             "selectionContentHash": "66bc6c5981c957ab5384ec1f8029ee98ab44bc04266519e6504d7c30e44ed537"
           },
-          "passages": [
-            {
-              "passageDigest": "Raft 的选主与日志复制逻辑独立成库，etcd 在其上实现了 MVCC 与事务语义。",
-              "passageLength": 43,
-              "passageContentHash": "61ec592be39b9dac000c75abee89b269afa95b85e50a7bd36c2fc3dab93f1983",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "Raft 的选主与日志复制逻辑独立成库，etcd 在其上实现了 MVCC 与事务语义。",
+                "passageLength": 43,
+                "passageContentHash": "61ec592be39b9dac000c75abee89b269afa95b85e50a7bd36c2fc3dab93f1983",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "Raft 的选主与日志复制逻辑独立成库，etcd 在其上实现了 MVCC 与事务语义。",
+                "passageLength": 43,
+                "passageContentHash": "61ec592be39b9dac000c75abee89b269afa95b85e50a7bd36c2fc3dab93f1983",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "local-l1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_5123a684ef6e4555c85286cb48074278",
+          "wouldBeCitationId": "ledger-ev_5c1ed47dba3b153e2db3c9562072556f",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "9aaef211e83933950994c97700b3d71239f33e8cd98ccc5d879410364656026b"
@@ -91,20 +104,30 @@
             "url": ""
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_5123a684ef6e4555c85286cb48074278",
-            "evidenceId": "ev_5123a684ef6e4555c85286cb48074278",
+            "citationId": "ledger-ev_5c1ed47dba3b153e2db3c9562072556f",
+            "evidenceId": "ev_5c1ed47dba3b153e2db3c9562072556f",
             "canonicalSourceId": "l1",
             "tier": "fulltext",
             "selectionContentHash": "d3d1246696181923b0cb60e0635805e9439466dd693da6839911a7302b60c2b5"
           },
-          "passages": [
-            {
-              "passageDigest": "ZooKeeper 的 ZAB 协议包含崩溃恢复与消息广播两个阶段。",
-              "passageLength": 34,
-              "passageContentHash": "9aaef211e83933950994c97700b3d71239f33e8cd98ccc5d879410364656026b",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "ZooKeeper 的 ZAB 协议包含崩溃恢复与消息广播两个阶段。",
+                "passageLength": 34,
+                "passageContentHash": "9aaef211e83933950994c97700b3d71239f33e8cd98ccc5d879410364656026b",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "ZooKeeper 的 ZAB 协议包含崩溃恢复与消息广播两个阶段。",
+                "passageLength": 34,
+                "passageContentHash": "9aaef211e83933950994c97700b3d71239f33e8cd98ccc5d879410364656026b",
+                "tier": "fulltext"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -123,12 +146,25 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -136,12 +172,25 @@
           ]
         },
         "wouldBe": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -167,11 +216,12 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_831c32a93b31faaa69a8087800ea4981",
-            "evidenceId": "ev_831c32a93b31faaa69a8087800ea4981",
+            "citationId": "ledger-ev_5b98802a22abe0bcfa9f36970f5a291b",
+            "evidenceId": "ev_5b98802a22abe0bcfa9f36970f5a291b",
             "canonicalSourceId": "l1",
             "canonicalUrl": "",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "43429f11ed4141f590fcf363f07be5b25deec878fa4caecaa6212416dcb6f1f4"
           }
         ]
       },
@@ -180,7 +230,7 @@
           "oldCitationId": "local-l1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_831c32a93b31faaa69a8087800ea4981",
+          "wouldBeCitationId": "ledger-ev_5b98802a22abe0bcfa9f36970f5a291b",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "a317a66cbebe07c25f2bf3ba7f74cee23854113bbaebd5fe67cdbd8de7e23ae0"
@@ -191,20 +241,30 @@
             "url": ""
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_831c32a93b31faaa69a8087800ea4981",
-            "evidenceId": "ev_831c32a93b31faaa69a8087800ea4981",
+            "citationId": "ledger-ev_5b98802a22abe0bcfa9f36970f5a291b",
+            "evidenceId": "ev_5b98802a22abe0bcfa9f36970f5a291b",
             "canonicalSourceId": "l1",
             "tier": "fulltext",
             "selectionContentHash": "43429f11ed4141f590fcf363f07be5b25deec878fa4caecaa6212416dcb6f1f4"
           },
-          "passages": [
-            {
-              "passageDigest": "follower 通过持续拉取日志保持同步，落后超过阈值的副本会被移出 ISR。",
-              "passageLength": 40,
-              "passageContentHash": "a317a66cbebe07c25f2bf3ba7f74cee23854113bbaebd5fe67cdbd8de7e23ae0",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "follower 通过持续拉取日志保持同步，落后超过阈值的副本会被移出 ISR。",
+                "passageLength": 40,
+                "passageContentHash": "a317a66cbebe07c25f2bf3ba7f74cee23854113bbaebd5fe67cdbd8de7e23ae0",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "follower 通过持续拉取日志保持同步，落后超过阈值的副本会被移出 ISR。",
+                "passageLength": 40,
+                "passageContentHash": "a317a66cbebe07c25f2bf3ba7f74cee23854113bbaebd5fe67cdbd8de7e23ae0",
+                "tier": "fulltext"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -223,12 +283,25 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -237,12 +310,25 @@
           ]
         },
         "wouldBe": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -273,18 +359,20 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_cc6899b2d7ed0cdaa088ebfd84161e10",
-            "evidenceId": "ev_cc6899b2d7ed0cdaa088ebfd84161e10",
+            "citationId": "ledger-ev_f8f59df421be181e2fbed9d97b2bf97e",
+            "evidenceId": "ev_f8f59df421be181e2fbed9d97b2bf97e",
             "canonicalSourceId": "l1",
             "canonicalUrl": "",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "3b458b7173da3400ca35d883cb0dbd051239f3640f8f5d467b6567cc934fe5c8"
           },
           {
-            "citationId": "ledger-ev_d956caebed5e5a96a625ad1649cdc673",
-            "evidenceId": "ev_d956caebed5e5a96a625ad1649cdc673",
+            "citationId": "ledger-ev_8939c2a48b956a5edf56e77d85ecffa2",
+            "evidenceId": "ev_8939c2a48b956a5edf56e77d85ecffa2",
             "canonicalSourceId": "l2",
             "canonicalUrl": "",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "b1eab30aafc5c869694ed2ba44a86e2f9a1fe42d1c99b8f36d0cde756900a23e"
           }
         ]
       },
@@ -293,7 +381,7 @@
           "oldCitationId": "local-l1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_cc6899b2d7ed0cdaa088ebfd84161e10",
+          "wouldBeCitationId": "ledger-ev_f8f59df421be181e2fbed9d97b2bf97e",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "f4b31d01884221cdd625d49b04ae3a9a8587d589807347d49f7b189eb7324bb0",
@@ -305,32 +393,48 @@
             "url": ""
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_cc6899b2d7ed0cdaa088ebfd84161e10",
-            "evidenceId": "ev_cc6899b2d7ed0cdaa088ebfd84161e10",
+            "citationId": "ledger-ev_f8f59df421be181e2fbed9d97b2bf97e",
+            "evidenceId": "ev_f8f59df421be181e2fbed9d97b2bf97e",
             "canonicalSourceId": "l1",
             "tier": "fulltext",
             "selectionContentHash": "3b458b7173da3400ca35d883cb0dbd051239f3640f8f5d467b6567cc934fe5c8"
           },
-          "passages": [
-            {
-              "passageDigest": "检索服务对外的查询入口共支持三种查询模式：关键词查询、语义向量查询与混合查询。三种模式在召回路径、打分方式与适用场景上完全不同，调用方需要根据查询意图选择合适的模式。选错模式最常见的表现是召回结果与问题相关但排序明显不合理，排查时应先确认查",
-              "passageLength": 146,
-              "passageContentHash": "f4b31d01884221cdd625d49b04ae3a9a8587d589807347d49f7b189eb7324bb0",
-              "tier": "fulltext"
-            },
-            {
-              "passageDigest": "混合查询会同时执行两路召回，并把两路结果交给融合阶段统一排序后返回给调用方。由于同时覆盖精确命中与语义泛化两类需求，混合模式在绝大多数业务场景下的召回质量最稳定，也是服务对外默认推荐的查询模式。代价是单次查询的延迟与计算成本略高于单路模式，",
-              "passageLength": 141,
-              "passageContentHash": "c4ba949158b5afde38fc20f7aa5fe42644a314c85a3671eff66d157503e8e30f",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "检索服务对外的查询入口共支持三种查询模式：关键词查询、语义向量查询与混合查询。三种模式在召回路径、打分方式与适用场景上完全不同，调用方需要根据查询意图选择合适的模式。选错模式最常见的表现是召回结果与问题相关但排序明显不合理，排查时应先确认查",
+                "passageLength": 146,
+                "passageContentHash": "f4b31d01884221cdd625d49b04ae3a9a8587d589807347d49f7b189eb7324bb0",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "混合查询会同时执行两路召回，并把两路结果交给融合阶段统一排序后返回给调用方。由于同时覆盖精确命中与语义泛化两类需求，混合模式在绝大多数业务场景下的召回质量最稳定，也是服务对外默认推荐的查询模式。代价是单次查询的延迟与计算成本略高于单路模式，",
+                "passageLength": 141,
+                "passageContentHash": "c4ba949158b5afde38fc20f7aa5fe42644a314c85a3671eff66d157503e8e30f",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "检索服务对外的查询入口共支持三种查询模式：关键词查询、语义向量查询与混合查询。三种模式在召回路径、打分方式与适用场景上完全不同，调用方需要根据查询意图选择合适的模式。选错模式最常见的表现是召回结果与问题相关但排序明显不合理，排查时应先确认查",
+                "passageLength": 146,
+                "passageContentHash": "f4b31d01884221cdd625d49b04ae3a9a8587d589807347d49f7b189eb7324bb0",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "混合查询会同时执行两路召回，并把两路结果交给融合阶段统一排序后返回给调用方。由于同时覆盖精确命中与语义泛化两类需求，混合模式在绝大多数业务场景下的召回质量最稳定，也是服务对外默认推荐的查询模式。代价是单次查询的延迟与计算成本略高于单路模式，",
+                "passageLength": 141,
+                "passageContentHash": "c4ba949158b5afde38fc20f7aa5fe42644a314c85a3671eff66d157503e8e30f",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "local-l2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_d956caebed5e5a96a625ad1649cdc673",
+          "wouldBeCitationId": "ledger-ev_8939c2a48b956a5edf56e77d85ecffa2",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "a719e62d969ed2fa3133566adcfc822fc12588e9b183a47e4c05f9c5b9a25fad",
@@ -342,26 +446,42 @@
             "url": ""
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_d956caebed5e5a96a625ad1649cdc673",
-            "evidenceId": "ev_d956caebed5e5a96a625ad1649cdc673",
+            "citationId": "ledger-ev_8939c2a48b956a5edf56e77d85ecffa2",
+            "evidenceId": "ev_8939c2a48b956a5edf56e77d85ecffa2",
             "canonicalSourceId": "l2",
             "tier": "fulltext",
             "selectionContentHash": "b1eab30aafc5c869694ed2ba44a86e2f9a1fe42d1c99b8f36d0cde756900a23e"
           },
-          "passages": [
-            {
-              "passageDigest": "多路召回的结果通过 RRF 融合分数统一排序。RRF 融合公式只依赖每个通道内部的排名位置，不依赖各路原始分数的量纲，因此关键词与向量两路可以各自独立调参、独立扩容，而不会因为分数分布不同互相污染最终排序。运维上也因此可以把两路召回作为两个",
-              "passageLength": 156,
-              "passageContentHash": "a719e62d969ed2fa3133566adcfc822fc12588e9b183a47e4c05f9c5b9a25fad",
-              "tier": "fulltext"
-            },
-            {
-              "passageDigest": "融合阶段不会改变原始召回来源标注，每条进入最终结果的记录都会保留来自哪一路召回的信息，以及该路内部的原始排名。这为下游的引用追溯、结果解释与针对单路召回质量的专项回归提供了完整依据。当业务方反馈某类问题召回不准时，可以按来源标注快速定位是哪",
-              "passageLength": 159,
-              "passageContentHash": "a9a9990c992a7ec89826286fc1956d9fd917945e756351b3a9e57f814926f8a4",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "多路召回的结果通过 RRF 融合分数统一排序。RRF 融合公式只依赖每个通道内部的排名位置，不依赖各路原始分数的量纲，因此关键词与向量两路可以各自独立调参、独立扩容，而不会因为分数分布不同互相污染最终排序。运维上也因此可以把两路召回作为两个",
+                "passageLength": 156,
+                "passageContentHash": "a719e62d969ed2fa3133566adcfc822fc12588e9b183a47e4c05f9c5b9a25fad",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "融合阶段不会改变原始召回来源标注，每条进入最终结果的记录都会保留来自哪一路召回的信息，以及该路内部的原始排名。这为下游的引用追溯、结果解释与针对单路召回质量的专项回归提供了完整依据。当业务方反馈某类问题召回不准时，可以按来源标注快速定位是哪",
+                "passageLength": 159,
+                "passageContentHash": "a9a9990c992a7ec89826286fc1956d9fd917945e756351b3a9e57f814926f8a4",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "多路召回的结果通过 RRF 融合分数统一排序。RRF 融合公式只依赖每个通道内部的排名位置，不依赖各路原始分数的量纲，因此关键词与向量两路可以各自独立调参、独立扩容，而不会因为分数分布不同互相污染最终排序。运维上也因此可以把两路召回作为两个",
+                "passageLength": 156,
+                "passageContentHash": "a719e62d969ed2fa3133566adcfc822fc12588e9b183a47e4c05f9c5b9a25fad",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "融合阶段不会改变原始召回来源标注，每条进入最终结果的记录都会保留来自哪一路召回的信息，以及该路内部的原始排名。这为下游的引用追溯、结果解释与针对单路召回质量的专项回归提供了完整依据。当业务方反馈某类问题召回不准时，可以按来源标注快速定位是哪",
+                "passageLength": 159,
+                "passageContentHash": "a9a9990c992a7ec89826286fc1956d9fd917945e756351b3a9e57f814926f8a4",
+                "tier": "fulltext"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -380,23 +500,49 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "sufficient",
           "coverageRatio": 1,
           "limitations": []
         },
         "wouldBe": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "sufficient",
           "coverageRatio": 1,
           "limitations": []
@@ -432,7 +578,22 @@
         "old": {
           "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
+          "writerStatus": {
+            "callCount": 0,
+            "attempted": false,
+            "accepted": false,
+            "mode": "fallback",
+            "reasonCode": "model_unavailable",
+            "fallbackReason": "未接入受证据约束的报告写作者"
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": null,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
@@ -443,7 +604,22 @@
         "wouldBe": {
           "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
+          "writerStatus": {
+            "callCount": 0,
+            "attempted": false,
+            "accepted": false,
+            "mode": "fallback",
+            "reasonCode": "model_unavailable",
+            "fallbackReason": "未接入受证据约束的报告写作者"
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": null,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
@@ -494,46 +670,52 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_5b9fef69944e984333ae712fd40dd29e",
-            "evidenceId": "ev_5b9fef69944e984333ae712fd40dd29e",
+            "citationId": "ledger-ev_b5a9eeed35283691563d3f775abda094",
+            "evidenceId": "ev_b5a9eeed35283691563d3f775abda094",
             "canonicalSourceId": "https://docs.example.org/sqlite-ops",
             "canonicalUrl": "https://docs.example.org/sqlite-ops",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "1dde64c291ae225807b4d9edd3ca4324a2510067347b394aabcac9354e9f72c9"
           },
           {
-            "citationId": "ledger-ev_46d638537aae9b7c756b56b7af78ca9d",
-            "evidenceId": "ev_46d638537aae9b7c756b56b7af78ca9d",
+            "citationId": "ledger-ev_84c8f176950ff52e359733726abe8fa1",
+            "evidenceId": "ev_84c8f176950ff52e359733726abe8fa1",
             "canonicalSourceId": "https://wiki.example.org/embedded-ops",
             "canonicalUrl": "https://wiki.example.org/embedded-ops",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "e8572006775e70b98b929a4acd4fe6dcb2abda86e09d22ccbabd071b3050ba0f"
           },
           {
-            "citationId": "ledger-ev_40d3301fef4957f1df8c7e736e2ef886",
-            "evidenceId": "ev_40d3301fef4957f1df8c7e736e2ef886",
+            "citationId": "ledger-ev_bef7fb71c1ea1a3bad12fcd2beb43197",
+            "evidenceId": "ev_bef7fb71c1ea1a3bad12fcd2beb43197",
             "canonicalSourceId": "https://wiki.example.org/postgres-capacity",
             "canonicalUrl": "https://wiki.example.org/postgres-capacity",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "cf16ffbb916fae2157c50ae9256f6d625b7334b6d6f780529b251779e177dce2"
           },
           {
-            "citationId": "ledger-ev_8bca8453d7d98fcfcd926c3bf7d96bee",
-            "evidenceId": "ev_8bca8453d7d98fcfcd926c3bf7d96bee",
+            "citationId": "ledger-ev_2f443377241ab173d3af37753e54e93a",
+            "evidenceId": "ev_2f443377241ab173d3af37753e54e93a",
             "canonicalSourceId": "https://docs.example.org/postgres-ops",
             "canonicalUrl": "https://docs.example.org/postgres-ops",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "f3afdd999d1c6a5c273ba49ccacef5f42217efea9d2d971804cd76594a943b14"
           },
           {
-            "citationId": "ledger-ev_eeb35022696fb977f5a63f0692f74864",
-            "evidenceId": "ev_eeb35022696fb977f5a63f0692f74864",
+            "citationId": "ledger-ev_8ef9814a012b2eb6b4c67ce8a1ad3bb6",
+            "evidenceId": "ev_8ef9814a012b2eb6b4c67ce8a1ad3bb6",
             "canonicalSourceId": "https://docs.example.org/backup-compare",
             "canonicalUrl": "https://docs.example.org/backup-compare",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "5b2fc28e1e2d29a4bec3c3b98dd7a1e8ae5076094a70cb04fdcec5601d1c332b"
           },
           {
-            "citationId": "ledger-ev_715c61dc08aba0cf20619a699643f07f",
-            "evidenceId": "ev_715c61dc08aba0cf20619a699643f07f",
+            "citationId": "ledger-ev_3f565e71b6e7cbb74903cf3916b721a6",
+            "evidenceId": "ev_3f565e71b6e7cbb74903cf3916b721a6",
             "canonicalSourceId": "https://wiki.example.org/upgrade-path",
             "canonicalUrl": "https://wiki.example.org/upgrade-path",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "b622738a287f3424e4603a554baaadd0b930aaa51f17e12b07cee9a4d62c3d32"
           }
         ]
       },
@@ -542,7 +724,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_5b9fef69944e984333ae712fd40dd29e",
+          "wouldBeCitationId": "ledger-ev_b5a9eeed35283691563d3f775abda094",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "0bcee5510b6956a8b8f0d7451f2c9102230b84961e28e4f62cbb24db73c7f856",
@@ -554,32 +736,48 @@
             "url": "https://docs.example.org/sqlite-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_5b9fef69944e984333ae712fd40dd29e",
-            "evidenceId": "ev_5b9fef69944e984333ae712fd40dd29e",
+            "citationId": "ledger-ev_b5a9eeed35283691563d3f775abda094",
+            "evidenceId": "ev_b5a9eeed35283691563d3f775abda094",
             "canonicalSourceId": "https://docs.example.org/sqlite-ops",
             "tier": "fulltext",
             "selectionContentHash": "1dde64c291ae225807b4d9edd3ca4324a2510067347b394aabcac9354e9f72c9"
           },
-          "passages": [
-            {
-              "passageDigest": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级三部分组成。",
-              "passageLength": 37,
-              "passageContentHash": "0bcee5510b6956a8b8f0d7451f2c9102230b84961e28e4f62cbb24db73c7f856",
-              "tier": "fulltext"
-            },
-            {
-              "passageDigest": "由于 SQLite 以单文件形式存在，运维人员只需复制数据库文件即可完成备份，无需独立的备份服务。",
-              "passageLength": 49,
-              "passageContentHash": "3324ccd32415f60f717224e5b96e478b59c2c037d5a11fb9a7256b8f400b2bce",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级三部分组成。",
+                "passageLength": 37,
+                "passageContentHash": "0bcee5510b6956a8b8f0d7451f2c9102230b84961e28e4f62cbb24db73c7f856",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "由于 SQLite 以单文件形式存在，运维人员只需复制数据库文件即可完成备份，无需独立的备份服务。",
+                "passageLength": 49,
+                "passageContentHash": "3324ccd32415f60f717224e5b96e478b59c2c037d5a11fb9a7256b8f400b2bce",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级三部分组成。",
+                "passageLength": 37,
+                "passageContentHash": "0bcee5510b6956a8b8f0d7451f2c9102230b84961e28e4f62cbb24db73c7f856",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "由于 SQLite 以单文件形式存在，运维人员只需复制数据库文件即可完成备份，无需独立的备份服务。",
+                "passageLength": 49,
+                "passageContentHash": "3324ccd32415f60f717224e5b96e478b59c2c037d5a11fb9a7256b8f400b2bce",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_46d638537aae9b7c756b56b7af78ca9d",
+          "wouldBeCitationId": "ledger-ev_84c8f176950ff52e359733726abe8fa1",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "b1882757713952879b8ce56bae91065c96c4d2d9900d54b1dd04bbbd78091b5d"
@@ -590,26 +788,36 @@
             "url": "https://wiki.example.org/embedded-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_46d638537aae9b7c756b56b7af78ca9d",
-            "evidenceId": "ev_46d638537aae9b7c756b56b7af78ca9d",
+            "citationId": "ledger-ev_84c8f176950ff52e359733726abe8fa1",
+            "evidenceId": "ev_84c8f176950ff52e359733726abe8fa1",
             "canonicalSourceId": "https://wiki.example.org/embedded-ops",
             "tier": "fulltext",
             "selectionContentHash": "e8572006775e70b98b929a4acd4fe6dcb2abda86e09d22ccbabd071b3050ba0f"
           },
-          "passages": [
-            {
-              "passageDigest": "其成本集中在磁盘空间监控与文件完整性校验两部分，社区文档提供了标准化的检查清单。",
-              "passageLength": 40,
-              "passageContentHash": "b1882757713952879b8ce56bae91065c96c4d2d9900d54b1dd04bbbd78091b5d",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "其成本集中在磁盘空间监控与文件完整性校验两部分，社区文档提供了标准化的检查清单。",
+                "passageLength": 40,
+                "passageContentHash": "b1882757713952879b8ce56bae91065c96c4d2d9900d54b1dd04bbbd78091b5d",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "其成本集中在磁盘空间监控与文件完整性校验两部分，社区文档提供了标准化的检查清单。",
+                "passageLength": 40,
+                "passageContentHash": "b1882757713952879b8ce56bae91065c96c4d2d9900d54b1dd04bbbd78091b5d",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s3",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_8bca8453d7d98fcfcd926c3bf7d96bee",
+          "wouldBeCitationId": "ledger-ev_2f443377241ab173d3af37753e54e93a",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090",
@@ -621,32 +829,48 @@
             "url": "https://docs.example.org/postgres-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_8bca8453d7d98fcfcd926c3bf7d96bee",
-            "evidenceId": "ev_8bca8453d7d98fcfcd926c3bf7d96bee",
+            "citationId": "ledger-ev_2f443377241ab173d3af37753e54e93a",
+            "evidenceId": "ev_2f443377241ab173d3af37753e54e93a",
             "canonicalSourceId": "https://docs.example.org/postgres-ops",
             "tier": "fulltext",
             "selectionContentHash": "f3afdd999d1c6a5c273ba49ccacef5f42217efea9d2d971804cd76594a943b14"
           },
-          "passages": [
-            {
-              "passageDigest": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。",
-              "passageLength": 42,
-              "passageContentHash": "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090",
-              "tier": "fulltext"
-            },
-            {
-              "passageDigest": "生产环境还需要为大版本升级预留停机窗口或配置逻辑复制，这些都计入长期运维成本。",
-              "passageLength": 39,
-              "passageContentHash": "b0265ad928330473dbe0b19eedb8946d5d2c45b8293fedd91a06076b0b8be455",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。",
+                "passageLength": 42,
+                "passageContentHash": "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "生产环境还需要为大版本升级预留停机窗口或配置逻辑复制，这些都计入长期运维成本。",
+                "passageLength": 39,
+                "passageContentHash": "b0265ad928330473dbe0b19eedb8946d5d2c45b8293fedd91a06076b0b8be455",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。",
+                "passageLength": 42,
+                "passageContentHash": "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "生产环境还需要为大版本升级预留停机窗口或配置逻辑复制，这些都计入长期运维成本。",
+                "passageLength": 39,
+                "passageContentHash": "b0265ad928330473dbe0b19eedb8946d5d2c45b8293fedd91a06076b0b8be455",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s4",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_40d3301fef4957f1df8c7e736e2ef886",
+          "wouldBeCitationId": "ledger-ev_bef7fb71c1ea1a3bad12fcd2beb43197",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "07380a99f28961e80cb0c38c5e68cf59872897538477e8fdc34243a1a6c92244",
@@ -658,32 +882,48 @@
             "url": "https://wiki.example.org/postgres-capacity"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_40d3301fef4957f1df8c7e736e2ef886",
-            "evidenceId": "ev_40d3301fef4957f1df8c7e736e2ef886",
+            "citationId": "ledger-ev_bef7fb71c1ea1a3bad12fcd2beb43197",
+            "evidenceId": "ev_bef7fb71c1ea1a3bad12fcd2beb43197",
             "canonicalSourceId": "https://wiki.example.org/postgres-capacity",
             "tier": "fulltext",
             "selectionContentHash": "cf16ffbb916fae2157c50ae9256f6d625b7334b6d6f780529b251779e177dce2"
           },
-          "passages": [
-            {
-              "passageDigest": "这部分维护工作构成了其长期运维成本的主要组成，通常由数据库管理员按周执行。",
-              "passageLength": 37,
-              "passageContentHash": "07380a99f28961e80cb0c38c5e68cf59872897538477e8fdc34243a1a6c92244",
-              "tier": "fulltext"
-            },
-            {
-              "passageDigest": "PostgreSQL 需要定期执行 VACUUM 与索引重建来控制表膨胀。",
-              "passageLength": 37,
-              "passageContentHash": "d17c64b67feb16c956791fece53d363f63e2368e9de0176ea55efb75764a0d03",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "这部分维护工作构成了其长期运维成本的主要组成，通常由数据库管理员按周执行。",
+                "passageLength": 37,
+                "passageContentHash": "07380a99f28961e80cb0c38c5e68cf59872897538477e8fdc34243a1a6c92244",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "PostgreSQL 需要定期执行 VACUUM 与索引重建来控制表膨胀。",
+                "passageLength": 37,
+                "passageContentHash": "d17c64b67feb16c956791fece53d363f63e2368e9de0176ea55efb75764a0d03",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "这部分维护工作构成了其长期运维成本的主要组成，通常由数据库管理员按周执行。",
+                "passageLength": 37,
+                "passageContentHash": "07380a99f28961e80cb0c38c5e68cf59872897538477e8fdc34243a1a6c92244",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "PostgreSQL 需要定期执行 VACUUM 与索引重建来控制表膨胀。",
+                "passageLength": 37,
+                "passageContentHash": "d17c64b67feb16c956791fece53d363f63e2368e9de0176ea55efb75764a0d03",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s5",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_eeb35022696fb977f5a63f0692f74864",
+          "wouldBeCitationId": "ledger-ev_8ef9814a012b2eb6b4c67ce8a1ad3bb6",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "8b76c1262f524b6f2cdcf863a25a664850b30857a5126fc4dfb82c7e5799cf6a"
@@ -694,26 +934,36 @@
             "url": "https://docs.example.org/backup-compare"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_eeb35022696fb977f5a63f0692f74864",
-            "evidenceId": "ev_eeb35022696fb977f5a63f0692f74864",
+            "citationId": "ledger-ev_8ef9814a012b2eb6b4c67ce8a1ad3bb6",
+            "evidenceId": "ev_8ef9814a012b2eb6b4c67ce8a1ad3bb6",
             "canonicalSourceId": "https://docs.example.org/backup-compare",
             "tier": "fulltext",
             "selectionContentHash": "5b2fc28e1e2d29a4bec3c3b98dd7a1e8ae5076094a70cb04fdcec5601d1c332b"
           },
-          "passages": [
-            {
-              "passageDigest": "SQLite 通过文件复制即可完成备份，PostgreSQL 需要基础备份叠加 WAL 归档才能保证恢复点目标。",
-              "passageLength": 56,
-              "passageContentHash": "8b76c1262f524b6f2cdcf863a25a664850b30857a5126fc4dfb82c7e5799cf6a",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "SQLite 通过文件复制即可完成备份，PostgreSQL 需要基础备份叠加 WAL 归档才能保证恢复点目标。",
+                "passageLength": 56,
+                "passageContentHash": "8b76c1262f524b6f2cdcf863a25a664850b30857a5126fc4dfb82c7e5799cf6a",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "SQLite 通过文件复制即可完成备份，PostgreSQL 需要基础备份叠加 WAL 归档才能保证恢复点目标。",
+                "passageLength": 56,
+                "passageContentHash": "8b76c1262f524b6f2cdcf863a25a664850b30857a5126fc4dfb82c7e5799cf6a",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s6",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_715c61dc08aba0cf20619a699643f07f",
+          "wouldBeCitationId": "ledger-ev_3f565e71b6e7cbb74903cf3916b721a6",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "66b20f382b4048fa8082ee27c06664eddf6720c744823def38e4b7fc4800fab9",
@@ -725,26 +975,42 @@
             "url": "https://wiki.example.org/upgrade-path"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_715c61dc08aba0cf20619a699643f07f",
-            "evidenceId": "ev_715c61dc08aba0cf20619a699643f07f",
+            "citationId": "ledger-ev_3f565e71b6e7cbb74903cf3916b721a6",
+            "evidenceId": "ev_3f565e71b6e7cbb74903cf3916b721a6",
             "canonicalSourceId": "https://wiki.example.org/upgrade-path",
             "tier": "fulltext",
             "selectionContentHash": "b622738a287f3424e4603a554baaadd0b930aaa51f17e12b07cee9a4d62c3d32"
           },
-          "passages": [
-            {
-              "passageDigest": "PostgreSQL 的大版本升级需要 pg_upgrade 工具或逻辑复制迁移数据。",
-              "passageLength": 43,
-              "passageContentHash": "66b20f382b4048fa8082ee27c06664eddf6720c744823def38e4b7fc4800fab9",
-              "tier": "fulltext"
-            },
-            {
-              "passageDigest": "SQLite 的版本升级通常随应用程序发布自动完成，几乎不产生额外的运维成本。",
-              "passageLength": 39,
-              "passageContentHash": "eb1b16fd24005f59542b870e2f031bdbb8e9ea1f86c3fb54e9da3ed554693e68",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "PostgreSQL 的大版本升级需要 pg_upgrade 工具或逻辑复制迁移数据。",
+                "passageLength": 43,
+                "passageContentHash": "66b20f382b4048fa8082ee27c06664eddf6720c744823def38e4b7fc4800fab9",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "SQLite 的版本升级通常随应用程序发布自动完成，几乎不产生额外的运维成本。",
+                "passageLength": 39,
+                "passageContentHash": "eb1b16fd24005f59542b870e2f031bdbb8e9ea1f86c3fb54e9da3ed554693e68",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "PostgreSQL 的大版本升级需要 pg_upgrade 工具或逻辑复制迁移数据。",
+                "passageLength": 43,
+                "passageContentHash": "66b20f382b4048fa8082ee27c06664eddf6720c744823def38e4b7fc4800fab9",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "SQLite 的版本升级通常随应用程序发布自动完成，几乎不产生额外的运维成本。",
+                "passageLength": 39,
+                "passageContentHash": "eb1b16fd24005f59542b870e2f031bdbb8e9ea1f86c3fb54e9da3ed554693e68",
+                "tier": "fulltext"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -763,12 +1029,25 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -777,12 +1056,25 @@
           ]
         },
         "wouldBe": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -813,18 +1105,20 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_201626ceaa93d1d6c78ad2518e8e9eae",
-            "evidenceId": "ev_201626ceaa93d1d6c78ad2518e8e9eae",
+            "citationId": "ledger-ev_1d21f54771d8059825de32c946c7c24e",
+            "evidenceId": "ev_1d21f54771d8059825de32c946c7c24e",
             "canonicalSourceId": "https://docs.example.org/sqlite-ops",
             "canonicalUrl": "https://docs.example.org/sqlite-ops",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "c62cec547fc0a847bdb49f43bb446b3fae380ad93852ad36f071a3484d7c716f"
           },
           {
-            "citationId": "ledger-ev_65ccfe15781d9f14b8345b44c3672e0c",
-            "evidenceId": "ev_65ccfe15781d9f14b8345b44c3672e0c",
+            "citationId": "ledger-ev_18649feae25722f8184f40f9d3c7a01a",
+            "evidenceId": "ev_18649feae25722f8184f40f9d3c7a01a",
             "canonicalSourceId": "https://docs.example.org/postgres-ops",
             "canonicalUrl": "https://docs.example.org/postgres-ops",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "6de722f40ae3a6ab66b39694bf7b284a02ae2029620eb3ecfa0fbf30666e8bc6"
           }
         ]
       },
@@ -833,7 +1127,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_201626ceaa93d1d6c78ad2518e8e9eae",
+          "wouldBeCitationId": "ledger-ev_1d21f54771d8059825de32c946c7c24e",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "760c58e6b8b766a30b812ddc9b6c66e33ef23dc68c4e02a1260de80ce37cb4bf"
@@ -844,26 +1138,36 @@
             "url": "https://docs.example.org/sqlite-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_201626ceaa93d1d6c78ad2518e8e9eae",
-            "evidenceId": "ev_201626ceaa93d1d6c78ad2518e8e9eae",
+            "citationId": "ledger-ev_1d21f54771d8059825de32c946c7c24e",
+            "evidenceId": "ev_1d21f54771d8059825de32c946c7c24e",
             "canonicalSourceId": "https://docs.example.org/sqlite-ops",
             "tier": "fulltext",
             "selectionContentHash": "c62cec547fc0a847bdb49f43bb446b3fae380ad93852ad36f071a3484d7c716f"
           },
-          "passages": [
-            {
-              "passageDigest": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级组成。",
-              "passageLength": 34,
-              "passageContentHash": "760c58e6b8b766a30b812ddc9b6c66e33ef23dc68c4e02a1260de80ce37cb4bf",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级组成。",
+                "passageLength": 34,
+                "passageContentHash": "760c58e6b8b766a30b812ddc9b6c66e33ef23dc68c4e02a1260de80ce37cb4bf",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "SQLite 的运维成本主要由备份策略、磁盘空间监控和版本升级组成。",
+                "passageLength": 34,
+                "passageContentHash": "760c58e6b8b766a30b812ddc9b6c66e33ef23dc68c4e02a1260de80ce37cb4bf",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_65ccfe15781d9f14b8345b44c3672e0c",
+          "wouldBeCitationId": "ledger-ev_18649feae25722f8184f40f9d3c7a01a",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090"
@@ -874,20 +1178,30 @@
             "url": "https://docs.example.org/postgres-ops"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_65ccfe15781d9f14b8345b44c3672e0c",
-            "evidenceId": "ev_65ccfe15781d9f14b8345b44c3672e0c",
+            "citationId": "ledger-ev_18649feae25722f8184f40f9d3c7a01a",
+            "evidenceId": "ev_18649feae25722f8184f40f9d3c7a01a",
             "canonicalSourceId": "https://docs.example.org/postgres-ops",
             "tier": "fulltext",
             "selectionContentHash": "6de722f40ae3a6ab66b39694bf7b284a02ae2029620eb3ecfa0fbf30666e8bc6"
           },
-          "passages": [
-            {
-              "passageDigest": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。",
-              "passageLength": 42,
-              "passageContentHash": "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。",
+                "passageLength": 42,
+                "passageContentHash": "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "PostgreSQL 的运维成本包含实例管理、连续归档备份、慢查询监控与连接池维护。",
+                "passageLength": 42,
+                "passageContentHash": "6a9291506e38a5115bb87964793a173aadd5616842d8c889a494fe70e756b090",
+                "tier": "fulltext"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -906,12 +1220,25 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 0.6667,
           "limitations": [
@@ -920,12 +1247,25 @@
           ]
         },
         "wouldBe": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 0.6667,
           "limitations": [
@@ -965,7 +1305,22 @@
         "old": {
           "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
+          "writerStatus": {
+            "callCount": 0,
+            "attempted": false,
+            "accepted": false,
+            "mode": "fallback",
+            "reasonCode": "model_unavailable",
+            "fallbackReason": "未接入受证据约束的报告写作者"
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": null,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
@@ -976,7 +1331,22 @@
         "wouldBe": {
           "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
+          "writerStatus": {
+            "callCount": 0,
+            "attempted": false,
+            "accepted": false,
+            "mode": "fallback",
+            "reasonCode": "model_unavailable",
+            "fallbackReason": "未接入受证据约束的报告写作者"
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": null,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
@@ -1015,7 +1385,22 @@
         "old": {
           "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
+          "writerStatus": {
+            "callCount": 0,
+            "attempted": false,
+            "accepted": false,
+            "mode": "fallback",
+            "reasonCode": "model_unavailable",
+            "fallbackReason": "未接入受证据约束的报告写作者"
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": null,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
@@ -1026,7 +1411,22 @@
         "wouldBe": {
           "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
+          "writerStatus": {
+            "callCount": 0,
+            "attempted": false,
+            "accepted": false,
+            "mode": "fallback",
+            "reasonCode": "model_unavailable",
+            "fallbackReason": "未接入受证据约束的报告写作者"
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": null,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
           "requiredCheckFailures": [],
           "quality": "insufficient",
           "coverageRatio": 0,
@@ -1057,18 +1457,20 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_ae5a39508c99e1ab74139318881fbb63",
-            "evidenceId": "ev_ae5a39508c99e1ab74139318881fbb63",
+            "citationId": "ledger-ev_9b461cd4ea33ccdef9f5caae96bbab4d",
+            "evidenceId": "ev_9b461cd4ea33ccdef9f5caae96bbab4d",
             "canonicalSourceId": "https://docs.example.org/oauth21-draft",
             "canonicalUrl": "https://docs.example.org/oauth21-draft",
-            "tier": "thin"
+            "tier": "thin",
+            "selectionContentHash": "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b"
           },
           {
-            "citationId": "ledger-ev_b7305873928fb0d27a4276bcf3c9d336",
-            "evidenceId": "ev_b7305873928fb0d27a4276bcf3c9d336",
+            "citationId": "ledger-ev_5e169f2c0196648a4998e8af01515bf1",
+            "evidenceId": "ev_5e169f2c0196648a4998e8af01515bf1",
             "canonicalSourceId": "https://wiki.example.org/oauth21-pkce",
             "canonicalUrl": "https://wiki.example.org/oauth21-pkce",
-            "tier": "thin"
+            "tier": "thin",
+            "selectionContentHash": "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773"
           }
         ]
       },
@@ -1077,7 +1479,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_thin",
           "reason": "旧路径本来就是搜索摘要薄证据，would-be 同为薄层（无降级）。",
-          "wouldBeCitationId": "ledger-ev_ae5a39508c99e1ab74139318881fbb63",
+          "wouldBeCitationId": "ledger-ev_9b461cd4ea33ccdef9f5caae96bbab4d",
           "oldReaderKind": "search_snippet",
           "passageContentHashes": [
             "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b"
@@ -1088,26 +1490,36 @@
             "url": "https://docs.example.org/oauth21-draft"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_ae5a39508c99e1ab74139318881fbb63",
-            "evidenceId": "ev_ae5a39508c99e1ab74139318881fbb63",
+            "citationId": "ledger-ev_9b461cd4ea33ccdef9f5caae96bbab4d",
+            "evidenceId": "ev_9b461cd4ea33ccdef9f5caae96bbab4d",
             "canonicalSourceId": "https://docs.example.org/oauth21-draft",
             "tier": "thin",
             "selectionContentHash": "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b"
           },
-          "passages": [
-            {
-              "passageDigest": "OAuth 2.1 移除了隐式授权流程与密码授权流程，并新增了设备授权流程的规范化描述。",
-              "passageLength": 44,
-              "passageContentHash": "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b",
-              "tier": "thin"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "OAuth 2.1 移除了隐式授权流程与密码授权流程，并新增了设备授权流程的规范化描述。",
+                "passageLength": 44,
+                "passageContentHash": "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b",
+                "tier": "thin"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "OAuth 2.1 移除了隐式授权流程与密码授权流程，并新增了设备授权流程的规范化描述。",
+                "passageLength": 44,
+                "passageContentHash": "797dd5ca130ac04d67a3199ea21511918116e44be5cf69d28c4dca5312b3f60b",
+                "tier": "thin"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s2",
           "classification": "kept_thin",
           "reason": "旧路径本来就是搜索摘要薄证据，would-be 同为薄层（无降级）。",
-          "wouldBeCitationId": "ledger-ev_b7305873928fb0d27a4276bcf3c9d336",
+          "wouldBeCitationId": "ledger-ev_5e169f2c0196648a4998e8af01515bf1",
           "oldReaderKind": "search_snippet",
           "passageContentHashes": [
             "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773"
@@ -1118,20 +1530,30 @@
             "url": "https://wiki.example.org/oauth21-pkce"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_b7305873928fb0d27a4276bcf3c9d336",
-            "evidenceId": "ev_b7305873928fb0d27a4276bcf3c9d336",
+            "citationId": "ledger-ev_5e169f2c0196648a4998e8af01515bf1",
+            "evidenceId": "ev_5e169f2c0196648a4998e8af01515bf1",
             "canonicalSourceId": "https://wiki.example.org/oauth21-pkce",
             "tier": "thin",
             "selectionContentHash": "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773"
           },
-          "passages": [
-            {
-              "passageDigest": "OAuth 2.1 要求所有授权码流程的客户端默认使用 PKCE，不再区分公共客户端与机密客户端。",
-              "passageLength": 49,
-              "passageContentHash": "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773",
-              "tier": "thin"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "OAuth 2.1 要求所有授权码流程的客户端默认使用 PKCE，不再区分公共客户端与机密客户端。",
+                "passageLength": 49,
+                "passageContentHash": "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773",
+                "tier": "thin"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "OAuth 2.1 要求所有授权码流程的客户端默认使用 PKCE，不再区分公共客户端与机密客户端。",
+                "passageLength": 49,
+                "passageContentHash": "5f956e2922f4d2a7dad5b4633a2402b63b10de98515e73c12d87a97e6a99e773",
+                "tier": "thin"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -1150,12 +1572,25 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -1164,12 +1599,25 @@
           ]
         },
         "wouldBe": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -1205,25 +1653,28 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_f64c5aea81f45a85364fc5ff755c747a",
-            "evidenceId": "ev_f64c5aea81f45a85364fc5ff755c747a",
+            "citationId": "ledger-ev_b951ad6fe48d16e37392fa0671aa221f",
+            "evidenceId": "ev_b951ad6fe48d16e37392fa0671aa221f",
             "canonicalSourceId": "https://docs.example.org/wasm-runtimes",
             "canonicalUrl": "https://docs.example.org/wasm-runtimes",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "0dc413d935e9c9b9198f80c3082662fe0b4b06f8e96c032c14a2acb398e5ada5"
           },
           {
-            "citationId": "ledger-ev_1202542483f0f110b938cbd48e056cf9",
-            "evidenceId": "ev_1202542483f0f110b938cbd48e056cf9",
+            "citationId": "ledger-ev_964cf6ca98d9ad8f92baf112e900eda4",
+            "evidenceId": "ev_964cf6ca98d9ad8f92baf112e900eda4",
             "canonicalSourceId": "https://wiki.example.org/wasm-server-cases",
             "canonicalUrl": "https://wiki.example.org/wasm-server-cases",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "5554cd56a221ae1a3f47b56980b12b0870afde3506d568399b734766939da622"
           },
           {
-            "citationId": "ledger-ev_299985a0c49e7b976c46acd90df88c93",
-            "evidenceId": "ev_299985a0c49e7b976c46acd90df88c93",
+            "citationId": "ledger-ev_6e348ba26062d36bb6a733becaa0d109",
+            "evidenceId": "ev_6e348ba26062d36bb6a733becaa0d109",
             "canonicalSourceId": "https://docs.example.org/wasm-performance",
             "canonicalUrl": "https://docs.example.org/wasm-performance",
-            "tier": "thin"
+            "tier": "thin",
+            "selectionContentHash": "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41"
           }
         ]
       },
@@ -1232,7 +1683,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_f64c5aea81f45a85364fc5ff755c747a",
+          "wouldBeCitationId": "ledger-ev_b951ad6fe48d16e37392fa0671aa221f",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "f98063ce0326a34dfc982d99eaaad8125c00ecd9776d72ff6f9deca3fcc294d1",
@@ -1244,32 +1695,48 @@
             "url": "https://docs.example.org/wasm-runtimes"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_f64c5aea81f45a85364fc5ff755c747a",
-            "evidenceId": "ev_f64c5aea81f45a85364fc5ff755c747a",
+            "citationId": "ledger-ev_b951ad6fe48d16e37392fa0671aa221f",
+            "evidenceId": "ev_b951ad6fe48d16e37392fa0671aa221f",
             "canonicalSourceId": "https://docs.example.org/wasm-runtimes",
             "tier": "fulltext",
             "selectionContentHash": "0dc413d935e9c9b9198f80c3082662fe0b4b06f8e96c032c14a2acb398e5ada5"
           },
-          "passages": [
-            {
-              "passageDigest": "服务端常见的 WebAssembly 运行时包括 Wasmtime、WasmEdge 与 Wasmer。",
-              "passageLength": 52,
-              "passageContentHash": "f98063ce0326a34dfc982d99eaaad8125c00ecd9776d72ff6f9deca3fcc294d1",
-              "tier": "fulltext"
-            },
-            {
-              "passageDigest": "Wasmtime 强调安全隔离，WasmEdge 侧重云端部署，Wasmer 支持多后端编译。",
-              "passageLength": 47,
-              "passageContentHash": "2f7723c3590a01bd4f98eedcd4c7ce4015f60b1ee21e2d3952e7907dfc68f3a1",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "服务端常见的 WebAssembly 运行时包括 Wasmtime、WasmEdge 与 Wasmer。",
+                "passageLength": 52,
+                "passageContentHash": "f98063ce0326a34dfc982d99eaaad8125c00ecd9776d72ff6f9deca3fcc294d1",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "Wasmtime 强调安全隔离，WasmEdge 侧重云端部署，Wasmer 支持多后端编译。",
+                "passageLength": 47,
+                "passageContentHash": "2f7723c3590a01bd4f98eedcd4c7ce4015f60b1ee21e2d3952e7907dfc68f3a1",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "服务端常见的 WebAssembly 运行时包括 Wasmtime、WasmEdge 与 Wasmer。",
+                "passageLength": 52,
+                "passageContentHash": "f98063ce0326a34dfc982d99eaaad8125c00ecd9776d72ff6f9deca3fcc294d1",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "Wasmtime 强调安全隔离，WasmEdge 侧重云端部署，Wasmer 支持多后端编译。",
+                "passageLength": 47,
+                "passageContentHash": "2f7723c3590a01bd4f98eedcd4c7ce4015f60b1ee21e2d3952e7907dfc68f3a1",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_1202542483f0f110b938cbd48e056cf9",
+          "wouldBeCitationId": "ledger-ev_964cf6ca98d9ad8f92baf112e900eda4",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "3250043386dc823c067b1c2f9149a7ab8949eb8ff1712723c28da031dafe30e6"
@@ -1280,26 +1747,36 @@
             "url": "https://wiki.example.org/wasm-server-cases"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_1202542483f0f110b938cbd48e056cf9",
-            "evidenceId": "ev_1202542483f0f110b938cbd48e056cf9",
+            "citationId": "ledger-ev_964cf6ca98d9ad8f92baf112e900eda4",
+            "evidenceId": "ev_964cf6ca98d9ad8f92baf112e900eda4",
             "canonicalSourceId": "https://wiki.example.org/wasm-server-cases",
             "tier": "fulltext",
             "selectionContentHash": "5554cd56a221ae1a3f47b56980b12b0870afde3506d568399b734766939da622"
           },
-          "passages": [
-            {
-              "passageDigest": "WebAssembly 在服务端的落地案例集中在插件系统、边缘函数与数据预处理。",
-              "passageLength": 40,
-              "passageContentHash": "3250043386dc823c067b1c2f9149a7ab8949eb8ff1712723c28da031dafe30e6",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "WebAssembly 在服务端的落地案例集中在插件系统、边缘函数与数据预处理。",
+                "passageLength": 40,
+                "passageContentHash": "3250043386dc823c067b1c2f9149a7ab8949eb8ff1712723c28da031dafe30e6",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "WebAssembly 在服务端的落地案例集中在插件系统、边缘函数与数据预处理。",
+                "passageLength": 40,
+                "passageContentHash": "3250043386dc823c067b1c2f9149a7ab8949eb8ff1712723c28da031dafe30e6",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s3",
           "classification": "kept_thin",
           "reason": "旧路径本来就是搜索摘要薄证据，would-be 同为薄层（无降级）。",
-          "wouldBeCitationId": "ledger-ev_299985a0c49e7b976c46acd90df88c93",
+          "wouldBeCitationId": "ledger-ev_6e348ba26062d36bb6a733becaa0d109",
           "oldReaderKind": "search_snippet",
           "passageContentHashes": [
             "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41"
@@ -1310,20 +1787,30 @@
             "url": "https://docs.example.org/wasm-performance"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_299985a0c49e7b976c46acd90df88c93",
-            "evidenceId": "ev_299985a0c49e7b976c46acd90df88c93",
+            "citationId": "ledger-ev_6e348ba26062d36bb6a733becaa0d109",
+            "evidenceId": "ev_6e348ba26062d36bb6a733becaa0d109",
             "canonicalSourceId": "https://docs.example.org/wasm-performance",
             "tier": "thin",
             "selectionContentHash": "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41"
           },
-          "passages": [
-            {
-              "passageDigest": "WebAssembly 服务端运行的性能接近原生代码的七成以上，冷启动显著快于传统容器方案。",
-              "passageLength": 46,
-              "passageContentHash": "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41",
-              "tier": "thin"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "WebAssembly 服务端运行的性能接近原生代码的七成以上，冷启动显著快于传统容器方案。",
+                "passageLength": 46,
+                "passageContentHash": "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41",
+                "tier": "thin"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "WebAssembly 服务端运行的性能接近原生代码的七成以上，冷启动显著快于传统容器方案。",
+                "passageLength": 46,
+                "passageContentHash": "17bad32545d5fb4a6e601ac879d567483732154c565166d0cfde902fea475a41",
+                "tier": "thin"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -1342,12 +1829,25 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -1356,12 +1856,25 @@
           ]
         },
         "wouldBe": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -1392,18 +1905,20 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_ad7593140145c2852c55ca7fc07a50ff",
-            "evidenceId": "ev_ad7593140145c2852c55ca7fc07a50ff",
+            "citationId": "ledger-ev_94782ba04aca8b003e64325cfa1534bc",
+            "evidenceId": "ev_94782ba04aca8b003e64325cfa1534bc",
             "canonicalSourceId": "https://github.com/redis/redis/releases",
             "canonicalUrl": "https://github.com/redis/redis/releases",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "7d67c92d5f94015f02ada81149634b9ddc7e17d0c73452f30198bba84eb1ac60"
           },
           {
-            "citationId": "ledger-ev_725d24796845b0031f49e294c5468f76",
-            "evidenceId": "ev_725d24796845b0031f49e294c5468f76",
+            "citationId": "ledger-ev_46301836f6c31daa14d2913f1c3eb5d2",
+            "evidenceId": "ev_46301836f6c31daa14d2913f1c3eb5d2",
             "canonicalSourceId": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES",
             "canonicalUrl": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "de1b296ed3d02d0deae9128f34188f146fdeb76ce17809723a66d19c6abc9620"
           }
         ]
       },
@@ -1412,7 +1927,7 @@
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_725d24796845b0031f49e294c5468f76",
+          "wouldBeCitationId": "ledger-ev_46301836f6c31daa14d2913f1c3eb5d2",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "79aea05af1ef2acd079a468f465d7a1a95328bd62cccd00edc2315eb763a06b6"
@@ -1423,26 +1938,36 @@
             "url": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_725d24796845b0031f49e294c5468f76",
-            "evidenceId": "ev_725d24796845b0031f49e294c5468f76",
+            "citationId": "ledger-ev_46301836f6c31daa14d2913f1c3eb5d2",
+            "evidenceId": "ev_46301836f6c31daa14d2913f1c3eb5d2",
             "canonicalSourceId": "https://github.com/redis/redis/blob/7.2/00-RELEASENOTES",
             "tier": "fulltext",
             "selectionContentHash": "de1b296ed3d02d0deae9128f34188f146fdeb76ce17809723a66d19c6abc9620"
           },
-          "passages": [
-            {
-              "passageDigest": "Redis 7.2 的 release notes 记录了 Lua 脚本执行改进与新的集合命令。",
-              "passageLength": 48,
-              "passageContentHash": "79aea05af1ef2acd079a468f465d7a1a95328bd62cccd00edc2315eb763a06b6",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "Redis 7.2 的 release notes 记录了 Lua 脚本执行改进与新的集合命令。",
+                "passageLength": 48,
+                "passageContentHash": "79aea05af1ef2acd079a468f465d7a1a95328bd62cccd00edc2315eb763a06b6",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "Redis 7.2 的 release notes 记录了 Lua 脚本执行改进与新的集合命令。",
+                "passageLength": 48,
+                "passageContentHash": "79aea05af1ef2acd079a468f465d7a1a95328bd62cccd00edc2315eb763a06b6",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_ad7593140145c2852c55ca7fc07a50ff",
+          "wouldBeCitationId": "ledger-ev_94782ba04aca8b003e64325cfa1534bc",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "d0c9b5ca101116a0582132267c940475ff92b2c3f429331c0cdbc4c5f7457d66",
@@ -1454,26 +1979,42 @@
             "url": "https://github.com/redis/redis/releases"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_ad7593140145c2852c55ca7fc07a50ff",
-            "evidenceId": "ev_ad7593140145c2852c55ca7fc07a50ff",
+            "citationId": "ledger-ev_94782ba04aca8b003e64325cfa1534bc",
+            "evidenceId": "ev_94782ba04aca8b003e64325cfa1534bc",
             "canonicalSourceId": "https://github.com/redis/redis/releases",
             "tier": "fulltext",
             "selectionContentHash": "7d67c92d5f94015f02ada81149634b9ddc7e17d0c73452f30198bba84eb1ac60"
           },
-          "passages": [
-            {
-              "passageDigest": "Redis 7.x 引入了 Redis Functions、多部分 AOF 持久化与 Sharded Pub/Sub。",
-              "passageLength": 59,
-              "passageContentHash": "d0c9b5ca101116a0582132267c940475ff92b2c3f429331c0cdbc4c5f7457d66",
-              "tier": "fulltext"
-            },
-            {
-              "passageDigest": "这些新特性在 release notes 中有完整清单，并附带了对应的命令说明。",
-              "passageLength": 40,
-              "passageContentHash": "a2efaeac1c717bf487a89c06702fcd94d596f8c0e8e55e2a7893d5cfd7395023",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "Redis 7.x 引入了 Redis Functions、多部分 AOF 持久化与 Sharded Pub/Sub。",
+                "passageLength": 59,
+                "passageContentHash": "d0c9b5ca101116a0582132267c940475ff92b2c3f429331c0cdbc4c5f7457d66",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "这些新特性在 release notes 中有完整清单，并附带了对应的命令说明。",
+                "passageLength": 40,
+                "passageContentHash": "a2efaeac1c717bf487a89c06702fcd94d596f8c0e8e55e2a7893d5cfd7395023",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "Redis 7.x 引入了 Redis Functions、多部分 AOF 持久化与 Sharded Pub/Sub。",
+                "passageLength": 59,
+                "passageContentHash": "d0c9b5ca101116a0582132267c940475ff92b2c3f429331c0cdbc4c5f7457d66",
+                "tier": "fulltext"
+              },
+              {
+                "passageDigest": "这些新特性在 release notes 中有完整清单，并附带了对应的命令说明。",
+                "passageLength": 40,
+                "passageContentHash": "a2efaeac1c717bf487a89c06702fcd94d596f8c0e8e55e2a7893d5cfd7395023",
+                "tier": "fulltext"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -1492,12 +2033,25 @@
       },
       "deliveryComparison": {
         "old": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -1506,12 +2060,25 @@
           ]
         },
         "wouldBe": {
-          "deliveryLegal": false,
+          "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "model",
-          "requiredCheckFailures": [
-            "required-sections"
-          ],
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": true,
+            "mode": "model",
+            "reasonCode": "",
+            "fallbackReason": ""
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
+          "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
           "limitations": [
@@ -1542,18 +2109,20 @@
       "wouldBeIdentity": {
         "citations": [
           {
-            "citationId": "ledger-ev_936850764f3971c6feda14120a6220c1",
-            "evidenceId": "ev_936850764f3971c6feda14120a6220c1",
+            "citationId": "ledger-ev_3cc389373231c510a527835a392d54c9",
+            "evidenceId": "ev_3cc389373231c510a527835a392d54c9",
             "canonicalSourceId": "https://wiki.example.org/quic-tls",
             "canonicalUrl": "https://wiki.example.org/quic-tls",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61"
           },
           {
-            "citationId": "ledger-ev_66dddd3c3336822974c0c557586ebedc",
-            "evidenceId": "ev_66dddd3c3336822974c0c557586ebedc",
+            "citationId": "ledger-ev_80b034dfba248df93d738199ffc7b2e3",
+            "evidenceId": "ev_80b034dfba248df93d738199ffc7b2e3",
             "canonicalSourceId": "https://docs.example.org/quic-handshake",
             "canonicalUrl": "https://docs.example.org/quic-handshake",
-            "tier": "fulltext"
+            "tier": "fulltext",
+            "selectionContentHash": "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
           }
         ]
       },
@@ -1562,7 +2131,7 @@
           "oldCitationId": "web-s1",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_66dddd3c3336822974c0c557586ebedc",
+          "wouldBeCitationId": "ledger-ev_80b034dfba248df93d738199ffc7b2e3",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
@@ -1573,26 +2142,36 @@
             "url": "https://docs.example.org/quic-handshake"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_66dddd3c3336822974c0c557586ebedc",
-            "evidenceId": "ev_66dddd3c3336822974c0c557586ebedc",
+            "citationId": "ledger-ev_80b034dfba248df93d738199ffc7b2e3",
+            "evidenceId": "ev_80b034dfba248df93d738199ffc7b2e3",
             "canonicalSourceId": "https://docs.example.org/quic-handshake",
             "tier": "fulltext",
             "selectionContentHash": "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6"
           },
-          "passages": [
-            {
-              "passageDigest": "QUIC 将传输层握手与 TLS 握手合并为同一往返。\n\n首次连接只需一个往返即可建立加密会话，重复连接可零往返恢复。",
-              "passageLength": 59,
-              "passageContentHash": "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "QUIC 将传输层与 TLS 握手合并，首次连接仅需一个往返即可建立加密连接。",
+                "passageLength": 39,
+                "passageContentHash": "b868e0135674b323f2a1e391f1a6b3956959c790d48d5037c907a48cbd9bdc72",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "QUIC 将传输层握手与 TLS 握手合并为同一往返。\n\n首次连接只需一个往返即可建立加密会话，重复连接可零往返恢复。",
+                "passageLength": 59,
+                "passageContentHash": "abb042518eb56a1921bdf9ed98396daaea4b69d66cbceb99fb48d6884a5109f6",
+                "tier": "fulltext"
+              }
+            ]
+          }
         },
         {
           "oldCitationId": "web-s2",
           "classification": "kept_fulltext",
           "reason": "would-be 以全文层保留该来源。",
-          "wouldBeCitationId": "ledger-ev_936850764f3971c6feda14120a6220c1",
+          "wouldBeCitationId": "ledger-ev_3cc389373231c510a527835a392d54c9",
           "oldReaderKind": "fixture_fulltext",
           "passageContentHashes": [
             "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61"
@@ -1603,20 +2182,30 @@
             "url": "https://wiki.example.org/quic-tls"
           },
           "wouldBeIdentity": {
-            "citationId": "ledger-ev_936850764f3971c6feda14120a6220c1",
-            "evidenceId": "ev_936850764f3971c6feda14120a6220c1",
+            "citationId": "ledger-ev_3cc389373231c510a527835a392d54c9",
+            "evidenceId": "ev_3cc389373231c510a527835a392d54c9",
             "canonicalSourceId": "https://wiki.example.org/quic-tls",
             "tier": "fulltext",
             "selectionContentHash": "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61"
           },
-          "passages": [
-            {
-              "passageDigest": "QUIC 内置 TLS 1.3，不再依赖分离的 TCP 握手。\n\n这消除了传统方案中传输层与加密层各自协商造成的额外往返次数。",
-              "passageLength": 63,
-              "passageContentHash": "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61",
-              "tier": "fulltext"
-            }
-          ]
+          "passages": {
+            "old": [
+              {
+                "passageDigest": "QUIC 内置 TLS 1.3 握手，避免了 TCP 与 TLS 分离设计带来的额外往返次数。",
+                "passageLength": 47,
+                "passageContentHash": "6a17be53ba2ad5680c280d4f084768b1c6748bfd9ea018a2239f63467947f0c6",
+                "tier": "fulltext"
+              }
+            ],
+            "wouldBe": [
+              {
+                "passageDigest": "QUIC 内置 TLS 1.3，不再依赖分离的 TCP 握手。\n\n这消除了传统方案中传输层与加密层各自协商造成的额外往返次数。",
+                "passageLength": 63,
+                "passageContentHash": "8db06138ce3504fe39553ad5b6be76169221b51e0d92f73955caa903d9668f61",
+                "tier": "fulltext"
+              }
+            ]
+          }
         }
       ],
       "counts": {
@@ -1637,7 +2226,22 @@
         "old": {
           "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": false,
+            "mode": "fallback",
+            "reasonCode": "invalid_citations",
+            "fallbackReason": "模型报告缺少有效的证据引用，已使用确定性证据摘要"
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
           "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
@@ -1649,7 +2253,22 @@
         "wouldBe": {
           "deliveryLegal": true,
           "citationValidity": true,
-          "writerMode": "fallback",
+          "writerStatus": {
+            "callCount": 1,
+            "attempted": true,
+            "accepted": false,
+            "mode": "fallback",
+            "reasonCode": "invalid_citations",
+            "fallbackReason": "模型报告缺少有效的证据引用，已使用确定性证据摘要"
+          },
+          "requiredChecks": {
+            "citation-membership": true,
+            "no-invalid-markers": true,
+            "delivery-mode-consistent": true,
+            "required-sections": true,
+            "limitation-disclosure": true,
+            "writer-input-boundary": null
+          },
           "requiredCheckFailures": [],
           "quality": "limited",
           "coverageRatio": 1,
