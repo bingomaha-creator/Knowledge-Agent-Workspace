@@ -1,14 +1,14 @@
 {
   "diagnostic": "would_be_pack_diff_report",
   "completionMode": "shadow",
-  "status": "pending_review",
+  "status": "approved",
   "generatedAt": "2026-09-14T02:06:21.255Z",
-  "note": "机器验收报告：deliveryLegal 是 shadow 聚合结果，required null/not_evaluated 不表示硬门禁通过。humanReview 保持 pending_review，差异清单须经人工逐项确认后才能判定第二交付门达成。Ledger 保持 shadow。",
+  "note": "Phase 2A 固定 fixture 差异验收已由用户人工复核通过；该结论不替代后续真实联网运行与 representative live/captured runs 校准。Ledger 保持 shadow，切 primary 须另行实施。",
   "humanReview": {
-    "reviewer": null,
-    "reviewedAt": null,
-    "decision": "pending_review",
-    "notes": ""
+    "reviewer": "user",
+    "reviewedAt": "2026-09-14T06:59:47Z",
+    "decision": "approved",
+    "notes": "用户按简化审查方法抽查代表 case，并结合机器汇总确认未发现来源错配、意外丢失或正文降级；接受固定 fixture 验收，后续以实际运行继续观察。"
   },
   "cases": [
     {

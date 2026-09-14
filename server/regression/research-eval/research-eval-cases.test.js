@@ -418,8 +418,13 @@ test('Phase 0 case 集：Ledger would-be Evidence Pack 五项门槛验证', asyn
 test('Ledger 差异报告：保留三态、Writer 真实状态与旧/新成对 passage 身份', () => {
   const reportPath = path.join(here, 'baselines', 'ledger-would-be-diff-report.json');
   const report = JSON.parse(fs.readFileSync(reportPath, 'utf8'));
-  assert.equal(report.status, 'pending_review');
-  assert.equal(report.humanReview?.decision, 'pending_review');
+  assert.ok(['pending_review', 'approved'].includes(report.status), '报告状态必须是待复核或已人工批准');
+  assert.equal(report.humanReview?.decision, report.status, '顶层状态必须与人工复核决定一致');
+  if (report.status === 'approved') {
+    assert.ok(report.humanReview.reviewer, '人工批准后必须记录 reviewer');
+    assert.ok(report.humanReview.reviewedAt, '人工批准后必须记录 reviewedAt');
+    assert.ok(report.humanReview.notes, '人工批准后必须记录审核范围与依据');
+  }
   assert.deepEqual((report.cases || []).map((item) => item.caseId).sort(),
     testCases.map((item) => item.id).sort(), 'canonical 报告必须包含完整 case 集');
   for (const item of report.cases || []) {
