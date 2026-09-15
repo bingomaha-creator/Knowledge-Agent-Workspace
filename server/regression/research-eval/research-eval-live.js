@@ -18,7 +18,12 @@
  * 量级，但不能单独满足 Phase 3 representative 校准前置（还缺真实 local/hybrid
  * 代表样本或等价脱敏回放，见 Plan 歧义 2）。
  *
- * 用法：RESEARCH_EVAL_LIVE=1 node server/regression/research-eval/research-eval-live.js [--case <id>]
+ * 用法：
+ * RESEARCH_EVAL_LIVE=1 node server/regression/research-eval/research-eval-live.js [--case <id>]
+ * RESEARCH_EVAL_LIVE=1 node server/regression/research-eval/research-eval-live.js --ledger-shadow [--case <id>]
+ *
+ * --ledger-shadow 始终使用 shadow 模式，额外输出脱敏后的 Ledger/Reader/diff
+ * 观测，并强制写 diagnostics，不覆盖 Phase 0 canonical baseline。
  */
 import crypto from 'node:crypto';
 import dotenv from 'dotenv';
@@ -46,6 +51,8 @@ dotenv.config();
 const apiKey = process.env.QWEN_API_KEY || '';
 const bochaKey = process.env.BOCHA_API_KEY || '';
 const model = process.env.QWEN_MODEL || 'qwen-plus';
+const ledgerShadow = process.argv.includes('--ledger-shadow');
+if (ledgerShadow) process.env.RESEARCH_EVIDENCE_LEDGER = 'shadow';
 
 function failClosed(reason) {
   console.error(`live 评测未启动（fail closed）：${reason}`);
@@ -62,18 +69,26 @@ if (!bochaKey) {
   failClosed('缺少 BOCHA_API_KEY（.env.local），联网 Provider 将整体不可用。');
 }
 
-const caseFilter = (() => {
+const caseFilters = (() => {
   const index = process.argv.indexOf('--case');
-  return index >= 0 ? process.argv[index + 1] : null;
+  return index >= 0
+    ? String(process.argv[index + 1] || '').split(',').map((item) => item.trim()).filter(Boolean)
+    : [];
 })();
 
 const casesDir = path.join(here, 'cases');
 const caseFileNames = fs.readdirSync(casesDir).filter((name) => name.endsWith('.json')).sort();
 const allCases = caseFileNames
   .flatMap((name) => JSON.parse(fs.readFileSync(path.join(casesDir, name), 'utf8')).cases);
-const selectedCases = caseFilter ? allCases.filter((item) => item.id === caseFilter) : allCases;
+const selectedCases = caseFilters.length
+  ? allCases.filter((item) => caseFilters.includes(item.id))
+  : allCases;
 if (!selectedCases.length) {
-  failClosed(`没有匹配的评测 case：${caseFilter || '(空 case 集)'}`);
+  failClosed(`没有匹配的评测 case：${caseFilters.join(',') || '(空 case 集)'}`);
+}
+const missingCaseIds = caseFilters.filter((id) => !selectedCases.some((item) => item.id === id));
+if (missingCaseIds.length) {
+  failClosed(`存在未知评测 case：${missingCaseIds.join(', ')}`);
 }
 
 function createLiveAdapters(counters) {
@@ -146,17 +161,22 @@ function createLiveAdapters(counters) {
 
 async function runAll() {
   const metricsList = [];
+  const ledgerObservations = [];
   for (const testCase of selectedCases) {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'research-eval-live-'));
     const dbPath = path.join(dir, 'eval.sqlite');
     try {
-      const { metrics } = await runEvalCase({
+      const { metrics, task, ledger } = await runEvalCase({
         testCase,
         adapters: createLiveAdapters,
         mode: 'live',
-        dbPath
+        dbPath,
+        includeLedger: ledgerShadow
       });
       metricsList.push(metrics);
+      if (ledgerShadow) {
+        ledgerObservations.push(summarizeLedgerObservation({ testCase, task, ledger }));
+      }
       console.log(`[live] ${metrics.caseId}: status=${metrics.status} quality=${metrics.resultQuality} coverage=${metrics.coverageRatio} latency=${metrics.latencyMs}ms`);
     } catch (error) {
       console.error(`[live] case ${testCase.id} 执行失败：${error?.message || error}`);
@@ -170,7 +190,59 @@ async function runAll() {
       fs.rmSync(dir, { recursive: true, force: true });
     }
   }
-  return metricsList;
+  return { metricsList, ledgerObservations };
+}
+
+function countBy(items, pick) {
+  const counts = {};
+  for (const item of items) {
+    const key = String(pick(item) || 'unknown');
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
+}
+
+function summarizeLedgerObservation({ testCase, task, ledger }) {
+  const entries = Array.isArray(ledger?.entries) ? ledger.entries : [];
+  const diff = ledger?.diff || null;
+  const oldEvidence = Array.isArray(task?.artifacts?.evidence) ? task.artifacts.evidence : [];
+  const wouldBeEvidence = Array.isArray(diff?.wouldBeEvidence) ? diff.wouldBeEvidence : [];
+  const safeReasonCode = (reason) => String(reason || '').split(':', 1)[0] || 'none';
+  const domains = entries.map((entry) => entry.domain).filter(Boolean);
+  const lineageComplete = (diff?.wouldBeCitations || []).every((citation) =>
+    Boolean(citation?.sourceEntryId && citation?.canonicalSourceId && citation?.selectionContentHash)
+  ) && wouldBeEvidence.every((evidence) =>
+    Boolean(evidence?.citationId && evidence?.passageContentHash && evidence?.subquestionId)
+  );
+
+  return {
+    caseId: testCase.id,
+    searchMode: testCase.searchMode,
+    ledgerStatus: ledger?.meta?.status || 'missing',
+    ledgerShadowFailed: task?.artifacts?.ledgerShadow?.status === 'failed',
+    entryCount: entries.length,
+    readerKinds: countBy(entries, (entry) => entry.readerKind || 'none'),
+    readingStatuses: countBy(entries, (entry) => entry.reading?.status),
+    readingFailureCodes: countBy(
+      entries.filter((entry) => entry.reading?.status === 'failed'),
+      (entry) => safeReasonCode(entry.reading?.reason)
+    ),
+    sourceDomains: countBy(domains, (domain) => domain),
+    providerRawReadCount: entries.filter(
+      (entry) => entry.readerKind === 'provider_raw' && entry.reading?.status === 'succeeded'
+    ).length,
+    githubReadmeReadCount: entries.filter(
+      (entry) => entry.readerKind === 'github_readme' && entry.reading?.status === 'succeeded'
+    ).length,
+    snippetEvidenceCount: wouldBeEvidence.filter(
+      (evidence) => evidence.readerKind === 'search_snippet'
+    ).length,
+    oldEvidenceCount: oldEvidence.length,
+    wouldBeEvidenceCount: wouldBeEvidence.length,
+    diffCounts: diff?.counts || null,
+    coverage: diff?.coverage || null,
+    lineageComplete
+  };
 }
 
 function summarize(metricsList) {
@@ -235,7 +307,7 @@ function summarize(metricsList) {
   };
 }
 
-function invalidReasonsOf(metricsList) {
+function invalidReasonsOf(metricsList, ledgerObservations = []) {
   const reasons = [];
   for (const item of metricsList) {
     if (item.status === 'eval_error') {
@@ -246,12 +318,21 @@ function invalidReasonsOf(metricsList) {
       reasons.push(`case ${item.caseId}: 联网 Provider 整体不可用/出错（webSearchStatus=${item.webSearchStatus}）`);
     }
   }
+  for (const item of ledgerObservations) {
+    if (item.ledgerShadowFailed) {
+      reasons.push(`case ${item.caseId}: Ledger shadow 写入失败`);
+    } else if (item.ledgerStatus === 'missing') {
+      reasons.push(`case ${item.caseId}: Ledger shadow 缺少持久化快照`);
+    } else if (!item.lineageComplete) {
+      reasons.push(`case ${item.caseId}: would-be Pack 血统字段不完整`);
+    }
+  }
   return reasons;
 }
 
 const { runEvalCase } = await import('./harness.js');
-const metricsList = await runAll();
-const invalidReasons = invalidReasonsOf(metricsList);
+const { metricsList, ledgerObservations } = await runAll();
+const invalidReasons = invalidReasonsOf(metricsList, ledgerObservations);
 const valid = invalidReasons.length === 0;
 
 function gitInfo() {
@@ -323,6 +404,27 @@ const payload = {
     scope: 'web 为主的探索性基线：可观察真实链路的质量/时延/成本量级，不能单独满足 Phase 3 representative 校准前置（缺真实 local/hybrid 代表样本或等价脱敏回放）'
   },
   summary: summarize(metricsList),
+  ...(ledgerShadow ? {
+    ledgerShadow: {
+      note: '脱敏观测：仅保存计数、域名、状态、失败码与血统完整性；不保存正文、snippet、完整 Provider payload 或密钥。',
+      cases: ledgerObservations,
+      summary: {
+        providerRawReadCount: ledgerObservations.reduce((sum, item) => sum + item.providerRawReadCount, 0),
+        githubReadmeReadCount: ledgerObservations.reduce((sum, item) => sum + item.githubReadmeReadCount, 0),
+        snippetEvidenceCount: ledgerObservations.reduce((sum, item) => sum + item.snippetEvidenceCount, 0),
+        unexpectedLossCount: ledgerObservations.reduce(
+          (sum, item) => sum + Number(item.diffCounts?.unexpectedLoss || 0), 0
+        ),
+        downgradedCount: ledgerObservations.reduce(
+          (sum, item) => sum + Number(item.diffCounts?.downgraded || 0), 0
+        ),
+        incompleteLineageCaseIds: ledgerObservations.filter((item) => !item.lineageComplete).map((item) => item.caseId),
+        failedLedgerCaseIds: ledgerObservations.filter(
+          (item) => item.ledgerStatus === 'missing' || item.ledgerShadowFailed
+        ).map((item) => item.caseId)
+      }
+    }
+  } : {}),
   cases: metricsList
 };
 
@@ -331,8 +433,8 @@ fs.mkdirSync(outputDir, { recursive: true });
 // 路径决策收敛在 output-path.js（含 slug 消毒与 canonical 保护）并有独立单测。
 const resolvedOutput = resolveBaselineOutputPath({
   baselineDir: outputDir,
-  partialRun: Boolean(caseFilter),
-  caseIds: selectedCaseIds,
+  partialRun: caseFilters.length > 0 || ledgerShadow,
+  caseIds: ledgerShadow ? ['ledger-live-shadow', ...selectedCaseIds] : selectedCaseIds,
   timestamp: new Date()
 });
 const outputPath = resolvedOutput.path;

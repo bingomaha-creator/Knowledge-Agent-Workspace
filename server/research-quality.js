@@ -167,6 +167,23 @@ export function screenResearchSources(question, sources, {
   plannedQuestions = [],
   policy = inferResearchEvidencePolicy({ question, searchMode: 'local' })
 } = {}) {
+  // Ledger 的 canonical identity 依赖 URL。Web Provider 的结果 id（如 web-1）
+  // 只在单次 query 内唯一，排除项若丢掉 URL，会把不同 query 的不同网页错误合并
+  // 成同一 evidenceId。这里只保留身份/诊断所需的有界字段，不透传 raw content。
+  const excludedSource = (source, reason, relevance) => ({
+    id: String(source?.id || ''),
+    title: String(source?.title || '未命名资料'),
+    url: String(source?.url || ''),
+    snippet: String(source?.snippet || ''),
+    kind: source?.kind === 'web' ? 'web' : 'local',
+    sourceKind: String(source?.sourceKind || ''),
+    sourceDomain: String(source?.sourceDomain || ''),
+    publishedAt: String(source?.publishedAt || ''),
+    providerRank: Number.isInteger(source?.providerRank) ? source.providerRank : undefined,
+    queries: Array.isArray(source?.queries) ? [...source.queries] : [],
+    reason,
+    relevance
+  });
   const accepted = [];
   const excluded = [];
   for (const source of Array.isArray(sources) ? sources : []) {
@@ -191,13 +208,7 @@ export function screenResearchSources(question, sources, {
     );
     const isFixture = policy.id === 'general_research' && FIXTURE_SIGNALS.test(sourceText(source));
     if (isFixture) {
-      excluded.push({
-        id: String(source?.id || ''),
-        title: String(source?.title || '未命名资料'),
-        kind: source?.kind === 'web' ? 'web' : 'local',
-        reason: 'template_or_fixture',
-        relevance
-      });
+      excluded.push(excludedSource(source, 'template_or_fixture', relevance));
       continue;
     }
     if (relevance.accepted) {
@@ -211,13 +222,7 @@ export function screenResearchSources(question, sources, {
       });
       continue;
     }
-    excluded.push({
-      id: String(source?.id || ''),
-      title: String(source?.title || '未命名资料'),
-      kind: source?.kind === 'web' ? 'web' : 'local',
-      reason: 'low_relevance',
-      relevance
-    });
+    excluded.push(excludedSource(source, 'low_relevance', relevance));
   }
   return { accepted, excluded };
 }

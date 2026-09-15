@@ -63,7 +63,10 @@ export function createFixtureAdapters(testCase, { writerMode } = {}) {
         const failures = [];
         for (const source of sources) {
           counters.readAttempts += 1;
-          const read = readBySource[source.id];
+          // 生产 Worker 会把 query-local Web Provider id 命名空间化；fixture 的
+          // read map 仍以原始 provider id 为稳定键，避免把该生产身份规则泄漏进 case JSON。
+          const fixtureSourceId = String(source.id || '').replace(/-query-\d+$/u, '');
+          const read = readBySource[source.id] || readBySource[fixtureSourceId];
           if (read?.fail) {
             counters.readerFailures += 1;
             failures.push({

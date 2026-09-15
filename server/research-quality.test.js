@@ -21,6 +21,40 @@ test('source screening excludes an obviously unrelated local result', () => {
   assert.equal(screened.excluded[0].reason, 'low_relevance');
 });
 
+test('source screening preserves canonical web identity for rejected Ledger entries', () => {
+  const screened = screenResearchSources('PostgreSQL 复制协议', [
+    {
+      id: 'web-1',
+      title: '无关页面 A',
+      url: 'https://example.com/a',
+      snippet: '与目标问题无关的页面。',
+      kind: 'web',
+      sourceDomain: 'example.com',
+      queries: ['查询 A']
+    },
+    {
+      id: 'web-1',
+      title: '无关页面 B',
+      url: 'https://example.org/b',
+      snippet: '另一个与目标问题无关的页面。',
+      kind: 'web',
+      sourceDomain: 'example.org',
+      queries: ['查询 B']
+    }
+  ]);
+
+  assert.equal(screened.excluded.length, 2);
+  assert.deepEqual(
+    screened.excluded.map((item) => item.url),
+    ['https://example.com/a', 'https://example.org/b']
+  );
+  assert.deepEqual(
+    screened.excluded.map((item) => item.queries),
+    [['查询 A'], ['查询 B']]
+  );
+  assert.ok(screened.excluded.every((item) => !Object.hasOwn(item, 'content')));
+});
+
 test('source screening keeps lexical or strong vector evidence', () => {
   const screened = screenResearchSources('异步研究任务如何恢复？', [
     {

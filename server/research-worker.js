@@ -106,6 +106,12 @@ function normalizeSource(source, context) {
 
   const channel = sourceChannel(source.kind ?? source.channel ?? source.source, context.channel);
   const rawId = String(source.id ?? source.chunkId ?? source.documentId ?? '').trim();
+  // Web Provider 的 id（常见 web-1/web-2）通常只在单次 query 响应内唯一。
+  // Research 会并行执行多个 query，因此在进入 Run 级 Source/Reader/Ledger 前
+  // 必须按 query 命名空间化；后续仍按 URL 去重，同一网页不会重复进入 Evidence Pack。
+  const scopedId = rawId && channel === 'web'
+    ? `${rawId}-query-${context.queryIndex + 1}`
+    : rawId;
   const retrieval = source.retrieval && typeof source.retrieval === 'object'
     ? {
       vectorScore: Number.isFinite(Number(source.retrieval.vectorScore))
@@ -126,7 +132,7 @@ function normalizeSource(source, context) {
     }
     : undefined;
   return {
-    id: rawId || `${channel}-source-${context.queryIndex + 1}-${context.sourceIndex + 1}`,
+    id: scopedId || `${channel}-source-${context.queryIndex + 1}-${context.sourceIndex + 1}`,
     title,
     url: safeSourceUrl(source.url ?? source.link),
     snippet,

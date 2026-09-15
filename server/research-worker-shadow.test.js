@@ -202,6 +202,39 @@ test('shadow web 路径：来源未经一手验证（reader_obtained 不升级�
   }
 });
 
+test('Web Provider 的 query-local 重复 id 会命名空间化，不污染 Reader/Ledger 身份', async () => {
+  const { store, cleanup } = tempStore();
+  try {
+    const repeatedProviderIds = {
+      子问题一: [
+        { id: 'web-1', title: '来源 A', url: 'https://example.com/a', snippet: '子问题一答案内容足够长，能够进入证据装配并参与引用验证。' },
+        { id: 'web-2', title: '无关 A', url: 'https://unrelated.example/a', snippet: '完全无关的页面内容与研究问题没有关系。' }
+      ],
+      子问题二: [
+        { id: 'web-1', title: '来源 B', url: 'https://example.org/b', snippet: '子问题二答案内容足够长，能够进入证据装配并参与引用验证。' },
+        { id: 'web-2', title: '无关 B', url: 'https://unrelated.example/b', snippet: '另一个完全无关的页面内容与研究问题没有关系。' }
+      ]
+    };
+    const worker = createResearchWorker({
+      store,
+      concurrency: 1,
+      ...fixtureAdapters({ searchResults: repeatedProviderIds })
+    });
+    const created = store.create({ question: 'Provider 局部 ID 研究', searchMode: 'web', knowledgeBaseIds: [] });
+    const finalTask = await worker.enqueue(created.id);
+
+    assert.equal(finalTask.status, 'completed');
+    assert.equal(finalTask.artifacts.ledgerShadow, undefined, 'Ledger 不得因局部重复 id 降级');
+    const ledger = store.getEvidenceLedger(created.id);
+    assert.ok(ledger);
+    assert.equal(new Set(ledger.entries.map((entry) => entry.evidenceId)).size, ledger.entries.length);
+    assert.ok(ledger.entries.some((entry) => entry.canonicalUrl === 'https://example.com/a'));
+    assert.ok(ledger.entries.some((entry) => entry.canonicalUrl === 'https://example.org/b'));
+  } finally {
+    cleanup();
+  }
+});
+
 test('shadow 信号一：非法模型引用触发 fallback → 建议 repair_report', async () => {
   const { store, cleanup } = tempStore();
   try {
