@@ -32,7 +32,7 @@ yuan-agent 是一个 AI 对话助手项目，支持流式输出、RAG 知识库�
 
 然后阅读 src/services/qwen.ts，理解前端如何请求后端接口，以及如何解析 SSE 流式事件。
 
-最后阅读 server/index.js 和 server/mcp-server.js，理解 Express 如何编排 Qwen、MCP 工具调用和 RAG 检索。
+最后阅读 server/index.js 和 server/mcp-server/index.js，理解 Express 如何编排 Qwen、MCP 工具调用和 RAG 检索。
 
 ## 易错点
 

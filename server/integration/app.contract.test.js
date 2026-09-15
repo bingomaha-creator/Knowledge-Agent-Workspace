@@ -4,12 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { createApp } from '../app.js';
-import { createKnowledgeRouter } from '../routes/knowledge-routes.js';
-import { createMemoryRouter } from '../routes/memory-routes.js';
-import { createResearchRouter } from '../routes/research-routes.js';
-import { createSystemRouter } from '../routes/system-routes.js';
-import { createChatRouter } from '../routes/chat-routes.js';
-import { createBugKnowledgeRouter } from '../routes/bug-knowledge-routes.js';
+import { createKnowledgeRouter } from '../modules/knowledge/routes.js';
+import { createMemoryRouter } from '../modules/memory/routes.js';
+import { createResearchRouter } from '../modules/research/routes.js';
+import { createSystemRouter } from '../modules/system/routes.js';
+import { createChatRouter } from '../modules/chat/routes.js';
+import { createBugKnowledgeRouter } from '../modules/bug-knowledge/routes.js';
 
 function listen(app) {
   return new Promise((resolve, reject) => {

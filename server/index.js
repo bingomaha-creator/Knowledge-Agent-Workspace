@@ -6,39 +6,39 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
-import { createChatOrchestrator } from './chat/chat-orchestrator.js';
-import { createChatService } from './chat/chat-service.js';
-import { createChatStore } from './chat-store.js';
-import { createRouteMcpCaller } from './http-utils.js';
-import { createMcpGateway } from './infrastructure/mcp-gateway.js';
-import { createMcpSessionManager } from './infrastructure/mcp-session.js';
-import { createChatQwenClient } from './infrastructure/qwen-client.js';
-import { createMcpKnowledgeSearchAdapter } from './infrastructure/mcp-knowledge-search-adapter.js';
-import { createKnowledgeStore } from './knowledge-store.js';
-import { createBugInvestigationStore } from './bug-investigation/bug-investigation-store.js';
-import { createBugInvestigationService } from './bug-investigation/bug-investigation-service.js';
-import { loadPresets } from './preset-utils.js';
-import { createResearchStore } from './research-store.js';
-import { createResearchWorker } from './research-worker.js';
-import { normalizeEvidenceLedgerMode } from './research-evidence-ledger.js';
-import { createChatRouter } from './routes/chat-routes.js';
-import { createBugKnowledgeRouter } from './routes/bug-knowledge-routes.js';
-import { createBugInvestigationRouter } from './routes/bug-investigation-routes.js';
-import { createKnowledgeRouter } from './routes/knowledge-routes.js';
-import { createMemoryRouter } from './routes/memory-routes.js';
-import { createResearchRouter } from './routes/research-routes.js';
-import { createSystemRouter } from './routes/system-routes.js';
-import { createRunStore } from './run-store.js';
-import { parsePricing } from './run-utils.js';
+import { createChatOrchestrator } from './modules/chat/orchestrator.js';
+import { createChatService } from './modules/chat/service.js';
+import { createChatStore } from './modules/chat/store.js';
+import { createRouteMcpCaller } from './shared/http/utils.js';
+import { createMcpGateway } from './infrastructure/mcp-client/gateway.js';
+import { createMcpSessionManager } from './infrastructure/mcp-client/session.js';
+import { createChatQwenClient } from './infrastructure/ai/qwen-client.js';
+import { createMcpKnowledgeSearchAdapter } from './modules/research/retrieval/knowledge-search-adapter.js';
+import { createKnowledgeStore } from './modules/knowledge/store.js';
+import { createBugInvestigationStore } from './modules/bug-investigation/store.js';
+import { createBugInvestigationService } from './modules/bug-investigation/service.js';
+import { loadPresets } from './modules/chat/presets.js';
+import { createResearchStore } from './modules/research/store.js';
+import { createResearchWorker } from './modules/research/worker.js';
+import { normalizeEvidenceLedgerMode } from './modules/research/evidence/ledger.js';
+import { createChatRouter } from './modules/chat/routes.js';
+import { createBugKnowledgeRouter } from './modules/bug-knowledge/routes.js';
+import { createBugInvestigationRouter } from './modules/bug-investigation/routes.js';
+import { createKnowledgeRouter } from './modules/knowledge/routes.js';
+import { createMemoryRouter } from './modules/memory/routes.js';
+import { createResearchRouter } from './modules/research/routes.js';
+import { createSystemRouter } from './modules/system/routes.js';
+import { createRunStore } from './modules/chat/run-store.js';
+import { parsePricing } from './modules/chat/run-utils.js';
 import {
   createResearchSearchService,
   normalizeKnowledgeBaseIds
-} from './services/research-search-service.js';
-import { createResearchAiService } from './services/research-ai-service.js';
-import { createBugInvestigationAiService } from './services/bug-investigation-ai-service.js';
-import { createResearchSourceReader } from './services/research-source-reader.js';
-import { createResearchRepositoryResolver } from './services/research-repository-resolver.js';
-import { createToolExecutor } from './tool-capabilities.js';
+} from './modules/research/retrieval/search.js';
+import { createResearchAiService } from './modules/research/planning/ai-planner-writer.js';
+import { createBugInvestigationAiService } from './modules/bug-investigation/ai-analyzer.js';
+import { createResearchSourceReader } from './modules/research/retrieval/source-reader.js';
+import { createResearchRepositoryResolver } from './modules/research/retrieval/repository-resolver.js';
+import { createToolExecutor } from './shared/agent-tools/catalog.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 dotenv.config();
@@ -87,7 +87,7 @@ const mcpSessionManager = createMcpSessionManager({
   },
   transportOptions: {
     command: process.execPath,
-    args: [path.resolve(__dirname, './mcp-server.js')],
+    args: [path.resolve(__dirname, './mcp-server/index.js')],
     cwd: process.cwd(),
     env: {
       ...process.env,

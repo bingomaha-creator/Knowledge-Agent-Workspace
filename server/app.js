@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
-import { getErrorPayload } from './http-utils.js';
+import { getErrorPayload } from './shared/http/utils.js';
 
 /**
  * 创建一个尚未 listen 的 Express 应用。
