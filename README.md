@@ -6,7 +6,7 @@
 
 > 一个前端主导的 AI Agent 工作台：让对话、资料证据、长期记忆与深度研究在同一套可解释流程中协作。
 
-Matthew's Workspace 基于 Vue 3、TypeScript、Express、MCP 和 SQLite 构建。它关注的不是把模型回答直接展示出来，而是让用户能够看到：本轮回答使用了哪些上下文、资料是否真的被检索并采纳、长期记忆是否经过确认，以及研究任务的来源与进度。
+Matthew's Workspace 基于 React、TypeScript、Express、MCP 和 SQLite 构建。它关注的不是把模型回答直接展示出来，而是让用户能够看到：本轮回答使用了哪些上下文、资料是否真的被检索并采纳、长期记忆是否经过确认，以及研究任务的来源与进度。
 
 ## 核心能力
 
@@ -47,7 +47,7 @@ Matthew's Workspace 基于 Vue 3、TypeScript、Express、MCP 和 SQLite 构建�
 
 ```mermaid
 flowchart LR
-  UI[Vue 3 Workspace] -->|HTTP / SSE| API[Express Application]
+  UI[React Workspace] -->|HTTP / SSE| API[Express Application]
   API --> CHAT[Chat Orchestrator]
   API --> MCP[MCP Gateway]
   CHAT --> MODEL[Qwen Compatible API]
@@ -91,7 +91,7 @@ npm run dev
 
 | 层级 | 技术 |
 | --- | --- |
-| Frontend | Vue 3, Vite, TypeScript, Pinia |
+| Frontend | React, Vite, TypeScript, TanStack Query, Zustand |
 | Backend | Node.js, Express, SSE |
 | Agent | MCP, Function Calling, Qwen OpenAI-compatible API |
 | Storage & Retrieval | SQLite, FTS5/BM25, Embedding, RRF |

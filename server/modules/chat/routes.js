@@ -145,7 +145,7 @@ export function createChatRouter({ orchestrator, chatService }) {
     }
   });
 
-  // Vue Chat 迁移完成前保留旧入口；它仍由旧客户端提交完整 messages。
+  // 兼容仍提交完整 messages 的旧版 Chat API 调用方。
   router.post('/api/chat/stream', async (req, res) => {
     const stream = attachStream(req, res);
 
