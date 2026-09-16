@@ -1,0 +1,95 @@
+[
+  {
+    "id": "web-version-comparison",
+    "mode": "web",
+    "question": "PostgreSQL 17 相较 PostgreSQL 16 在查询优化、SQL 兼容性和逻辑复制方面有哪些重要变化？",
+    "requiredDimensions": ["查询优化", "SQL 兼容性", "逻辑复制", "PostgreSQL 16 与 17 的明确对比"],
+    "preferredSourceTraits": ["版本匹配", "一手资料候选", "包含具体变更"],
+    "allowedUnresolvedWhen": ["未取得对应版本正文", "来源只提供搜索摘要"],
+    "forbiddenUnsupportedClaims": ["将无版本信息的 PostgreSQL 教程当作 17 的变更", "编造发布说明中不存在的特性"]
+  },
+  {
+    "id": "web-current-status",
+    "mode": "web",
+    "question": "调查当前主流浏览器对 View Transitions API 跨文档导航的支持现状与限制。",
+    "requiredDimensions": ["当前支持范围", "浏览器差异", "已知限制", "信息时间范围"],
+    "preferredSourceTraits": ["近期资料", "浏览器厂商或标准资料候选"],
+    "allowedUnresolvedWhen": ["来源未标明更新时间", "浏览器版本信息冲突"],
+    "forbiddenUnsupportedClaims": ["把实验性支持写成全面稳定支持"]
+  },
+  {
+    "id": "web-timeless-explanation",
+    "mode": "web",
+    "question": "解释数据库 MVCC 如何避免读写互相阻塞，并比较常见实现取舍。",
+    "requiredDimensions": ["可见性机制", "读写并发", "回收机制", "实现取舍"],
+    "preferredSourceTraits": ["技术文档", "机制描述完整"],
+    "allowedUnresolvedWhen": ["来源只描述单一数据库实现"],
+    "forbiddenUnsupportedClaims": ["为问题强加不存在的版本或时效约束"]
+  },
+  {
+    "id": "web-source-conflict",
+    "mode": "web",
+    "question": "比较 HTTP/3 在高丢包移动网络中的收益与代价，并保留来源间不同结论。",
+    "requiredDimensions": ["收益", "代价", "适用条件", "冲突结论"],
+    "preferredSourceTraits": ["测量研究", "协议或实现资料"],
+    "allowedUnresolvedWhen": ["测试环境不可比", "来源结论相互冲突"],
+    "forbiddenUnsupportedClaims": ["将单一测试结论推广到所有网络环境"]
+  },
+  {
+    "id": "web-replan-success",
+    "mode": "web",
+    "question": "比较 SQLite WAL 与 rollback journal 在并发、恢复和部署约束上的差异。",
+    "requiredDimensions": ["并发", "故障恢复", "部署约束", "模式切换影响"],
+    "preferredSourceTraits": ["SQLite 一手资料候选", "具体机制"],
+    "allowedUnresolvedWhen": ["首轮仅覆盖其中部分维度"],
+    "forbiddenUnsupportedClaims": ["没有证据时断言一种模式始终更快"]
+  },
+  {
+    "id": "web-reader-failure",
+    "mode": "web",
+    "question": "调查一个搜索可发现但正文禁止访问的技术公告，并说明证据限制。",
+    "requiredDimensions": ["已发现来源", "正文读取状态", "可支持结论", "局限"],
+    "preferredSourceTraits": ["明确区分摘要与正文"],
+    "allowedUnresolvedWhen": ["正文不可读取", "只有搜索摘要"],
+    "forbiddenUnsupportedClaims": ["把搜索摘要标记为全文证据"]
+  },
+  {
+    "id": "web-no-results",
+    "mode": "web",
+    "question": "调查一个不存在的虚构框架 Quxium 99 的正式发布变化。",
+    "requiredDimensions": ["搜索结果状态", "实体真实性", "未解决说明"],
+    "preferredSourceTraits": ["可验证实体存在性"],
+    "allowedUnresolvedWhen": ["没有可信来源", "实体无法验证"],
+    "forbiddenUnsupportedClaims": ["为虚构实体编造发布内容"]
+  },
+  {
+    "id": "hybrid-project-fit",
+    "mode": "hybrid",
+    "knowledgeFixture": "react-express-workspace",
+    "question": "结合当前项目的 React、Express 和 SQLite 架构，调查引入服务端事件推送是否值得。",
+    "requiredDimensions": ["项目当前约束", "外部方案", "适用性", "迁移代价"],
+    "preferredSourceTraits": ["项目资料", "协议或平台资料"],
+    "allowedUnresolvedWhen": ["项目负载数据缺失", "外部建议未在项目中验证"],
+    "forbiddenUnsupportedClaims": ["把外部通用建议写成项目已验证事实"]
+  },
+  {
+    "id": "hybrid-project-conflict",
+    "mode": "hybrid",
+    "knowledgeFixture": "single-node-sqlite",
+    "question": "结合项目当前单 Node 进程和 SQLite 部署，评估是否应引入分布式任务队列。",
+    "requiredDimensions": ["项目部署事实", "分布式队列收益", "新增复杂度", "冲突与适用条件"],
+    "preferredSourceTraits": ["项目资料", "外部运维资料"],
+    "allowedUnresolvedWhen": ["缺少规模或负载数据"],
+    "forbiddenUnsupportedClaims": ["忽略项目现状直接推荐分布式基础设施"]
+  },
+  {
+    "id": "hybrid-writer-citation-failure",
+    "mode": "hybrid",
+    "knowledgeFixture": "mixed-local-web-evidence",
+    "question": "基于项目资料和公开来源，给出研究模块网页正文读取的安全边界。",
+    "requiredDimensions": ["项目边界", "Web 安全风险", "正文读取规则", "引用归属"],
+    "preferredSourceTraits": ["项目资料", "网络安全一手资料候选"],
+    "allowedUnresolvedWhen": ["无法语义验证全部主张"],
+    "forbiddenUnsupportedClaims": ["引用不存在的 Evidence ID", "将 Web 来源标记为 Workspace 来源"]
+  }
+]
