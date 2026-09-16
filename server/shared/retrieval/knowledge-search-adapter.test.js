@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createMcpKnowledgeSearchAdapter } from './knowledge-search-adapter.js';
 
-test('MCP knowledge search adapter returns normalized Evidence for Research', async () => {
+test('共享 Knowledge MCP Adapter 保持 Research Evidence 合同', async () => {
   const signal = new AbortController().signal;
   const adapter = createMcpKnowledgeSearchAdapter({
     toolExecutor: {

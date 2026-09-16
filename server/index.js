@@ -13,7 +13,7 @@ import { createRouteMcpCaller } from './shared/http/utils.js';
 import { createMcpGateway } from './infrastructure/mcp-client/gateway.js';
 import { createMcpSessionManager } from './infrastructure/mcp-client/session.js';
 import { createChatQwenClient } from './infrastructure/ai/qwen-client.js';
-import { createMcpKnowledgeSearchAdapter } from './modules/research/retrieval/knowledge-search-adapter.js';
+import { createMcpKnowledgeSearchAdapter } from './shared/retrieval/knowledge-search-adapter.js';
 import { createKnowledgeStore } from './modules/knowledge/store.js';
 import { createBugInvestigationStore } from './modules/bug-investigation/store.js';
 import { createBugInvestigationService } from './modules/bug-investigation/service.js';
