@@ -10,7 +10,7 @@
 - 修改 `server/`：`docs/architecture/server.md`。
 - 修改 Chat：`docs/specs/chat.md`；涉及按文档 ID 读取正文时再读 `docs/specs/chat-document-reading.md`。
 - 修改 Knowledge、Memory、Bug Agent：分别读 `docs/specs/knowledge.md`、`docs/specs/memory.md`、`docs/specs/bug-agent.md`。
-- 修改 Research：`docs/specs/research.md`；涉及 Harness、联网证据或完成策略时再读 `docs/specs/research-harness.md`。
+- 维护现有 Research：阅读 `docs/specs/research.md`。开发 `research-new` 时只读未来的 `docs/specs/research-new.md`；归档的 Harness Spec 与 Plan 仅供追溯，不作为下一阶段任务清单。
 
 本地 `docs/` 可能不在 Git 提交中；若文档不可用，先核对现有代码和测试，不自行假定旧 Plan 是规范。
 
