@@ -12,6 +12,7 @@ import { getErrorPayload } from './shared/http/utils.js';
 export function createApp({
   systemRouter,
   researchRouter,
+  researchNewRouter,
   knowledgeRouter,
   bugKnowledgeRouter,
   bugInvestigationRouter,
@@ -25,6 +26,7 @@ export function createApp({
   for (const router of [
     systemRouter,
     researchRouter,
+    researchNewRouter,
     knowledgeRouter,
     bugKnowledgeRouter,
     bugInvestigationRouter,

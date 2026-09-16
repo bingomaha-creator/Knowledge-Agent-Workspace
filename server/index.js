@@ -20,6 +20,13 @@ import { createBugInvestigationService } from './modules/bug-investigation/servi
 import { loadPresets } from './modules/chat/presets.js';
 import { createResearchStore } from './modules/research/store.js';
 import { createResearchWorker } from './modules/research/worker.js';
+import { createResearchNewStore } from './modules/research-new/store.js';
+import { createResearchNewWorker } from './modules/research-new/worker.js';
+import { createResearchNewAiService } from './modules/research-new/ai-service.js';
+import { createResearchNewSearch } from './modules/research-new/acquisition/search.js';
+import { createResearchNewSourceReader } from './modules/research-new/acquisition/source-readers.js';
+import { createSafeHttpsReader } from './infrastructure/web-reading/safe-request.js';
+import { createWebDocumentReader } from './infrastructure/web-reading/reader.js';
 import { normalizeEvidenceLedgerMode } from './modules/research/evidence/ledger.js';
 import { createChatRouter } from './modules/chat/routes.js';
 import { createBugKnowledgeRouter } from './modules/bug-knowledge/routes.js';
@@ -27,6 +34,7 @@ import { createBugInvestigationRouter } from './modules/bug-investigation/routes
 import { createKnowledgeRouter } from './modules/knowledge/routes.js';
 import { createMemoryRouter } from './modules/memory/routes.js';
 import { createResearchRouter } from './modules/research/routes.js';
+import { createResearchNewRouter } from './modules/research-new/routes.js';
 import { createSystemRouter } from './modules/system/routes.js';
 import { createRunStore } from './modules/chat/run-store.js';
 import { parsePricing } from './modules/chat/run-utils.js';
@@ -101,9 +109,27 @@ const toolExecutor = createToolExecutor({ gateway: mcpGateway });
 const runStore = createRunStore();
 const chatStore = createChatStore();
 const researchStore = createResearchStore();
+const researchNewStore = createResearchNewStore();
 const bugInvestigationStore = createBugInvestigationStore();
 const researchKnowledgeStore = createKnowledgeStore();
 const researchKnowledgeSearch = createMcpKnowledgeSearchAdapter({ toolExecutor });
+const researchNewSearch = createResearchNewSearch({
+  knowledgeSearch: researchKnowledgeSearch,
+  toolExecutor
+});
+const researchNewSafeReader = createSafeHttpsReader();
+const researchNewWebDocumentReader = createWebDocumentReader({ safeReader: researchNewSafeReader });
+const researchNewSourceReader = createResearchNewSourceReader({
+  safeReader: researchNewSafeReader,
+  webDocumentReader: researchNewWebDocumentReader
+});
+const researchNewAiService = createResearchNewAiService({ qwenClient, model: config.model });
+const researchNewWorker = createResearchNewWorker({
+  store: researchNewStore,
+  search: researchNewSearch,
+  sourceReader: researchNewSourceReader,
+  aiService: researchNewAiService
+});
 const researchSearchService = createResearchSearchService({
   searchEvidence: researchKnowledgeSearch.searchEvidence,
   toolExecutor
@@ -163,6 +189,9 @@ const chatService = createChatService({
 void researchWorker.resume().catch((error) => {
   console.error('[research] startup recovery failed:', error?.message || error);
 });
+void researchNewWorker.resume().catch((error) => {
+  console.error('[research-new] startup recovery failed:', error?.message || error);
+});
 const enqueueResearch = (id) => {
   void researchWorker.enqueue(id).catch((error) => {
     console.error(`[research] task ${id} could not start:`, error?.message || error);
@@ -181,6 +210,18 @@ const app = createApp({
     researchKnowledgeStore,
     enqueueResearch,
     normalizeKnowledgeBaseIds,
+    webSearchConfigured: Boolean(
+      process.env.BOCHA_API_KEY || (
+        (process.env.RESEARCH_WEB_SEARCH_ENDPOINT || process.env.WEB_SEARCH_ENDPOINT) &&
+        (process.env.RESEARCH_WEB_SEARCH_API_KEY || process.env.WEB_SEARCH_API_KEY)
+      )
+    )
+  }),
+  researchNewRouter: createResearchNewRouter({
+    store: researchNewStore,
+    worker: researchNewWorker,
+    knowledgeStore: researchKnowledgeStore,
+    modelConfigured: Boolean(config.apiKey),
     webSearchConfigured: Boolean(
       process.env.BOCHA_API_KEY || (
         (process.env.RESEARCH_WEB_SEARCH_ENDPOINT || process.env.WEB_SEARCH_ENDPOINT) &&
@@ -212,6 +253,7 @@ async function shutdown(signal) {
   chatStore.close();
   bugInvestigationStore.close();
   researchStore.close();
+  researchNewStore.close();
   await mcpSessionManager.close();
 }
 
