@@ -12,6 +12,17 @@ const DEFAULT_TIMEOUT_MS = 10_000;
 const DEFAULT_MAX_RESPONSE_BYTES = 512 * 1024;
 const BOCHA_WEB_SEARCH_ENDPOINT = 'https://api.bochaai.com/v1/web-search';
 const BOCHA_HOST = 'api.bochaai.com';
+const TAVILY_WEB_SEARCH_ENDPOINT = 'https://api.tavily.com/search';
+
+export const TAVILY_WEB_SEARCH_CAPABILITIES = Object.freeze({
+  provider: 'tavily',
+  domainFilter: true,
+  temporalFilter: true,
+  freshness: true,
+  sourceTraits: false,
+  queryOperators: false,
+  fullText: true
+});
 
 // 查询、结果数量及每个展示字段都有硬上限，避免上游内容无限进入内存、SQLite 和 UI。
 export const WEB_SEARCH_LIMITS = Object.freeze({
@@ -159,6 +170,47 @@ export function normalizeWebSearchResults(payload, limit = WEB_SEARCH_LIMITS.max
   return results;
 }
 
+function normalizeTavilySearchResults(payload, limit = WEB_SEARCH_LIMITS.maxResults) {
+  if (!Array.isArray(payload?.results)) return null;
+  const safeLimit = Math.min(
+    WEB_SEARCH_LIMITS.maxResults,
+    Math.max(1, Number.isInteger(limit) ? limit : WEB_SEARCH_LIMITS.maxResults)
+  );
+  const seenUrls = new Set();
+  const results = [];
+  for (const candidate of payload.results) {
+    const normalized = normalizeResult({
+      ...candidate,
+      snippet: candidate?.content,
+      publishedAt: candidate?.published_date || candidate?.publishedAt
+    }, results.length);
+    if (!normalized || seenUrls.has(normalized.url)) continue;
+    seenUrls.add(normalized.url);
+    const rawContent = typeof candidate?.raw_content === 'string'
+      ? candidate.raw_content.trim()
+      : '';
+    results.push({
+      ...normalized,
+      ...(rawContent ? { rawContent } : {}),
+      rawContentComplete: Boolean(rawContent)
+    });
+    if (results.length >= safeLimit) break;
+  }
+  return results;
+}
+
+function normalizedDomains(values) {
+  if (!Array.isArray(values)) return [];
+  return [...new Set(values.map((value) => boundedText(value, 253).toLowerCase())
+    .filter((value) => /^[a-z0-9.-]+$/u.test(value)))]
+    .slice(0, 20);
+}
+
+function normalizedDate(value) {
+  const text = boundedText(value, 10);
+  return /^\d{4}-\d{2}-\d{2}$/u.test(text) ? text : '';
+}
+
 /**
  * 有 Content-Length 时先快速拒绝；没有或标注不可信时仍逐 chunk 累计真实字节数。
  * 超限会主动 cancel reader，避免继续下载大响应。这里限制的是 UTF-8 解码前字节数，
@@ -269,6 +321,149 @@ function resolveConfiguration(env) {
   }
 
   return { provider: 'generic', endpoint, apiKey, allowedHosts };
+}
+
+/**
+ * Research New 的正文搜索 Provider。Tavily 在固定 API endpoint 上完成搜索和网页
+ * 抽取，应用只消费其返回的 raw_content，不直接请求任意结果 URL。
+ */
+export function createTavilyWebSearchProvider({
+  env = process.env,
+  fetchImpl = globalThis.fetch,
+  timeoutMs = 20_000,
+  maxResponseBytes = 2 * 1024 * 1024
+} = {}) {
+  if (typeof fetchImpl !== 'function') throw new TypeError('fetchImpl 必须是函数');
+  const apiKey = boundedText(env?.TAVILY_API_KEY, 10_000);
+  const safeTimeoutMs = Math.min(60_000, Math.max(100, Number(timeoutMs) || 20_000));
+  const safeMaxResponseBytes = Math.min(
+    4 * 1024 * 1024,
+    Math.max(1024, Number(maxResponseBytes) || 2 * 1024 * 1024)
+  );
+
+  return {
+    configured: Boolean(apiKey),
+    capabilities: TAVILY_WEB_SEARCH_CAPABILITIES,
+    async search(query, {
+      topK = 5,
+      signal,
+      includeDomains,
+      startDate,
+      endDate,
+      timeRange
+    } = {}) {
+      if (!apiKey) {
+        return {
+          ...unavailable('not_configured', '未配置 TAVILY_API_KEY，联网正文搜索不可用。'),
+          capabilities: TAVILY_WEB_SEARCH_CAPABILITIES
+        };
+      }
+      const normalizedQuery = boundedText(query, WEB_SEARCH_LIMITS.maxQueryLength);
+      if (!normalizedQuery) {
+        return {
+          ...failed('invalid_request', '联网检索 query 不能为空。'),
+          capabilities: TAVILY_WEB_SEARCH_CAPABILITIES
+        };
+      }
+      const limit = Math.min(
+        WEB_SEARCH_LIMITS.maxResults,
+        Math.max(1, Number.isInteger(topK) ? topK : 5)
+      );
+      const domains = normalizedDomains(includeDomains);
+      const from = normalizedDate(startDate);
+      const to = normalizedDate(endDate);
+      const relativeRange = new Set(['day', 'week', 'month', 'year']).has(timeRange)
+        ? timeRange
+        : '';
+      const body = {
+        query: normalizedQuery,
+        max_results: limit,
+        search_depth: 'advanced',
+        include_answer: false,
+        include_raw_content: 'markdown',
+        ...(domains.length ? { include_domains: domains } : {}),
+        ...(from ? { start_date: from } : {}),
+        ...(to ? { end_date: to } : {}),
+        ...(relativeRange ? { time_range: relativeRange } : {})
+      };
+      const timeoutController = new AbortController();
+      const timeout = setTimeout(() => timeoutController.abort(), safeTimeoutMs);
+      const requestSignal = signal
+        ? AbortSignal.any([signal, timeoutController.signal])
+        : timeoutController.signal;
+      try {
+        const response = await fetchImpl(TAVILY_WEB_SEARCH_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            Accept: 'application/json',
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${apiKey}`
+          },
+          body: JSON.stringify(body),
+          redirect: 'error',
+          signal: requestSignal
+        });
+        if (!response?.ok) {
+          const statusCode = Number(response?.status) || 502;
+          const status = statusCode === 401 || statusCode === 403
+            ? 'authentication_failed'
+            : statusCode === 429
+              ? 'rate_limited'
+              : 'upstream_http_error';
+          return {
+            ...failed(status, `Tavily 返回 HTTP ${statusCode}。`),
+            capabilities: TAVILY_WEB_SEARCH_CAPABILITIES
+          };
+        }
+        const text = await readLimitedText(response, safeMaxResponseBytes);
+        let payload;
+        try {
+          payload = JSON.parse(text);
+        } catch {
+          return {
+            ...failed('invalid_response', 'Tavily 返回了无效 JSON。'),
+            capabilities: TAVILY_WEB_SEARCH_CAPABILITIES
+          };
+        }
+        const results = normalizeTavilySearchResults(payload, limit);
+        if (!results) {
+          return {
+            ...failed('invalid_response', 'Tavily 响应缺少 results 数组。'),
+            capabilities: TAVILY_WEB_SEARCH_CAPABILITIES
+          };
+        }
+        return {
+          available: true,
+          status: 'success',
+          message: results.length
+            ? `Tavily 返回 ${results.length} 条结果。`
+            : 'Tavily 未找到可用结果。',
+          results,
+          capabilities: TAVILY_WEB_SEARCH_CAPABILITIES
+        };
+      } catch (error) {
+        const status = error instanceof ResponseTooLargeError
+          ? 'response_too_large'
+          : signal?.aborted
+            ? 'cancelled'
+            : timeoutController.signal.aborted
+              ? 'timeout'
+              : 'network_error';
+        return {
+          ...failed(status, status === 'response_too_large'
+            ? error.message
+            : status === 'cancelled'
+              ? 'Tavily 检索已取消。'
+              : status === 'timeout'
+                ? 'Tavily 响应超时。'
+                : '无法连接 Tavily。'),
+          capabilities: TAVILY_WEB_SEARCH_CAPABILITIES
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+  };
 }
 
 /**

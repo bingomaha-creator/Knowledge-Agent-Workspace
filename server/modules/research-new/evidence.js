@@ -21,21 +21,46 @@ function splitPassages(content) {
       current = '';
     }
     current = current ? `${current}\n${paragraph}` : paragraph.slice(0, 1000);
-    if (passages.length >= 2) break;
+    if (passages.length >= 79) break;
   }
-  if (current && passages.length < 3) passages.push(current);
+  if (current && passages.length < 80) passages.push(current);
   return passages;
 }
 
-export function buildPassageCandidates(documents) {
-  return documents.flatMap((source) => splitPassages(source.content).map((passage, index) => ({
+function focusTokens(value) {
+  return [...new Set(String(value || '').normalize('NFKC').toLowerCase()
+    .match(/[\p{L}\p{N}_-]{3,}/gu) || [])]
+    .filter((token) => !new Set(['https', 'site', 'official', 'source', 'changes']).has(token))
+    .slice(0, 80);
+}
+
+function passageScore(passage, focus) {
+  const normalized = normalizedText(passage).normalize('NFKC').toLowerCase();
+  return focus.reduce((score, token) => score + (normalized.includes(token) ? 1 : 0), 0);
+}
+
+export function buildPassageCandidates(documents, track = {}) {
+  return documents.flatMap((source) => {
+    const focus = focusTokens([
+      track.question,
+      ...(track.evidenceRequirements || []),
+      source.query,
+      source.title,
+      source.snippet
+    ].filter(Boolean).join(' '));
+    return splitPassages(source.content)
+      .map((passage, index) => ({ passage, index, score: passageScore(passage, focus) }))
+      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .slice(0, 3)
+      .map(({ passage, index }) => ({
     id: `passage-${createHash('sha256').update(`${source.id}|${index}|${passage}`).digest('hex').slice(0, 18)}`,
     sourceId: source.id,
     trackId: source.trackId,
     origin: source.origin,
     contentLevel: source.contentLevel,
     passage
-  })));
+      }));
+  });
 }
 
 export function materializeEvidence({ track, candidates, selections }) {
@@ -71,15 +96,19 @@ export function materializeEvidence({ track, candidates, selections }) {
   return output;
 }
 
-export function assessTracks(tracks, evidence) {
+export function assessTracks(tracks, evidence, sources = []) {
   return tracks.map((track) => {
     const items = evidence.filter((item) => item.trackId === track.id);
+    const trackSources = sources.filter((source) => source.trackId === track.id);
+    const readableSourceCount = trackSources.filter((source) => source.content).length;
     const hasReadable = items.some((item) => item.contentLevel !== 'snippet');
     return {
       ...track,
       status: items.length === 0 ? 'unresolved' : hasReadable ? 'answered' : 'partial',
       gaps: items.length === 0
-        ? ['未取得可引用证据']
+        ? [readableSourceCount > 0
+            ? `已读取 ${readableSourceCount} 个来源，但没有段落通过 Evidence 选择`
+            : '未检索到可供评估的来源']
         : hasReadable
           ? []
           : ['当前仅有搜索摘要，未读取到正文']

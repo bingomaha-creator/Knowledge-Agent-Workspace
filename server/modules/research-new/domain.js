@@ -19,7 +19,7 @@ export const DEFAULT_RESEARCH_NEW_BUDGET = Object.freeze({
   maxRounds: 2,
   maxSearchCalls: 8,
   maxSourcesRead: 10,
-  maxWallTimeMs: 180_000,
+  maxWallTimeMs: 300_000,
   maxWriterAttempts: 2,
   roundsUsed: 0,
   searchCalls: 0,

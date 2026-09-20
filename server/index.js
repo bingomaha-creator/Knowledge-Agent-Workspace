@@ -27,6 +27,7 @@ import { createResearchNewSearch } from './modules/research-new/acquisition/sear
 import { createResearchNewSourceReader } from './modules/research-new/acquisition/source-readers.js';
 import { createSafeHttpsReader } from './infrastructure/web-reading/safe-request.js';
 import { createWebDocumentReader } from './infrastructure/web-reading/reader.js';
+import { createTavilyWebSearchProvider } from './infrastructure/web-search/provider.js';
 import { normalizeEvidenceLedgerMode } from './modules/research/evidence/ledger.js';
 import { createChatRouter } from './modules/chat/routes.js';
 import { createBugKnowledgeRouter } from './modules/bug-knowledge/routes.js';
@@ -113,9 +114,10 @@ const researchNewStore = createResearchNewStore();
 const bugInvestigationStore = createBugInvestigationStore();
 const researchKnowledgeStore = createKnowledgeStore();
 const researchKnowledgeSearch = createMcpKnowledgeSearchAdapter({ toolExecutor });
+const researchNewWebSearchProvider = createTavilyWebSearchProvider();
 const researchNewSearch = createResearchNewSearch({
   knowledgeSearch: researchKnowledgeSearch,
-  toolExecutor
+  webSearchProvider: researchNewWebSearchProvider
 });
 const researchNewSafeReader = createSafeHttpsReader();
 const researchNewWebDocumentReader = createWebDocumentReader({ safeReader: researchNewSafeReader });
@@ -222,12 +224,11 @@ const app = createApp({
     worker: researchNewWorker,
     knowledgeStore: researchKnowledgeStore,
     modelConfigured: Boolean(config.apiKey),
-    webSearchConfigured: Boolean(
-      process.env.BOCHA_API_KEY || (
-        (process.env.RESEARCH_WEB_SEARCH_ENDPOINT || process.env.WEB_SEARCH_ENDPOINT) &&
-        (process.env.RESEARCH_WEB_SEARCH_API_KEY || process.env.WEB_SEARCH_API_KEY)
-      )
-    )
+    webReaderTransport: researchNewWebSearchProvider.configured
+      ? 'tavily_raw_content'
+      : 'direct_pinned',
+    webSearchCapabilities: researchNewWebSearchProvider.capabilities,
+    webSearchConfigured: researchNewWebSearchProvider.configured
   }),
   knowledgeRouter: createKnowledgeRouter({ callMcpTool }),
   bugKnowledgeRouter: createBugKnowledgeRouter({ callMcpTool: callBugMcpTool }),

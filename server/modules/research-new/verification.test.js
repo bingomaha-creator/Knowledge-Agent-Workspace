@@ -22,3 +22,18 @@ test('零证据只能诚实交付 insufficient', () => {
   assert.equal(verdict.valid, true);
   assert.equal(resultQualityFor(tracks, []), 'insufficient');
 });
+
+test('报告不能补充 Evidence 对应来源之外的 URL', () => {
+  const verdict = verifyResearchNewDelivery({
+    report: '项目结论 [E1]\n\n## 来源\n[E1] https://allowed.example/guide\nhttps://invented.example/standard',
+    tracks: [{ id: 'track-1', status: 'answered' }],
+    sources: [
+      { id: 'source-1', url: 'https://allowed.example/guide' },
+      { id: 'source-unselected', url: 'https://invented.example/standard' }
+    ],
+    evidence: [{ id: 'E1', sourceId: 'source-1', trackId: 'track-1', origin: 'web' }],
+    writerEvidenceIds: ['E1']
+  });
+
+  assert.deepEqual(verdict.failures, ['external_source_membership']);
+});

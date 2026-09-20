@@ -25,6 +25,7 @@ test('Research New 使用独立三表保存阶段快照、来源与证据', (t) 
   const running = store.claim(created.id);
   assert.equal(running.status, 'running');
   assert.equal(running.attempt, 1);
+  assert.equal(running.budget.maxWallTimeMs, 300_000);
 
   const source = {
     id: 'source-1', trackId: 'track-1', origin: 'web', title: '官方说明',

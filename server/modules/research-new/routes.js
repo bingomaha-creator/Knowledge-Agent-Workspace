@@ -13,7 +13,9 @@ export function createResearchNewRouter({
   worker,
   knowledgeStore,
   modelConfigured = false,
-  webSearchConfigured = false
+  webSearchConfigured = false,
+  webSearchCapabilities = {},
+  webReaderTransport = ''
 }) {
   const router = Router();
 
@@ -22,8 +24,18 @@ export function createResearchNewRouter({
       capabilities: {
         model: Boolean(modelConfigured),
         webSearch: Boolean(webSearchConfigured),
+        webSearchProvider: {
+          name: String(webSearchCapabilities.provider || 'unconfigured'),
+          fullText: Boolean(webSearchCapabilities.fullText),
+          domainFilter: Boolean(webSearchCapabilities.domainFilter),
+          temporalFilter: Boolean(webSearchCapabilities.temporalFilter)
+        },
+        webReader: {
+          configured: Boolean(webReaderTransport),
+          transport: webReaderTransport || 'unconfigured'
+        },
         modes: ['web', 'hybrid'],
-        targetedReplan: false
+        targetedReplan: true
       }
     });
   });

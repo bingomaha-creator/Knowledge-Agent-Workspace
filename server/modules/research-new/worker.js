@@ -1,5 +1,6 @@
 import { assessTracks, buildPassageCandidates, materializeEvidence } from './evidence.js';
 import { createResearchNewError, RESEARCH_NEW_STAGE_PROGRESS } from './domain.js';
+import { createVerifiedReport } from './report-delivery.js';
 import { resultQualityFor, verifyResearchNewDelivery } from './verification.js';
 
 function isCancellation(error, signal) {
@@ -38,6 +39,45 @@ function mergeDiagnostics(current, patch) {
   return { ...(current || {}), ...(patch || {}) };
 }
 
+function mergeSources(current, additions) {
+  const byId = new Map(current.map((source) => [source.id, source]));
+  additions.forEach((source) => byId.set(source.id, source));
+  return [...byId.values()];
+}
+
+function evidenceGapReport({ tracks, sources }) {
+  const unresolved = tracks.filter((track) => track.status !== 'answered');
+  const readFailures = sources.filter((source) => source.readFailure);
+  const lines = [
+    '# 研究结果',
+    '',
+    '## 结论',
+    '',
+    '证据不足，当前检索与读取结果无法支持可靠的事实性研究结论。',
+    '',
+    '## 未解决问题',
+    ''
+  ];
+  if (unresolved.length) {
+    unresolved.forEach((track) => lines.push(`- ${track.question}`));
+  } else {
+    lines.push('- 本轮没有形成可引用 Evidence。');
+  }
+  lines.push(
+    '',
+    '## 获取局限',
+    '',
+    `- 本轮记录了 ${sources.length} 个候选来源，但没有段落通过 Evidence 选择。`,
+    `- 其中 ${readFailures.length} 个来源未能取得正文或发生了读取降级。`,
+    '- 需要补充与上述未解决问题直接相关、可读取且可验证的来源后再形成结论。',
+    '',
+    '## 来源',
+    '',
+    '本轮没有可安全引用的来源。'
+  );
+  return lines.join('\n');
+}
+
 export function createResearchNewWorker({ store, search, sourceReader, aiService, now = Date.now }) {
   const active = new Map();
 
@@ -74,7 +114,9 @@ export function createResearchNewWorker({ store, search, sourceReader, aiService
         diagnostics: mergeDiagnostics(current.diagnostics, {
           workspaceContextCount: workspaceContext.length,
           completedTrackIds: [],
-          webSearchStatuses: []
+          webSearchStatuses: [],
+          sourceScreening: [],
+          constraintDegradations: []
         })
       });
       if (!current) return store.get(run.id);
@@ -85,7 +127,14 @@ export function createResearchNewWorker({ store, search, sourceReader, aiService
       let sources = [...current.sources];
       let evidence = [...current.evidence];
       let budget = { ...current.budget };
+      const initialRound = !(current.diagnostics.replanTargetTrackIds || []).length;
+      const reservedReplanReads = initialRound && budget.maxRounds > 1
+        ? Math.min(2, Math.max(0, budget.maxSourcesRead - 1))
+        : 0;
+      const roundReadLimit = budget.maxSourcesRead - reservedReplanReads;
       const webSearchStatuses = [...(current.diagnostics.webSearchStatuses || [])];
+      const sourceScreening = [...(current.diagnostics.sourceScreening || [])];
+      const constraintDegradations = [...(current.diagnostics.constraintDegradations || [])];
 
       for (let trackIndex = 0; trackIndex < current.tracks.length; trackIndex += 1) {
         const track = current.tracks[trackIndex];
@@ -97,14 +146,25 @@ export function createResearchNewWorker({ store, search, sourceReader, aiService
         const searchResult = await search.search({
           trackId: track.id,
           query,
+          brief: current.brief,
+          track,
           mode: current.mode,
           knowledgeBaseIds: current.knowledgeBaseIds,
           signal
         });
         budget.searchCalls += 1;
         webSearchStatuses.push({ trackId: track.id, query, status: searchResult.webStatus });
+        sourceScreening.push({
+          trackId: track.id,
+          accepted: searchResult.screening?.accepted || [],
+          rejected: searchResult.screening?.rejected || []
+        });
+        constraintDegradations.push(...(searchResult.constraintDegradations || []).map((item) => ({
+          trackId: track.id,
+          ...item
+        })));
 
-        const remainingReads = Math.max(0, budget.maxSourcesRead - budget.sourcesRead);
+        const remainingReads = Math.max(0, roundReadLimit - budget.sourcesRead);
         const remainingTracks = Math.max(1, current.tracks.length - completedTrackIds.size);
         const fairShare = Math.max(1, Math.floor(remainingReads / remainingTracks));
         const selected = readingOrder(searchResult.sources, current.mode)
@@ -128,16 +188,20 @@ export function createResearchNewWorker({ store, search, sourceReader, aiService
         }));
         budget.sourcesRead += selected.length;
         const readable = readResults.filter((source) => source.content);
-        sources.push(...readResults);
-        const candidates = buildPassageCandidates(readable);
+        sources = mergeSources(sources, readResults);
+        const candidates = buildPassageCandidates(readable, track);
         const selections = await aiService.selectEvidence({ track, candidates, signal });
         const selectedEvidence = materializeEvidence({ track, candidates, selections });
+        const existingEvidence = new Set(evidence.map((item) => `${item.sourceId}:${item.passageHash}`));
         selectedEvidence.forEach((item) => {
+          const key = `${item.sourceId}:${item.passageHash}`;
+          if (existingEvidence.has(key)) return;
           item.id = `E${evidence.length + 1}`;
           evidence.push(item);
+          existingEvidence.add(key);
         });
         completedTrackIds.add(track.id);
-        budget.roundsUsed = 1;
+        budget.roundsUsed = Math.max(1, budget.roundsUsed);
         current = store.checkpoint(run.id, attempt, {
           stage: 'researching',
           progress: Math.min(55, 25 + Math.round((completedTrackIds.size / current.tracks.length) * 30)),
@@ -146,13 +210,15 @@ export function createResearchNewWorker({ store, search, sourceReader, aiService
           budget,
           diagnostics: mergeDiagnostics(current.diagnostics, {
             completedTrackIds: [...completedTrackIds],
-            webSearchStatuses
+            webSearchStatuses,
+            sourceScreening,
+            constraintDegradations
           })
         });
         if (!current) return store.get(run.id);
       }
 
-      const assessedTracks = assessTracks(current.tracks, evidence);
+      const assessedTracks = assessTracks(current.tracks, evidence, sources);
       current = store.checkpoint(run.id, attempt, {
         stage: 'assessing',
         progress: RESEARCH_NEW_STAGE_PROGRESS.assessing,
@@ -165,10 +231,69 @@ export function createResearchNewWorker({ store, search, sourceReader, aiService
     }
 
     if (current.stage === 'assessing') {
-      current = store.checkpoint(run.id, attempt, {
-        stage: 'reporting',
-        progress: RESEARCH_NEW_STAGE_PROGRESS.reporting
+      ensureRunnable(store, run.id, attempt, signal);
+      const executedQueries = (current.diagnostics.webSearchStatuses || [])
+        .map((item) => item.query)
+        .filter(Boolean);
+      const assessment = await aiService.assessGaps({
+        brief: current.brief,
+        tracks: current.tracks,
+        evidence: current.evidence,
+        sources: current.sources,
+        executedQueries,
+        signal
       });
+      const resultByTrackId = new Map(assessment.trackResults.map((item) => [item.trackId, item]));
+      const assessedTracks = current.tracks.map((track) => {
+        const result = resultByTrackId.get(track.id);
+        return result ? {
+          ...track,
+          status: result.status,
+          gaps: result.missingEvidence.length ? result.missingEvidence : result.reason ? [result.reason] : []
+        } : track;
+      });
+      const remainingSearches = Math.max(0, current.budget.maxSearchCalls - current.budget.searchCalls);
+      const remainingReads = Math.max(0, current.budget.maxSourcesRead - current.budget.sourcesRead);
+      const canReplan = assessment.shouldReplan
+        && current.budget.roundsUsed < current.budget.maxRounds
+        && remainingSearches > 0
+        && remainingReads > 0;
+      const targets = canReplan
+        ? assessment.trackResults
+          .filter((item) => item.status !== 'answered' && item.followUpQueries.length)
+          .slice(0, Math.min(remainingSearches, remainingReads))
+        : [];
+      const targetByTrackId = new Map(targets.map((item) => [item.trackId, item.followUpQueries[0]]));
+      const gapAssessments = [...(current.diagnostics.gapAssessments || []), assessment];
+
+      if (targets.length) {
+        const tracks = assessedTracks.map((track) => targetByTrackId.has(track.id) ? {
+          ...track,
+          status: 'pending',
+          searchQueries: [targetByTrackId.get(track.id)]
+        } : track);
+        const targetIds = new Set(targets.map((item) => item.trackId));
+        current = store.checkpoint(run.id, attempt, {
+          stage: 'researching',
+          tracks,
+          budget: { ...current.budget, roundsUsed: current.budget.roundsUsed + 1 },
+          diagnostics: mergeDiagnostics(current.diagnostics, {
+            gapAssessments,
+            completedTrackIds: tracks.filter((track) => !targetIds.has(track.id)).map((track) => track.id),
+            replanTargetTrackIds: [...targetIds],
+            replanQueries: Object.fromEntries(targetByTrackId)
+          })
+        });
+        if (!current) return store.get(run.id);
+        return runResearch(current, signal);
+      } else {
+        current = store.checkpoint(run.id, attempt, {
+          stage: 'reporting',
+          progress: RESEARCH_NEW_STAGE_PROGRESS.reporting,
+          tracks: assessedTracks,
+          diagnostics: mergeDiagnostics(current.diagnostics, { gapAssessments })
+        });
+      }
       if (!current) return store.get(run.id);
     }
 
@@ -176,48 +301,84 @@ export function createResearchNewWorker({ store, search, sourceReader, aiService
       let verification = null;
       let report = '';
       let budget = { ...current.budget };
-      while (budget.writerAttempts < budget.maxWriterAttempts) {
-        ensureRunnable(store, run.id, attempt, signal);
-        budget.writerAttempts += 1;
+      if (current.evidence.length === 0) {
+        report = evidenceGapReport({ tracks: current.tracks, sources: current.sources });
+        verification = verifyResearchNewDelivery({
+          report,
+          tracks: current.tracks,
+          sources: current.sources,
+          evidence: [],
+          writerEvidenceIds: []
+        });
+        if (!verification.valid) {
+          throw createResearchNewError(
+            'RESEARCH_NEW_EVIDENCE_GAP_REPORT_INVALID',
+            `证据缺口报告验证失败：${verification.failures.join(', ')}`,
+            500
+          );
+        }
         current = store.checkpoint(run.id, attempt, {
-          stage: 'reporting',
-          progress: RESEARCH_NEW_STAGE_PROGRESS.reporting,
-          budget
+          stage: 'verifying',
+          progress: RESEARCH_NEW_STAGE_PROGRESS.verifying,
+          report,
+          budget,
+          diagnostics: mergeDiagnostics(current.diagnostics, {
+            verification,
+            deliveryMode: 'evidence_gap_report'
+          })
         });
         if (!current) return store.get(run.id);
-        const writerEvidenceIds = current.evidence.map((item) => item.id);
-        report = await aiService.writeReport({
+      } else {
+        const delivery = await createVerifiedReport({
           brief: current.brief,
           tracks: current.tracks,
-          evidence: current.evidence,
           sources: current.sources,
-          previousFailure: verification?.failures,
-          signal
+          evidence: current.evidence,
+          mode: current.mode,
+          maxAttempts: Math.max(0, budget.maxWriterAttempts - budget.writerAttempts),
+          writeDraft: aiService.writeReportDraft,
+          currentTime: new Date(now()).toISOString(),
+          signal,
+          async onAttempt() {
+            ensureRunnable(store, run.id, attempt, signal);
+            budget = { ...budget, writerAttempts: budget.writerAttempts + 1 };
+            current = store.checkpoint(run.id, attempt, {
+              stage: 'reporting',
+              progress: RESEARCH_NEW_STAGE_PROGRESS.reporting,
+              budget
+            });
+            if (!current) {
+              throw createResearchNewError('RESEARCH_NEW_EXECUTION_STALE', '研究执行权已失效', 409);
+            }
+          }
         });
+        report = delivery.report;
         verification = verifyResearchNewDelivery({
           report,
           tracks: current.tracks,
           sources: current.sources,
           evidence: current.evidence,
-          writerEvidenceIds
+          writerEvidenceIds: current.evidence.map((item) => item.id)
         });
-        if (verification.valid) break;
+        if (!verification.valid) {
+          throw createResearchNewError(
+            'RESEARCH_NEW_REPORT_INVALID',
+            `报告验证失败：${verification.failures.join(', ') || 'unknown'}`,
+            502
+          );
+        }
+        current = store.checkpoint(run.id, attempt, {
+          stage: 'verifying',
+          progress: RESEARCH_NEW_STAGE_PROGRESS.verifying,
+          report,
+          budget,
+          diagnostics: mergeDiagnostics(current.diagnostics, {
+            verification,
+            reportDraft: delivery.draft
+          })
+        });
+        if (!current) return store.get(run.id);
       }
-      if (!verification?.valid) {
-        throw createResearchNewError(
-          'RESEARCH_NEW_REPORT_INVALID',
-          `报告验证失败：${verification?.failures.join(', ') || 'unknown'}`,
-          502
-        );
-      }
-      current = store.checkpoint(run.id, attempt, {
-        stage: 'verifying',
-        progress: RESEARCH_NEW_STAGE_PROGRESS.verifying,
-        report,
-        budget,
-        diagnostics: mergeDiagnostics(current.diagnostics, { verification })
-      });
-      if (!current) return store.get(run.id);
     }
 
     if (current.stage === 'verifying') {

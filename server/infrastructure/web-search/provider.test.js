@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  createTavilyWebSearchProvider,
   createWebSearchProvider,
   normalizeWebSearchResults,
+  TAVILY_WEB_SEARCH_CAPABILITIES,
   WEB_SEARCH_LIMITS
 } from './provider.js';
 
@@ -11,6 +13,77 @@ const configuredEnv = {
   RESEARCH_WEB_SEARCH_API_KEY: 'super-secret-key',
   RESEARCH_WEB_SEARCH_ALLOWED_HOSTS: 'search.example.test'
 };
+
+test('Tavily provider requests markdown raw content and maps it into the shared result contract', async () => {
+  let captured;
+  const provider = createTavilyWebSearchProvider({
+    env: { TAVILY_API_KEY: 'tvly-secret-key' },
+    fetchImpl: async (url, options) => {
+      captured = { url: url.toString(), options };
+      return Response.json({
+        results: [{
+          title: 'PostgreSQL 17 Release Notes',
+          url: 'https://www.postgresql.org/docs/17/release-17.html',
+          content: 'PostgreSQL 17 contains significant improvements.',
+          raw_content: '# PostgreSQL 17\n\nFull release notes.',
+          published_date: '2024-09-26',
+          score: 0.98
+        }]
+      });
+    }
+  });
+
+  const result = await provider.search('PostgreSQL 17 changes', {
+    topK: 5,
+    includeDomains: ['postgresql.org'],
+    startDate: '2024-01-01',
+    endDate: '2024-12-31'
+  });
+
+  assert.equal(captured.url, 'https://api.tavily.com/search');
+  assert.equal(captured.options.headers.Authorization, 'Bearer tvly-secret-key');
+  assert.deepEqual(JSON.parse(captured.options.body), {
+    query: 'PostgreSQL 17 changes',
+    max_results: 5,
+    search_depth: 'advanced',
+    include_answer: false,
+    include_raw_content: 'markdown',
+    include_domains: ['postgresql.org'],
+    start_date: '2024-01-01',
+    end_date: '2024-12-31'
+  });
+  assert.deepEqual(result.capabilities, TAVILY_WEB_SEARCH_CAPABILITIES);
+  assert.equal(result.results[0].rawContent, '# PostgreSQL 17\n\nFull release notes.');
+  assert.equal(result.results[0].rawContentComplete, true);
+  assert.equal(result.results[0].snippet, 'PostgreSQL 17 contains significant improvements.');
+  assert.equal(result.results[0].publishedAt, '2024-09-26');
+  assert.doesNotMatch(JSON.stringify(result), /tvly-secret-key/);
+});
+
+test('Tavily provider is unavailable without a key and keeps missing raw content explicit', async () => {
+  let calls = 0;
+  const unavailable = createTavilyWebSearchProvider({
+    env: {},
+    fetchImpl: async () => { calls += 1; return Response.json({ results: [] }); }
+  });
+  assert.equal((await unavailable.search('query')).status, 'not_configured');
+  assert.equal(calls, 0);
+
+  const provider = createTavilyWebSearchProvider({
+    env: { TAVILY_API_KEY: 'tvly-secret-key' },
+    fetchImpl: async () => Response.json({
+      results: [{
+        title: 'Snippet only',
+        url: 'https://example.com/item',
+        content: 'Only a search excerpt is available.',
+        raw_content: null
+      }]
+    })
+  });
+  const result = await provider.search('query');
+  assert.equal(result.results[0].rawContent, undefined);
+  assert.equal(result.results[0].rawContentComplete, false);
+});
 
 test('unconfigured provider degrades without performing a request', async () => {
   let requestCount = 0;

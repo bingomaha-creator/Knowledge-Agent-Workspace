@@ -43,7 +43,11 @@ test('Research New HTTP 提供能力、创建、详情、列表和取消合同',
   const router = createResearchNewRouter({
     ...values,
     modelConfigured: true,
-    webSearchConfigured: true
+    webSearchConfigured: true,
+    webSearchCapabilities: {
+      provider: 'tavily', fullText: true, domainFilter: true, temporalFilter: true
+    },
+    webReaderTransport: 'tavily_raw_content'
   });
   const server = await listen(createApp({ researchNewRouter: router }));
   const baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -51,7 +55,16 @@ test('Research New HTTP 提供能力、创建、详情、列表和取消合同',
 
   const capabilities = await fetch(`${baseUrl}/api/research-new/capabilities`);
   assert.deepEqual(await capabilities.json(), {
-    capabilities: { model: true, webSearch: true, modes: ['web', 'hybrid'], targetedReplan: false }
+    capabilities: {
+      model: true,
+      webSearch: true,
+      webSearchProvider: {
+        name: 'tavily', fullText: true, domainFilter: true, temporalFilter: true
+      },
+      webReader: { configured: true, transport: 'tavily_raw_content' },
+      modes: ['web', 'hybrid'],
+      targetedReplan: true
+    }
   });
 
   const created = await fetch(`${baseUrl}/api/research-new`, {

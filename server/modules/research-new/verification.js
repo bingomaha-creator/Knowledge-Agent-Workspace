@@ -4,14 +4,36 @@ function citedEvidenceIds(report) {
   return [...String(report || '').matchAll(/\[(E\d+)\]/gu)].map((match) => match[1]);
 }
 
+function normalizedUrl(value) {
+  try {
+    return new URL(String(value || '').replace(/[),.;:!?\]}]+$/u, '')).toString();
+  } catch {
+    return '';
+  }
+}
+
+function reportUrls(report) {
+  return [...String(report || '').matchAll(/https?:\/\/[^\s<>"'`]+/gu)]
+    .map((match) => normalizedUrl(match[0]))
+    .filter(Boolean);
+}
+
 export function verifyResearchNewDelivery({ report, tracks, sources, evidence, writerEvidenceIds }) {
   const sourceIds = new Set(sources.map((source) => source.id));
   const evidenceIds = new Set(evidence.map((item) => item.id));
+  const selectedSourceIds = new Set(evidence.map((item) => item.sourceId));
+  const allowedUrls = new Set(sources
+    .filter((source) => selectedSourceIds.has(source.id))
+    .map((source) => normalizedUrl(source.url))
+    .filter(Boolean));
   const cited = citedEvidenceIds(report);
   const failures = [];
 
   if (evidence.some((item) => !sourceIds.has(item.sourceId))) failures.push('evidence_source_membership');
   if (cited.some((id) => !evidenceIds.has(id))) failures.push('citation_membership');
+  if (reportUrls(report).some((url) => !allowedUrls.has(url))) {
+    failures.push('external_source_membership');
+  }
   if (new Set(writerEvidenceIds).size !== evidenceIds.size
     || writerEvidenceIds.some((id) => !evidenceIds.has(id))) {
     failures.push('writer_input_boundary');
