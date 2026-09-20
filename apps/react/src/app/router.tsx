@@ -10,6 +10,7 @@ import { Knowledge } from '@/pages/Knowledge';
 import { Memory } from '@/pages/Memory';
 import { PageNotFound } from '@/pages/PageNotFound';
 import { Research } from '@/pages/Research';
+import { ResearchNew } from '@/pages/ResearchNew';
 
 export const workspaceRoutes: RouteObject[] = [
   {
@@ -35,6 +36,10 @@ export const workspaceRoutes: RouteObject[] = [
       {
         path: 'research/:taskId?/:action?',
         element: <Research />
+      },
+      {
+        path: 'research-new/:runId?',
+        element: <ResearchNew />
       },
       {
         path: 'bugs/:section?/:recordId?',

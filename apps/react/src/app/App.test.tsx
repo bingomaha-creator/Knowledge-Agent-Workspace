@@ -39,6 +39,17 @@ beforeEach(() => {
         createdAt: 1, updatedAt: 1
       }] }), { status: 200 });
     }
+    if (url === '/api/research-new?limit=50&offset=0') {
+      return Response.json({ runs: [] });
+    }
+    if (url === '/api/research-new/capabilities') {
+      return Response.json({ capabilities: {
+        model: true, webSearch: true,
+        webSearchProvider: { name: 'tavily', fullText: true, domainFilter: true, temporalFilter: true },
+        webReader: { configured: true, transport: 'tavily_extract' },
+        modes: ['web', 'hybrid'], targetedReplan: true
+      } });
+    }
     if (url === '/api/knowledge?knowledgeBaseId=kb-default') {
       return new Response(JSON.stringify({ documents: [] }), { status: 200 });
     }
@@ -94,6 +105,16 @@ describe('React workspace shell', () => {
 
     expect(await screen.findByRole('heading', { level: 1, name: 'Bug Agent' })).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: '案例库' })).toHaveAttribute('aria-selected', 'true');
+  });
+
+  it('routes to the independent Research New workspace', async () => {
+    renderRoute('/research-new');
+
+    expect(screen.getByRole('heading', { level: 1, name: '新版深度研究' })).toBeInTheDocument();
+    expect(await screen.findByText('还没有新版研究')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '开始研究' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '深度研究' })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '新版深度研究' })).toBeInTheDocument();
   });
 
   it('opens and closes the mobile workspace sidebar', () => {

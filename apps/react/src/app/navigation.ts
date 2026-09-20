@@ -1,5 +1,5 @@
 export type WorkspaceModule = {
-  path: 'chat' | 'knowledge' | 'memory' | 'bugs' | 'research';
+  path: 'chat' | 'knowledge' | 'memory' | 'bugs' | 'research' | 'research-new';
   label: string;
   eyebrow: string;
   description: string;
@@ -35,6 +35,12 @@ export const workspaceModules: readonly WorkspaceModule[] = [
     label: '深度研究',
     eyebrow: 'RESEARCH',
     description: '研究计划、证据装配与报告生成。'
+  },
+  {
+    path: 'research-new',
+    label: '新版深度研究',
+    eyebrow: 'RESEARCH NEW',
+    description: '并行验证检索、阅读、证据与报告闭环。'
   }
 ];
 
