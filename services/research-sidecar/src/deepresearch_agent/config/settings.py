@@ -4,8 +4,22 @@ from typing import Optional
 
 from dotenv import load_dotenv
 
-# 统一加载环境变量，确保配置来源一致
-load_dotenv()
+# Sidecar 默认只读取自己的 .env；仓库开发命令可通过该变量指定根目录 .env.local。
+BASE_DIR = Path(__file__).resolve().parent.parent
+PROJECT_ROOT = BASE_DIR.parent.parent
+ENV_FILE = Path(
+    os.getenv("RESEARCH_SIDECAR_ENV_FILE", PROJECT_ROOT / ".env")
+).expanduser()
+if not ENV_FILE.is_absolute():
+    ENV_FILE = PROJECT_ROOT / ENV_FILE
+load_dotenv(ENV_FILE)
+
+
+def _get_env_path(key: str, default: Path) -> Path:
+    path = Path(os.getenv(key, default)).expanduser()
+    if not path.is_absolute():
+        path = PROJECT_ROOT / path
+    return path.resolve()
 
 
 def _get_env_int(key: str, default: Optional[int]) -> Optional[int]:
@@ -59,10 +73,10 @@ def _require_positive(key: str, value: int) -> int:
 
 # ===== 基础路径设置 =====
 
-BASE_DIR = Path(__file__).resolve().parent.parent  # deepresearch_agent包目录（src/deepresearch_agent）
-PROJECT_ROOT = BASE_DIR.parent.parent  # 项目根目录（src 布局：包目录上溯两级）
-FILES_DIR = PROJECT_ROOT / "files"
-FILE_REGISTRY_PATH = PROJECT_ROOT / "file_registry.json"  # 文件注册表路径
+FILES_DIR = _get_env_path("FILES_DIR", PROJECT_ROOT / "files")
+FILE_REGISTRY_PATH = _get_env_path(
+    "FILE_REGISTRY_PATH", PROJECT_ROOT / "file_registry.json"
+)
 
 # ===== 知识库与系统参数 =====
 
@@ -84,11 +98,11 @@ FRONTEND_ORIGINS = tuple(
     ).split(",")
     if item.strip()
 )
-APP_DATABASE_URL = os.getenv(
-    "APP_DATABASE_URL", "sqlite+aiosqlite:///./data/app.db"
-).strip()
-ARTIFACT_ROOT = Path(os.getenv("ARTIFACT_ROOT", PROJECT_ROOT / "data" / "artifacts")).expanduser()
-SKILLS_ROOT = Path(os.getenv("SKILLS_ROOT", PROJECT_ROOT / "skills")).expanduser()
+APP_DATABASE_URL = os.getenv("APP_DATABASE_URL", "").strip() or (
+    f"sqlite+aiosqlite:///{(PROJECT_ROOT / 'data' / 'app.db').as_posix()}"
+)
+ARTIFACT_ROOT = _get_env_path("ARTIFACT_ROOT", PROJECT_ROOT / "data" / "artifacts")
+SKILLS_ROOT = _get_env_path("SKILLS_ROOT", PROJECT_ROOT / "skills")
 AUTO_RESUME_RUNS = _get_env_bool("AUTO_RESUME_RUNS", True)
 CONTEXT_MAX_CHARS = _require_positive("CONTEXT_MAX_CHARS", _get_env_int("CONTEXT_MAX_CHARS", 16000) or 16000)
 CONTEXT_RECENT_TURNS = _require_positive("CONTEXT_RECENT_TURNS", _get_env_int("CONTEXT_RECENT_TURNS", 8) or 8)
@@ -247,17 +261,13 @@ ALIGNMENT_MIN_GROUP_SIZE = _get_env_int("ALIGNMENT_MIN_GROUP_SIZE", 2) or 2
 
 # ===== 路径与缓存配置 =====
 
-DEFAULT_CACHE_ROOT = Path(
-    os.getenv("CACHE_ROOT", PROJECT_ROOT / "cache")
-).expanduser()
-MODEL_CACHE_ROOT = Path(
-    os.getenv("MODEL_CACHE_ROOT", DEFAULT_CACHE_ROOT)
-).expanduser()
+DEFAULT_CACHE_ROOT = _get_env_path("CACHE_ROOT", PROJECT_ROOT / "cache")
+MODEL_CACHE_ROOT = _get_env_path("MODEL_CACHE_ROOT", DEFAULT_CACHE_ROOT)
 MODEL_CACHE_DIR = MODEL_CACHE_ROOT / "model"
-CACHE_DIR = Path(os.getenv("CACHE_DIR", DEFAULT_CACHE_ROOT)).expanduser()
-TIKTOKEN_CACHE_DIR = Path(
-    os.getenv("TIKTOKEN_CACHE_DIR", DEFAULT_CACHE_ROOT / "tiktoken")
-).expanduser()
+CACHE_DIR = _get_env_path("CACHE_DIR", DEFAULT_CACHE_ROOT)
+TIKTOKEN_CACHE_DIR = _get_env_path(
+    "TIKTOKEN_CACHE_DIR", DEFAULT_CACHE_ROOT / "tiktoken"
+)
 os.environ.setdefault("TIKTOKEN_CACHE_DIR", str(TIKTOKEN_CACHE_DIR))
 
 SENTENCE_TRANSFORMER_MODELS = [
@@ -306,9 +316,13 @@ NEO4J_CONFIG = {
 
 # ===== LLM 与嵌入模型配置 =====
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL", "")
-OPENAI_EMBEDDINGS_MODEL = os.getenv("OPENAI_EMBEDDINGS_MODEL") or None
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY") or os.getenv("QWEN_API_KEY", "")
+OPENAI_BASE_URL = os.getenv("OPENAI_BASE_URL") or os.getenv("QWEN_BASE_URL", "")
+OPENAI_EMBEDDINGS_MODEL = (
+    os.getenv("OPENAI_EMBEDDINGS_MODEL")
+    or os.getenv("QWEN_EMBEDDING_MODEL")
+    or None
+)
 OPENAI_EMBEDDING_DIMENSIONS = _get_env_int("OPENAI_EMBEDDING_DIMENSIONS", None)
 if OPENAI_EMBEDDING_DIMENSIONS is not None:
     OPENAI_EMBEDDING_DIMENSIONS = _require_positive(
@@ -318,7 +332,7 @@ OPENAI_EMBEDDING_BATCH_SIZE = _require_positive(
     "OPENAI_EMBEDDING_BATCH_SIZE",
     _get_env_int("OPENAI_EMBEDDING_BATCH_SIZE", 10) or 10,
 )
-OPENAI_LLM_MODEL = os.getenv("OPENAI_LLM_MODEL") or None
+OPENAI_LLM_MODEL = os.getenv("OPENAI_LLM_MODEL") or os.getenv("QWEN_MODEL") or None
 MEMORY_LLM_MODEL = os.getenv("MEMORY_LLM_MODEL") or OPENAI_LLM_MODEL
 MEMORY_LLM_MIN_CONFIDENCE = _get_env_float("MEMORY_LLM_MIN_CONFIDENCE", 0.75) or 0.75
 if not 0.0 <= MEMORY_LLM_MIN_CONFIDENCE <= 1.0:

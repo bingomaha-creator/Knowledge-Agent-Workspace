@@ -2,7 +2,20 @@
 
 本目录保存从 `deepresearch_agent_harness` 迁入的 Python Deep Research 实现。
 
-当前状态：M0 已迁入，尚未连接 Node 或 React。研究内核与测试保持上游验证分支的内容；运行路径、启动方式和产品接线将在后续阶段分别处理。
+当前状态：M1 独立运行验证中，尚未连接 Node 或 React。研究内核与测试保持上游验证分支的内容。
+
+## 本地运行
+
+在仓库根目录执行：
+
+```bash
+npm run research-sidecar:neo4j
+npm run dev:research-sidecar
+```
+
+Sidecar 默认监听 `http://127.0.0.1:8000`，健康检查为 `GET /api/v1/health`。开发命令读取仓库根目录的 `.env.local`，并将已有 `QWEN_*` 配置映射到参考实现使用的 OpenAI-compatible 模型配置。
+
+本地 Neo4j 只绑定 loopback，默认开发密码为 `research-sidecar-dev`；可在命令环境中设置 `NEO4J_PASSWORD` 覆盖。Python、SQLite、artifact、cache 与语料路径均留在本目录，Node 不管理 Sidecar 进程。
 
 ## M0 验证
 
