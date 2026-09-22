@@ -22,11 +22,18 @@ test('Sidecar worker 持久化映射并投影报告、来源与证据', async (t
     startRun: async () => ({ sessionId: 'session-1', runId: 'remote-1' }),
     getRun: async () => (++polls === 1
       ? { status: 'executing', current_stage: 'executing' }
-      : { status: 'completed', current_stage: 'completed' }),
+      : {
+          status: 'completed', current_stage: 'completed',
+          usage: {
+            limits: { max_replans: 2, max_tool_calls: 30 },
+            usage: { replans: 0, tool_calls: 2 }
+          }
+        }),
     getEvidence: async () => ({ items: [{
       evidence_id: 'ev-1', task_id: 'track-1', source_mode: 'graphrag', provider: 'neo4j',
       source_id: 'doc-1', title: '架构文档', summary: '模块使用深模块边界。',
-      metadata: {}, content_hash: 'content-hash', artifact_id: 'artifact-1', score: 0.9
+      metadata: { source_type: 'chunk', extra: { document_id: 'architecture.md', chunk_id: 'chunk-7', position: 7 } },
+      content_hash: 'content-hash', artifact_id: null, score: 0.9
     }] }),
     getReport: async () => ({
       content: '# 研究报告\n\n结论。', report_mode: 'normal',
@@ -44,8 +51,17 @@ test('Sidecar worker 持久化映射并投影报告、来源与证据', async (t
   assert.equal(completed.resultQuality, 'sufficient');
   assert.deepEqual(completed.diagnostics.sidecar.sessionId, 'session-1');
   assert.deepEqual(completed.diagnostics.sidecar.runId, 'remote-1');
-  assert.equal(completed.sources[0].documentId, 'doc-1');
+  assert.equal(completed.sources[0].documentId, 'architecture.md');
+  assert.equal(completed.sources[0].chunkId, 'chunk-7');
+  assert.equal(completed.sources[0].contentLevel, 'full_text');
   assert.equal(completed.evidence[0].passage, '模块使用深模块边界。');
+  assert.equal(completed.budget.searchCalls, 2);
+  assert.equal(completed.budget.maxSearchCalls, 30);
+  assert.equal(completed.budget.sourcesRead, 1);
+  assert.deepEqual(completed.diagnostics.sidecar.evidenceTrace, [{
+    evidenceId: 'ev-1', documentId: 'architecture.md', chunkId: 'chunk-7',
+    position: 7, contentHash: 'content-hash'
+  }]);
 });
 
 test('Sidecar worker 收敛远端失败并转发取消', async (t) => {

@@ -20,11 +20,18 @@ function projectEvidence(run, payload) {
   const items = Array.isArray(payload?.items) ? payload.items : [];
   const sources = [];
   const evidence = [];
+  const trace = [];
   items.forEach((item, index) => {
     const metadata = item?.metadata && typeof item.metadata === 'object' ? item.metadata : {};
+    const extra = metadata.extra && typeof metadata.extra === 'object' ? metadata.extra : {};
     const sourceId = `sidecar-source-${item.evidence_id || index + 1}`;
     const origin = item.source_mode === 'web' ? 'web' : 'workspace';
     const passage = String(item.summary || '').trim();
+    const chunkId = extra.chunk_id || item.source_id || '';
+    const documentId = extra.document_id || item.title || '';
+    const contentLevel = origin === 'workspace' && (metadata.source_type === 'chunk' || extra.chunk_id)
+      ? 'full_text'
+      : item.artifact_id ? 'full_text' : 'summary';
     sources.push({
       id: sourceId,
       trackId: item.task_id || 'sidecar',
@@ -35,12 +42,12 @@ function projectEvidence(run, payload) {
       query: run.question,
       sourceKind: item.provider || 'sidecar',
       knowledgeBaseId: origin === 'workspace' ? run.knowledgeBaseIds[0] || '' : '',
-      documentId: origin === 'workspace' ? item.source_id || '' : '',
-      chunkId: item.evidence_id || '',
+      documentId: origin === 'workspace' ? documentId : '',
+      chunkId: origin === 'workspace' ? chunkId : item.evidence_id || '',
       content: passage,
       contentHash: item.content_hash || hash(passage),
       readerKind: item.provider || 'sidecar',
-      contentLevel: item.artifact_id ? 'full_text' : 'summary',
+      contentLevel,
       fetchedAt: Date.parse(item.created_at || '') || Date.now()
     });
     evidence.push({
@@ -54,10 +61,38 @@ function projectEvidence(run, payload) {
       contradicts: [],
       relevance: Number(item.score) || 0,
       sourceRole: 'unknown',
-      contentLevel: item.artifact_id ? 'full_text' : 'summary'
+      contentLevel
+    });
+    trace.push({
+      evidenceId: item.evidence_id || `sidecar-evidence-${index + 1}`,
+      documentId,
+      chunkId,
+      position: Number.isInteger(extra.position) ? extra.position : null,
+      contentHash: item.content_hash || hash(passage)
     });
   });
-  return { sources, evidence };
+  return { sources, evidence, trace };
+}
+
+function projectBudget(current, remote, sourcesRead = current.sourcesRead) {
+  const usage = remote?.usage?.usage || {};
+  const limits = remote?.usage?.limits || {};
+  return {
+    ...current,
+    maxRounds: Number.isFinite(Number(limits.max_replans))
+      ? Number(limits.max_replans) + 1
+      : current.maxRounds,
+    maxSearchCalls: Number.isFinite(Number(limits.max_tool_calls))
+      ? Number(limits.max_tool_calls)
+      : current.maxSearchCalls,
+    roundsUsed: Number.isFinite(Number(usage.replans))
+      ? Number(usage.replans) + 1
+      : current.roundsUsed,
+    searchCalls: Number.isFinite(Number(usage.tool_calls))
+      ? Number(usage.tool_calls)
+      : current.searchCalls,
+    sourcesRead
+  };
 }
 
 function resultQuality(report, evidence) {
@@ -137,6 +172,7 @@ export function createResearchNewSidecarWorker({ store, client, pollMs = 1_000 }
       current = store.checkpoint(run.id, run.attempt, {
         stage,
         progress: RESEARCH_NEW_STAGE_PROGRESS[stage],
+        budget: projectBudget(afterPoll.budget, remote),
         diagnostics: {
           ...afterPoll.diagnostics,
           engine: 'sidecar',
@@ -172,6 +208,7 @@ export function createResearchNewSidecarWorker({ store, client, pollMs = 1_000 }
         sources: projected.sources,
         evidence: projected.evidence,
         report: reportContent,
+        budget: projectBudget(current.budget, remote, projected.sources.length),
         diagnostics: {
           ...current.diagnostics,
           engine: 'sidecar',
@@ -180,7 +217,8 @@ export function createResearchNewSidecarWorker({ store, client, pollMs = 1_000 }
             status: remote.status,
             currentStage: remote.current_stage,
             reportMode: report.report_mode,
-            verification: report.verification || []
+            verification: report.verification || [],
+            evidenceTrace: projected.trace
           }
         }
       });
