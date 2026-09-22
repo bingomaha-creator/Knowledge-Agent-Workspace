@@ -15,7 +15,8 @@ export function createResearchNewRouter({
   modelConfigured = false,
   webSearchConfigured = false,
   webSearchCapabilities = {},
-  webReaderTransport = ''
+  webReaderTransport = '',
+  engine = 'node'
 }) {
   const router = Router();
 
@@ -35,7 +36,8 @@ export function createResearchNewRouter({
           transport: webReaderTransport || 'unconfigured'
         },
         modes: ['web', 'hybrid'],
-        targetedReplan: true
+        targetedReplan: true,
+        engine
       }
     });
   });
@@ -103,13 +105,15 @@ export function createResearchNewRouter({
           });
         }
       }
-      const run = store.create({ question, mode, knowledgeBaseIds });
+      const run = store.create({ question, mode, knowledgeBaseIds, engine });
       void worker.enqueue(run.id).catch((error) => {
         console.error(`[research-new] run ${run.id} could not start:`, error?.message || error);
       });
       return res.status(202).json({
         run,
-        notice: webSearchConfigured
+        notice: engine === 'sidecar'
+          ? '新版研究已进入 Sidecar 队列；Hybrid 当前使用 Sidecar 预建图谱，不会动态同步所选知识库。'
+          : webSearchConfigured
           ? '新版研究已进入队列。'
           : '未配置联网检索，任务可能以证据不足完成。'
       });

@@ -22,6 +22,8 @@ import { createResearchStore } from './modules/research/store.js';
 import { createResearchWorker } from './modules/research/worker.js';
 import { createResearchNewStore } from './modules/research-new/store.js';
 import { createResearchNewWorker } from './modules/research-new/worker.js';
+import { createResearchSidecarClient } from './modules/research-new/sidecar-client.js';
+import { createResearchNewSidecarWorker } from './modules/research-new/sidecar-worker.js';
 import { createResearchNewAiService } from './modules/research-new/ai-service.js';
 import { createResearchNewSearch } from './modules/research-new/acquisition/search.js';
 import { createResearchNewSourceReader } from './modules/research-new/acquisition/source-readers.js';
@@ -126,12 +128,36 @@ const researchNewSourceReader = createResearchNewSourceReader({
   webDocumentReader: researchNewWebDocumentReader
 });
 const researchNewAiService = createResearchNewAiService({ qwenClient, model: config.model });
-const researchNewWorker = createResearchNewWorker({
+const researchNewEngine = process.env.RESEARCH_NEW_ENGINE === 'sidecar' ? 'sidecar' : 'node';
+const researchNewNodeWorker = createResearchNewWorker({
   store: researchNewStore,
   search: researchNewSearch,
   sourceReader: researchNewSourceReader,
   aiService: researchNewAiService
 });
+const researchSidecarClient = createResearchSidecarClient({
+  baseUrl: process.env.RESEARCH_SIDECAR_URL || 'http://127.0.0.1:8000/api/v1',
+  timeoutMs: Number(process.env.RESEARCH_SIDECAR_TIMEOUT_MS) || 15_000
+});
+const researchNewSidecarWorker = createResearchNewSidecarWorker({
+  store: researchNewStore,
+  client: researchSidecarClient,
+  pollMs: Number(process.env.RESEARCH_SIDECAR_POLL_MS) || 1_000
+});
+const researchNewWorkers = { node: researchNewNodeWorker, sidecar: researchNewSidecarWorker };
+const researchNewWorker = {
+  enqueue(id) {
+    const run = researchNewStore.get(id);
+    return researchNewWorkers[run?.diagnostics?.engine || researchNewEngine].enqueue(id);
+  },
+  cancel(id) {
+    const run = researchNewStore.get(id);
+    return researchNewWorkers[run?.diagnostics?.engine || researchNewEngine].cancel(id);
+  },
+  async resume() {
+    await Promise.all([researchNewNodeWorker.resume(), researchNewSidecarWorker.resume()]);
+  }
+};
 const researchSearchService = createResearchSearchService({
   searchEvidence: researchKnowledgeSearch.searchEvidence,
   toolExecutor
@@ -223,12 +249,15 @@ const app = createApp({
     store: researchNewStore,
     worker: researchNewWorker,
     knowledgeStore: researchKnowledgeStore,
-    modelConfigured: Boolean(config.apiKey),
-    webReaderTransport: researchNewWebSearchProvider.configured
-      ? 'tavily_raw_content'
-      : 'direct_pinned',
-    webSearchCapabilities: researchNewWebSearchProvider.capabilities,
-    webSearchConfigured: researchNewWebSearchProvider.configured
+    modelConfigured: researchNewEngine === 'sidecar' || Boolean(config.apiKey),
+    engine: researchNewEngine,
+    webReaderTransport: researchNewEngine === 'sidecar'
+      ? 'research_sidecar'
+      : (researchNewWebSearchProvider.configured ? 'tavily_raw_content' : 'direct_pinned'),
+    webSearchCapabilities: researchNewEngine === 'sidecar'
+      ? { provider: 'research_sidecar', fullText: true, domainFilter: false, temporalFilter: false }
+      : researchNewWebSearchProvider.capabilities,
+    webSearchConfigured: researchNewEngine === 'sidecar' || researchNewWebSearchProvider.configured
   }),
   knowledgeRouter: createKnowledgeRouter({ callMcpTool }),
   bugKnowledgeRouter: createBugKnowledgeRouter({ callMcpTool: callBugMcpTool }),

@@ -63,7 +63,8 @@ test('Research New HTTP 提供能力、创建、详情、列表和取消合同',
       },
       webReader: { configured: true, transport: 'tavily_raw_content' },
       modes: ['web', 'hybrid'],
-      targetedReplan: true
+      targetedReplan: true,
+      engine: 'node'
     }
   });
 

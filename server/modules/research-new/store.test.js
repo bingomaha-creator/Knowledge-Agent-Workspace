@@ -26,6 +26,7 @@ test('Research New 使用独立三表保存阶段快照、来源与证据', (t) 
   assert.equal(running.status, 'running');
   assert.equal(running.attempt, 1);
   assert.equal(running.budget.maxWallTimeMs, 300_000);
+  assert.equal(running.diagnostics.engine, 'node');
 
   const source = {
     id: 'source-1', trackId: 'track-1', origin: 'web', title: '官方说明',
@@ -64,6 +65,14 @@ test('Research New 使用独立三表保存阶段快照、来源与证据', (t) 
   assert.equal(completed.status, 'completed');
   assert.equal(completed.report, '结论 [E1]');
   assert.equal(store.checkpoint(created.id, 1, { stage: 'verifying' }), null);
+});
+
+test('Research New 按执行引擎恢复任务', (t) => {
+  const store = temporaryStore(t);
+  const nodeRun = store.create({ question: 'Node', mode: 'web' });
+  const sidecarRun = store.create({ question: 'Sidecar', mode: 'web', engine: 'sidecar' });
+  assert.deepEqual(store.listRecoverable('node').map((run) => run.id), [nodeRun.id]);
+  assert.deepEqual(store.listRecoverable('sidecar').map((run) => run.id), [sidecarRun.id]);
 });
 
 test('Research New 快照拒绝旧 attempt，取消不会被迟到完成覆盖', (t) => {

@@ -208,13 +208,14 @@ export function createResearchNewStore(dbPath = DEFAULT_DB_PATH) {
     db.prepare(`
       INSERT INTO research_new_runs (
         id, question, mode, knowledge_base_ids_json, status, stage, progress,
-        budget_json, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, 'queued', 'planning', 0, ?, ?, ?)
+        diagnostics_json, budget_json, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, 'queued', 'planning', 0, ?, ?, ?, ?)
     `).run(
       id,
       question,
       mode,
       JSON.stringify(knowledgeBaseIds),
+      JSON.stringify({ engine: input.engine === 'sidecar' ? 'sidecar' : 'node' }),
       JSON.stringify(DEFAULT_RESEARCH_NEW_BUDGET),
       now,
       now
@@ -401,9 +402,9 @@ export function createResearchNewStore(dbPath = DEFAULT_DB_PATH) {
     fail,
     requestCancel,
     cancel,
-    listRecoverable: () => db.prepare(`
+    listRecoverable: (engine) => db.prepare(`
       SELECT * FROM research_new_runs WHERE status IN ('queued', 'running') ORDER BY created_at
-    `).all().map(mapRun),
+    `).all().map(mapRun).filter((run) => !engine || (run.diagnostics.engine || 'node') === engine),
     close: () => db.close()
   };
 }

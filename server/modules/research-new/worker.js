@@ -434,7 +434,7 @@ export function createResearchNewWorker({ store, search, sourceReader, aiService
   }
 
   async function resume() {
-    await Promise.all(store.listRecoverable().map((run) => enqueue(run.id)));
+    await Promise.all(store.listRecoverable('node').map((run) => enqueue(run.id)));
   }
 
   return { enqueue, cancel, resume };
