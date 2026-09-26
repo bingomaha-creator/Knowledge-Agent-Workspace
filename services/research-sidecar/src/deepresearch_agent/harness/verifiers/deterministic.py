@@ -134,7 +134,8 @@ class DeterministicVerifiers:
     def _claim_lines(self) -> list[str]:
         claims: list[str] = []
         excluded_section = False
-        for raw in self.report.splitlines():
+        lines = self.report.splitlines()
+        for index, raw in enumerate(lines):
             line = raw.strip()
             if line.startswith("#"):
                 excluded_section = bool(re.search(r"局限|限制|方法|证据引用|参考来源", line, re.I))
@@ -143,5 +144,10 @@ class DeterministicVerifiers:
                 continue
             if re.search(r"局限|证据引用|参考来源|基于证据[。.]?$", line, re.I):
                 continue
+            if re.fullmatch(r"[-*+]\s+\*\*[^*]+\*\*[：:]", line):
+                following = next((item for item in lines[index + 1:] if item.strip()), "")
+                if (len(following) - len(following.lstrip()) > len(raw) - len(raw.lstrip())
+                    and re.match(r"(?:\d+[.)]|[-*+])\s+", following.strip())):
+                    continue  # Structural parent label; its child claims are checked normally.
             claims.append(line)
         return claims

@@ -83,6 +83,7 @@ export type ResearchNewRun = {
 export type ResearchNewRunSummary = Omit<ResearchNewRun, 'sources' | 'evidence'>;
 
 export type ResearchNewCapabilities = {
+  engine?: 'node' | 'sidecar';
   model: boolean;
   webSearch: boolean;
   webSearchProvider: {
@@ -100,6 +101,7 @@ export type CreateResearchNewInput = {
   question: string;
   mode: ResearchNewMode;
   knowledgeBaseIds: string[];
+  retrievalBackend?: 'workspace' | 'graphrag';
 };
 
 function jsonInit(method = 'GET', body?: unknown): RequestInit {

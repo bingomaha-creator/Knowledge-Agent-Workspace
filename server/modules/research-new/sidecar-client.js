@@ -51,7 +51,7 @@ export function createResearchSidecarClient({
   }
 
   return {
-    async startRun({ question, mode, clientMessageId, signal }) {
+    async startRun({ question, mode, clientMessageId, retrievalBackend = 'workspace', signal }) {
       const session = await request('/sessions', {
         method: 'POST',
         body: JSON.stringify({ title: question.slice(0, 200) }),
@@ -64,7 +64,9 @@ export function createResearchSidecarClient({
           content: question,
           source_mode: mode === 'web' ? 'web' : 'graphrag',
           workflow_mode: 'deep_research',
-          report_type: 'brief'
+          report_type: 'brief',
+          workspace_run_id: mode === 'hybrid' ? clientMessageId : null,
+          retrieval_backend: retrievalBackend
         }),
         signal
       });

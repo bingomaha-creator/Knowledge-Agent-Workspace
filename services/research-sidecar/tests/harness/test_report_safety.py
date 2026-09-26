@@ -71,3 +71,15 @@ def test_graphrag_source_diversity_counts_documents_not_chunks() -> None:
     )
 
     assert verifier.source_diversity().passed is False
+
+
+def test_list_group_label_is_not_a_claim_but_its_uncited_child_is() -> None:
+    report = "# 报告\n\n- **两条不能违反的依赖约束**：\n  1. 禁止 UI 导入业务 Feature [ev_a]。\n  2. 禁止 Service 导入 React 或 Store。"
+    verifier = DeterministicVerifiers(run_id="run-1", source_mode=SourceMode.GRAPHRAG,
+        report=report, evidence=[evidence("ev_a")])
+    actual = verifier.citation_integrity().observed["actual"]
+    assert actual["uncited_claims"] == ["2. 禁止 Service 导入 React 或 Store。"]
+    assert verifier.claim_support().observed["actual"] == {"claims": 2, "supported": 1}
+    # A standalone bold statement must not be exempted merely for ending in a colon.
+    verifier.report = "# 报告\n\n**服务层禁止读取任何页面状态**："
+    assert verifier.citation_integrity().passed is False

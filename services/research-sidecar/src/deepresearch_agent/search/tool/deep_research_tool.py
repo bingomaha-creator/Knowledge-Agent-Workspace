@@ -44,8 +44,8 @@ class DeepResearchTool(BaseSearchTool):
         """初始化深度研究工具"""
         super().__init__(
             cache_dir="./cache/deep_research",
-            enable_graph=not (provider is not None and provider.mode == SourceMode.WEB),
-            enable_vector_cache=False if provider is not None and provider.mode == SourceMode.WEB else None,
+            enable_graph=provider is None,
+            enable_vector_cache=False if provider is not None else None,
         )
         self.retrieval_provider = provider
         self.run_id = run_id or f"legacy_{uuid.uuid4().hex}"
@@ -56,8 +56,8 @@ class DeepResearchTool(BaseSearchTool):
         # 关键词缓存
         self._keywords_cache = {}
         
-        # Web Run 不实例化任何 GraphRAG 工具，避免私有源连接和隐式降级。
-        if provider is not None and provider.mode == SourceMode.WEB:
+        # An injected provider owns retrieval; don't initialize unrelated global graph tools.
+        if provider is not None:
             self.hybrid_tool = None
             self.global_tool = None
             self.local_tool = None
@@ -787,7 +787,7 @@ class DeepResearchTool(BaseSearchTool):
         self._log(f"\n[深度搜索] 解析后的查询: {query}")
         
         # 检查缓存
-        cache_key = f"deep:{query}"
+        cache_key = f"deep:{self.run_id}:{query}" if self.retrieval_provider is not None else f"deep:{query}"
         cached_result = self.cache_manager.get(cache_key)
         if cached_result:
             self._log(f"\n[深度搜索] 缓存命中，返回缓存结果")
@@ -1205,7 +1205,7 @@ class DeepResearchTool(BaseSearchTool):
         self._log(f"\n[深度搜索] 解析后的查询: {query}")
         
         # 检查缓存
-        cache_key = f"deep:{query}"
+        cache_key = f"deep:{self.run_id}:{query}" if self.retrieval_provider is not None else f"deep:{query}"
         cached_result = self.cache_manager.get(cache_key)
         if cached_result:
             self._log(f"\n[深度搜索] 缓存命中，分块返回缓存结果")

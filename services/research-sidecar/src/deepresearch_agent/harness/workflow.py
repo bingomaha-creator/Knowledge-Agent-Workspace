@@ -29,7 +29,8 @@ from deepresearch_agent.config.settings import (
 from deepresearch_agent.evolution.skill_compiler import compile_runtime_policy, policy_prompt
 
 from .run_context import RunContext
-from .report_safety import add_inline_citations, citation_evidence_ids, has_internal_material, rank_evidence, sanitize_report
+from .report_safety import add_inline_citations, citation_evidence_ids, has_internal_material, normalize_citation_markers, rank_evidence, sanitize_report
+from .verifiers.deterministic import DeterministicVerifiers
 
 
 class WorkflowDriver(Protocol):
@@ -438,11 +439,11 @@ class PlanExecuteReportDriver:
     async def repair_report(self, failures: list[str]) -> bool:
         if self.report_result is None:
             return False
-        supported = {"citation_integrity", "required_section", "report_consistency", "source_diversity", "evidence_card_coverage"}
+        supported = {"citation_integrity", "claim_support", "required_section", "report_consistency", "source_diversity", "evidence_card_coverage"}
         if not set(failures).issubset(supported):
             return False
         report = self.report_result.final_report
-        if set(failures) & {"citation_integrity", "report_consistency"}:
+        if set(failures) & {"citation_integrity", "claim_support", "report_consistency"}:
             all_evidence = [result for _, _, _, result in self.evidence_results()]
             report, selected = _evidence_only_report(
                 all_evidence,
@@ -596,7 +597,7 @@ class DeepResearchDriver:
                     self.agent.ask,
                     self.context.model_input or self.context.resolved_query or self.context.original_query,
                     self.context.session_id,
-                    bypass_cache=self.context.source_mode.value == "web",
+                    bypass_cache=self.context.source_mode.value == "web" or bool(self.context.config_snapshot.get("workspace_run_id")),
                 )
         tool = getattr(self.agent, "research_tool", None)
         provider_results = list(getattr(tool, "provider_results", []) or [])
@@ -652,22 +653,23 @@ class DeepResearchDriver:
             self._repair_pending = False
             return self._report
         ranked = rank_evidence(self.results)
-        body = sanitize_report(self.answer)
-        documents = {
-            item.metadata.extra.get("document_id") or item.metadata.title or item.metadata.source_id
-            for item in ranked
-        }
-        limitation = "\n\n## 局限\n\n当前证据来源数量有限，结论应结合更多独立来源复核。" if len(documents) < 2 else ""
+        body = normalize_citation_markers(sanitize_report(self.answer))
+        diversity = DeterministicVerifiers(
+            run_id=self.context.run_id, source_mode=self.context.source_mode, report=body,
+            evidence=[{"evidence_id": item.result_id, "source_id": item.metadata.source_id,
+                "metadata_json": item.metadata.model_dump(mode="json")} for item in ranked],
+        ).source_diversity()
+        limitation = "\n\n## 局限\n\n本报告实际引用的独立来源不足两个，结论应结合更多独立来源复核。" if not diversity.passed else ""
         self._report = f"# 深度研究报告\n\n{body}{limitation}".strip()
         return self._report
 
     async def repair_report(self, failures: list[str]) -> bool:
         if self._report is None:
             return False
-        supported = {"citation_integrity", "required_section", "report_consistency", "source_diversity"}
+        supported = {"citation_integrity", "claim_support", "required_section", "report_consistency", "source_diversity"}
         if not set(failures).issubset(supported):
             return False
-        if set(failures) & {"citation_integrity", "report_consistency"}:
+        if set(failures) & {"citation_integrity", "claim_support", "report_consistency"}:
             self._report, selected = _evidence_only_report(
                 self.results,
                 required_sections=list(self.context.config_snapshot.get("required_sections", [])),

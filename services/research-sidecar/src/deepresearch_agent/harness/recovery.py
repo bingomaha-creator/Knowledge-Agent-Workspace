@@ -18,9 +18,10 @@ def classify_verification_failures(failures: list[str]) -> RecoveryDecision:
     kinds = set(failures)
     # Evidence/source failures cannot be repaired by rewriting prose. They must
     # return to planning and retrieval before a new report is generated.
-    if kinds & {"min_evidence", "claim_support", "source_match"}:
+    if kinds & {"min_evidence", "source_match"}:
         return RecoveryDecision("replan", ",".join(sorted(kinds)))
-    if kinds and kinds.issubset({"citation_integrity", "required_section", "report_consistency", "source_diversity", "evidence_card_coverage"}):
+    # claim_support is a deterministic nearby-citation proxy, not a semantic judge.
+    if kinds and kinds.issubset({"citation_integrity", "claim_support", "required_section", "report_consistency", "source_diversity", "evidence_card_coverage"}):
         return RecoveryDecision("repair_report", ",".join(sorted(kinds)))
     return RecoveryDecision("fail", ",".join(sorted(kinds)) or "unknown")
 

@@ -142,8 +142,14 @@ class RunService:
         def workflow_factory(context, events=None):
             if self._external_factory is not None:
                 return self._external_factory(context, events)
+            selected_provider = self._router.for_mode(context.source_mode)
+            if context.source_mode is SourceMode.GRAPHRAG and context.config_snapshot.get("workspace_run_id"):
+                from deepresearch_agent.retrieval.workspace_provider import WorkspaceProvider
+                backend = context.config_snapshot.get("retrieval_backend", "workspace")
+                selected_provider = WorkspaceProvider(context.config_snapshot["workspace_run_id"], backend,
+                    graph_provider=selected_provider if backend == "graphrag" else None)
             provider = TimeoutBoundProvider(
-                self._router.for_mode(context.source_mode),
+                selected_provider,
                 timeout_seconds=context.budget_limits.tool_timeout_seconds,
             )
             if context.workflow_mode is WorkflowMode.DEEP_RESEARCH:

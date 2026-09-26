@@ -16,6 +16,11 @@ _FORBIDDEN = re.compile(
 _CITATION = re.compile(r"\[(ev_[A-Za-z0-9_-]+)\]")
 
 
+def normalize_citation_markers(text: str) -> str:
+    """Normalize existing IDs only; membership is still checked against the Run ledger."""
+    return re.sub(r"<(ev_[A-Za-z0-9_-]+)>", r"[\1]", text)
+
+
 def sanitize_report(text: str | None) -> str:
     """Remove hidden reasoning and internal harness material from model output."""
     value = str(text or "").replace("\x00", "")
@@ -100,4 +105,4 @@ def add_inline_citations(text: str, evidence_ids: Sequence[str]) -> str:
     return "\n".join(result).strip()
 
 
-__all__ = ["add_inline_citations", "citation_evidence_ids", "has_internal_material", "rank_evidence", "sanitize_report"]
+__all__ = ["add_inline_citations", "citation_evidence_ids", "has_internal_material", "normalize_citation_markers", "rank_evidence", "sanitize_report"]

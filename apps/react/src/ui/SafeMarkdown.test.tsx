@@ -43,6 +43,16 @@ describe('SafeMarkdown', () => {
     expect(config.ALLOWED_URI_REGEXP.test('javascript:alert(1)')).toBe(false);
   });
 
+  it('allows local evidence links while keeping external links HTTPS only', () => {
+    renderSafeMarkdown('[证据](#evidence-ev_123) [网页](https://example.com)', 'https-and-evidence');
+    const config = sanitize.mock.calls[0][1] as { ALLOWED_URI_REGEXP: RegExp };
+    expect(config.ALLOWED_URI_REGEXP.test('#evidence-ev_123')).toBe(true);
+    expect(config.ALLOWED_URI_REGEXP.test('https://example.com')).toBe(true);
+    expect(config.ALLOWED_URI_REGEXP.test('http://example.com')).toBe(false);
+    expect(config.ALLOWED_URI_REGEXP.test('#other-section')).toBe(false);
+    expect(config.ALLOWED_URI_REGEXP.test('javascript:alert(1)')).toBe(false);
+  });
+
   it('escapes raw HTML at the markdown layer (html: false)', () => {
     renderSafeMarkdown('<script>alert(1)</script>\n\n正文');
     const [html] = sanitize.mock.calls[0];

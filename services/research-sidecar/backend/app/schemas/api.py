@@ -36,6 +36,8 @@ class MessageSend(ApiModel):
     source_mode: SourceMode
     workflow_mode: WorkflowMode = WorkflowMode.DEEP_RESEARCH
     report_type: Literal["brief", "long_document"] = "brief"
+    workspace_run_id: str | None = Field(default=None, pattern=r"^research-new-[A-Za-z0-9-]+$", max_length=128)
+    retrieval_backend: Literal["workspace", "graphrag"] = "workspace"
 
 
 class ClarificationSubmit(ApiModel):

@@ -16,7 +16,9 @@ export function createResearchNewRouter({
   webSearchConfigured = false,
   webSearchCapabilities = {},
   webReaderTransport = '',
-  engine = 'node'
+  engine = 'node',
+  knowledgeSearch,
+  graphScope
 }) {
   const router = Router();
 
@@ -56,6 +58,25 @@ export function createResearchNewRouter({
     const run = store.get(req.params.id);
     if (!run) return res.status(404).json({ error: '新版研究任务不存在', code: 'RESEARCH_NEW_NOT_FOUND' });
     return res.json({ run });
+  });
+
+  // Sidecar asks by Run ID; callers cannot widen its frozen Knowledge scope.
+  router.post('/api/research-new/:id/retrieval', async (req, res, next) => {
+    try {
+      const run = store.get(req.params.id);
+      if (!run || run.status !== 'running' || run.cancelRequested || run.mode !== 'hybrid'
+          || run.diagnostics?.engine !== 'sidecar') {
+        return res.status(409).json({ code: 'RESEARCH_RETRIEVAL_INACTIVE', error: '研究任务不允许检索' });
+      }
+      if (run.diagnostics.retrievalBackend === 'graphrag') {
+        return res.json({ graph: graphScope(run.knowledgeBaseIds) });
+      }
+      const query = typeof req.body?.query === 'string' ? req.body.query.trim().slice(0, 4000) : '';
+      if (!query) return res.status(400).json({ code: 'RESEARCH_QUERY_REQUIRED', error: '检索问题不能为空' });
+      const result = await knowledgeSearch.searchEvidence({ query, knowledgeBaseIds: run.knowledgeBaseIds,
+        limit: Math.max(1, Math.min(10, Number(req.body?.topK) || 6)) });
+      return res.json(result);
+    } catch (error) { next(error); }
   });
 
   router.post('/api/research-new', (req, res) => {
@@ -105,14 +126,19 @@ export function createResearchNewRouter({
           });
         }
       }
-      const run = store.create({ question, mode, knowledgeBaseIds, engine });
+      const retrievalBackend = req.body?.retrievalBackend || 'workspace';
+      if (!['workspace', 'graphrag'].includes(retrievalBackend)) {
+        return res.status(400).json({ code: 'RESEARCH_RETRIEVAL_INVALID', error: '不支持的资料检索方式' });
+      }
+      if (mode === 'hybrid' && engine === 'sidecar' && retrievalBackend === 'graphrag') graphScope(knowledgeBaseIds);
+      const run = store.create({ question, mode, knowledgeBaseIds, engine, retrievalBackend });
       void worker.enqueue(run.id).catch((error) => {
         console.error(`[research-new] run ${run.id} could not start:`, error?.message || error);
       });
       return res.status(202).json({
         run,
         notice: engine === 'sidecar'
-          ? '新版研究已进入 Sidecar 队列；Hybrid 当前使用 Sidecar 预建图谱，不会动态同步所选知识库。'
+          ? '新版研究已进入 Sidecar 队列；资料研究严格限定所选知识库，当前不混合网页来源。'
           : webSearchConfigured
           ? '新版研究已进入队列。'
           : '未配置联网检索，任务可能以证据不足完成。'

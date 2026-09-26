@@ -38,6 +38,25 @@ function fixture() {
   return { store, worker, knowledgeStore, queued };
 }
 
+test('Sidecar retrieval uses persisted Knowledge scope and rejects inactive runs', async (t) => {
+  const values = fixture();
+  const calls = [];
+  const run = values.store.create({ mode: 'hybrid', knowledgeBaseIds: ['kb-a'],
+    diagnostics: { engine: 'sidecar', retrievalBackend: 'workspace' } });
+  run.status = 'running';
+  const server = await listen(createApp({ researchNewRouter: createResearchNewRouter({ ...values,
+    knowledgeSearch: { async searchEvidence(input) { calls.push(input); return { evidence: [] }; } } }) }));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const url = `http://127.0.0.1:${server.address().port}/api/research-new/${run.id}/retrieval`;
+  const request = () => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ query: 'test', knowledgeBaseIds: ['foreign'] }) });
+  assert.equal((await request()).status, 200);
+  assert.deepEqual(calls[0].knowledgeBaseIds, ['kb-a']);
+  run.cancelRequested = true;
+  assert.equal((await request()).status, 409);
+  assert.equal(calls.length, 1);
+});
+
 test('Research New HTTP 提供能力、创建、详情、列表和取消合同', async (t) => {
   const values = fixture();
   const router = createResearchNewRouter({

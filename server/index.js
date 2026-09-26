@@ -21,6 +21,7 @@ import { loadPresets } from './modules/chat/presets.js';
 import { createResearchStore } from './modules/research/store.js';
 import { createResearchWorker } from './modules/research/worker.js';
 import { createResearchNewStore } from './modules/research-new/store.js';
+import { readGraphScope } from './modules/research-new/graph-scope.js';
 import { createResearchNewWorker } from './modules/research-new/worker.js';
 import { createResearchSidecarClient } from './modules/research-new/sidecar-client.js';
 import { createResearchNewSidecarWorker } from './modules/research-new/sidecar-worker.js';
@@ -249,6 +250,10 @@ const app = createApp({
     store: researchNewStore,
     worker: researchNewWorker,
     knowledgeStore: researchKnowledgeStore,
+    knowledgeSearch: researchKnowledgeSearch,
+    graphScope: (ids) => readGraphScope(
+      path.resolve(process.env.RESEARCH_GRAPH_MANIFEST || 'services/research-sidecar/data/current-graph.json'),
+      researchKnowledgeStore, ids),
     modelConfigured: researchNewEngine === 'sidecar' || Boolean(config.apiKey),
     engine: researchNewEngine,
     webReaderTransport: researchNewEngine === 'sidecar'

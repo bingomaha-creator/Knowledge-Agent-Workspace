@@ -88,7 +88,7 @@ class DeepResearchAgent(BaseAgent):
         # 调用父类构造函数
         super().__init__(
             cache_dir=self.cache_dir,
-            enable_vector_cache=False if retrieval_provider is not None and retrieval_provider.mode == SourceMode.WEB else None,
+            enable_vector_cache=False if retrieval_provider is not None else None,
         )
     
     def _setup_chains(self):

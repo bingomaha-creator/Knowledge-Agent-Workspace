@@ -21,7 +21,7 @@ from deepresearch_agent.harness.state_machine import StateMachine
 from deepresearch_agent.context.artifact_edit import ArtifactEditContextBuilder
 from deepresearch_agent.config.settings import REPORT_RESERVED_TOKENS, VERIFICATION_RESERVED_TOKENS
 from deepresearch_agent.models.prefix_cache import set_current_run
-from deepresearch_agent.harness.report_safety import sanitize_report
+from deepresearch_agent.harness.report_safety import normalize_citation_markers, sanitize_report
 from deepresearch_agent.persistence.artifact_store import ArtifactStore
 from deepresearch_agent.persistence.repositories import (
     ArtifactRepository, CheckpointRepository, ContractRepository, EventRepository,
@@ -293,7 +293,7 @@ class HarnessRuntime:
                 elif context.status is RunStatus.REPORTING:
                     await self._assert_not_cancelled(context)
                     generated_report = await self._run_with_heartbeat(context, budget, driver.report(), lease_owner=owner)
-                    context.report = sanitize_report(self._apply_artifact_edit(context, generated_report))
+                    context.report = normalize_citation_markers(sanitize_report(self._apply_artifact_edit(context, generated_report)))
                     await self._assert_not_cancelled(context)
                     context.workflow_state = driver.snapshot()
                     await self._save_report_artifact(context)

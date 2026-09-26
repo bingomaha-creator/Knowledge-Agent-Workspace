@@ -85,6 +85,8 @@ class ChatService:
                     "report_type": "long_document" if detailed_request else request.report_type,
                     "deep_research_max_iterations": 1 if request.source_mode.value == "graphrag" else 2,
                     "schema_version": 1,
+                    "workspace_run_id": request.workspace_run_id,
+                    "retrieval_backend": request.retrieval_backend,
                 },
                 budget=HARNESS_BUDGETS,
             ),

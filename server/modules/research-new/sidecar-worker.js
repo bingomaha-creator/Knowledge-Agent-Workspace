@@ -41,7 +41,7 @@ function projectEvidence(run, payload) {
       snippet: passage,
       query: run.question,
       sourceKind: item.provider || 'sidecar',
-      knowledgeBaseId: origin === 'workspace' ? run.knowledgeBaseIds[0] || '' : '',
+      knowledgeBaseId: origin === 'workspace' ? extra.knowledge_base_id || '' : '',
       documentId: origin === 'workspace' ? documentId : '',
       chunkId: origin === 'workspace' ? chunkId : item.evidence_id || '',
       content: passage,
@@ -125,13 +125,15 @@ export function createResearchNewSidecarWorker({ store, client, pollMs = 1_000 }
         question: current.question,
         mode: current.mode,
         clientMessageId: current.id,
+        retrievalBackend: current.diagnostics.retrievalBackend || 'workspace',
         signal: controller.signal
       });
       mapping = {
         sessionId: started.sessionId,
         runId: started.runId,
         sourceMode: current.mode === 'web' ? 'web' : 'graphrag',
-        corpus: current.mode === 'hybrid' ? 'prebuilt_sidecar_graph' : 'web'
+        corpus: current.mode === 'hybrid' ? 'selected_knowledge_base' : 'web',
+        retrievalBackend: current.diagnostics.retrievalBackend || 'workspace'
       };
       current = store.checkpoint(current.id, current.attempt, {
         stage: 'planning',

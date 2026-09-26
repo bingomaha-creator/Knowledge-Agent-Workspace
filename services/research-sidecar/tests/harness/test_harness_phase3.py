@@ -16,6 +16,7 @@ from deepresearch_agent.harness.run_context import RunContext
 from deepresearch_agent.harness.runtime import HarnessRuntime
 from deepresearch_agent.harness.errors import AppError, ErrorCode
 from deepresearch_agent.harness.recovery import classify_verification_failures
+from deepresearch_agent.harness.verifiers.deterministic import DeterministicVerifiers
 from deepresearch_agent.harness.state_machine import InvalidTransition, StateMachine
 from deepresearch_agent.persistence import ArtifactStore, Database
 from deepresearch_agent.persistence.repositories import (
@@ -232,7 +233,9 @@ def test_verification_failure_routing_is_complete():
     assert classify_verification_failures(["report_consistency"]).action == "repair_report"
     assert classify_verification_failures(["citation_integrity"]).action == "repair_report"
     assert classify_verification_failures(["source_match"]).action == "replan"
-    assert classify_verification_failures(["claim_support", "report_consistency"]).action == "replan"
+    assert classify_verification_failures(["claim_support", "report_consistency"]).action == "repair_report"
+    assert classify_verification_failures(["citation_integrity", "claim_support"]).action == "repair_report"
+    assert classify_verification_failures(["min_evidence", "claim_support"]).action == "replan"
 
 
 def test_budget_manager_enforces_tool_retry_and_replan_limits(monkeypatch):
@@ -335,6 +338,87 @@ async def test_deep_research_report_does_not_attach_unrelated_citations():
     report = await driver.report()
 
     assert "[ev_unrelated]" not in report
+
+
+@pytest.mark.asyncio
+async def test_deep_report_normalizes_existing_ids_and_discloses_cited_source_scope():
+    from types import SimpleNamespace
+    from deepresearch_agent.harness.workflow import DeepResearchDriver
+    context = RunContext(run_id="run-format", session_id="ses-format", trigger_message_id="msg-format",
+        source_mode=SourceMode.GRAPHRAG, workflow_mode=WorkflowMode.DEEP_RESEARCH,
+        status=RunStatus.REPORTING, original_query="question", budget_limits=BudgetLimits())
+    driver = DeepResearchDriver(context, SimpleNamespace(research_tool=None))
+    driver.results = [RetrievalResult(result_id=f"ev_{i}", granularity="Chunk",
+        evidence="服务层不读取页面状态，所有网络协议由服务层处理。", source="hybrid_search",
+        source_mode="graphrag", score=0.8,
+        metadata=RetrievalMetadata(source_id=f"chunk-{i}", source_type="chunk",
+            extra={"document_id": f"doc-{i}"})) for i in range(2)]
+    driver.answer = "服务层不读取页面状态，所有网络协议由服务层处理 `<ev_0>`。"
+    report = await driver.report()
+    assert "[ev_0]" in report and "<ev_0>" not in report
+    assert "局限" in report  # Two retrieved documents, only one actually cited.
+    verifier = DeterministicVerifiers(
+        run_id=context.run_id, source_mode=context.source_mode, report=report,
+        evidence=[{"evidence_id": r.result_id, "source_id": r.metadata.source_id,
+            "metadata_json": {"extra": r.metadata.extra}} for r in driver.results])
+    assert verifier.citation_integrity().passed and verifier.claim_support().passed
+    assert verifier.source_diversity().passed
+    driver.answer += "\n另一条没有原文支持的结论不能自动获得引用。"
+    report = await driver.report()
+    assert "另一条没有原文支持的结论不能自动获得引用。 [" not in report
+    verifier.report = report
+    assert not verifier.claim_support().passed
+    driver.answer = "服务层不读取页面状态，所有网络协议由服务层处理 <ev_foreign>。"
+    verifier.report = await driver.report()
+    assert not verifier.citation_integrity().passed
+
+
+@pytest.mark.asyncio
+async def test_real_deep_driver_repairs_uncited_claim_without_retrieval():
+    from types import SimpleNamespace
+    from deepresearch_agent.harness.workflow import DeepResearchDriver
+    context = RunContext(run_id="run-repair", session_id="ses-repair", trigger_message_id="msg-repair",
+        source_mode=SourceMode.GRAPHRAG, workflow_mode=WorkflowMode.DEEP_RESEARCH,
+        status=RunStatus.REPORTING, original_query="question", budget_limits=BudgetLimits())
+    driver = DeepResearchDriver(context, SimpleNamespace(research_tool=None))
+    driver.results = [RetrievalResult(result_id="ev_a", granularity="Chunk",
+        evidence="服务层只处理请求协议，不操作页面状态。", source="hybrid_search",
+        source_mode="graphrag", score=0.8,
+        metadata=RetrievalMetadata(source_id="doc-a", source_type="chunk"))]
+    driver.answer = "未经证据支持的主张不能自动加上引用。"
+    await driver.report()
+    assert await driver.repair_report(["citation_integrity", "claim_support"])
+    report = await driver.report()
+    assert "未经证据支持" not in report
+    assert "服务层只处理请求协议" in report and "[ev_a]" in report
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("repair_limit", [0, 1])
+async def test_runtime_bounds_real_deep_driver_report_repair(database, tmp_path, repair_limit):
+    from types import SimpleNamespace
+    from deepresearch_agent.harness.workflow import DeepResearchDriver
+    _, run = await create_run(database, budget=BudgetLimits(max_task_retries=repair_limit).model_dump())
+    calls = []
+    result = RetrievalResult(result_id="raw-1", granularity="Chunk",
+        evidence="服务层只处理请求协议，不操作页面状态。", source="hybrid_search",
+        source_mode="graphrag", score=0.8,
+        metadata=RetrievalMetadata(source_id="doc-a", source_type="chunk"))
+    class Agent:
+        research_tool = SimpleNamespace(provider_results=[result], provider_calls=[])
+        def ask(self, query, session_id, **kwargs):
+            calls.append(query)
+            return "这是一个没有引用且不能直接交付的结论。"
+    runtime = build_runtime(database, tmp_path, lambda context, events=None: DeepResearchDriver(context, Agent(), events))
+    finished = await runtime.execute_run(run.run_id)
+    saved = await RunRepository(database).get(run.run_id)
+    assert finished.status is (RunStatus.COMPLETED if repair_limit else RunStatus.FAILED), saved.error_message
+    assert len(calls) == 1
+    assert finished.budget_usage.task_retries == repair_limit
+    assert finished.budget_usage.replans == 0
+    if repair_limit:
+        assert "这是一个没有引用" not in finished.report
+        assert "服务层只处理请求协议" in finished.report
 
 
 def test_real_deep_research_agent_ask_accepts_and_forwards_bypass_cache(monkeypatch):

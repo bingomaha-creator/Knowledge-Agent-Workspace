@@ -2,7 +2,7 @@
 
 本目录保存从 `deepresearch_agent_harness` 迁入的 Python Deep Research 实现。
 
-当前状态：M3 最小产品链路验收完成。现有 Research New 可通过配置调用 Sidecar，研究内核与测试仍保持上游验证分支的内容；默认 Node 引擎和旧 Research 均未删除。
+当前状态：M3 最小产品链路验收完成。现有 Research New 可通过配置调用 Sidecar，沿用上游研究流程，并加入知识库范围隔离、引用展示与报告交付检查修复；默认 Node 引擎和旧 Research 均未删除。交付检查不等于逐句语义核验。
 
 ## 本地运行
 
@@ -23,7 +23,21 @@ Sidecar 默认监听 `http://127.0.0.1:8000`，健康检查为 `GET /api/v1/heal
 RESEARCH_NEW_ENGINE=sidecar npm run dev:with-research-sidecar
 ```
 
-当前接入只验证了预先构建的两份架构文档图谱。前端选择的知识库尚不会动态同步到 Neo4j；该能力属于后续 M4，而不是当前已交付行为。切回 `RESEARCH_NEW_ENGINE=node` 即可继续使用现有 Node 引擎。
+资料研究现在可以选择「关键词＋向量」或「GraphRAG」，两者使用同一 Python 研究流程，当前不混合网页来源。关键词＋向量调用项目已有 Knowledge 检索，范围来自 Node 持久化的 Run，而非模型参数。
+
+GraphRAG 只允许单个已绑定知识库。绑定由 `RESEARCH_GRAPH_MANIFEST` 指向的本地 manifest 决定（默认 `data/current-graph.json`）；每次检索校验已发布文档集合与内容哈希，资料变更、撤回或删除后拒绝旧图并要求手动重建。当前只建一张实际图，不提供多图并行服务或自动增量同步。
+
+手动导出一个新快照（在仓库根目录执行，不修改 Knowledge，不覆盖已有目录）：
+
+```bash
+node services/research-sidecar/export-knowledge.mjs <knowledgeBaseId> services/research-sidecar/data/<new-snapshot>
+```
+
+按参考项目 `build_knowledge_graph.py` 建图时将 `FILES_DIR` 指向快照的 `files/`。该脚本会清空其连接的 Neo4j 图，必须先备份并确认连接目标；只有完整建图及来源验收成功后才能将 manifest 标为 `ready` 并激活，不能仅凭导出成功激活。
+
+本机无 Docker 时，已安装的 Neo4j 5.22.0 可用 `npm run research-sidecar:neo4j:local` 启动。实际数据保存在项目 `data/neo4j-runtime/`，临时 ASCII 别名只解决启动器对中文路径的转义问题。Python 解释器也须使用持久路径，不链接系统会清理的临时目录。
+
+当前本机图谱使用上述 local 启动方式；Docker 使用独立 volume，两者的数据不会自动同步，不能通过切换启动方式复用同一张图。重启服务无需重新导出或建图；请保留本地数据目录与 manifest。
 
 ## M0 验证
 

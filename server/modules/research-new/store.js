@@ -215,7 +215,8 @@ export function createResearchNewStore(dbPath = DEFAULT_DB_PATH) {
       question,
       mode,
       JSON.stringify(knowledgeBaseIds),
-      JSON.stringify({ engine: input.engine === 'sidecar' ? 'sidecar' : 'node' }),
+      JSON.stringify({ engine: input.engine === 'sidecar' ? 'sidecar' : 'node',
+        retrievalBackend: input.retrievalBackend === 'graphrag' ? 'graphrag' : 'workspace' }),
       JSON.stringify(DEFAULT_RESEARCH_NEW_BUDGET),
       now,
       now
