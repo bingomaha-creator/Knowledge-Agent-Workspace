@@ -1,5 +1,5 @@
 export type WorkspaceModule = {
-  path: 'chat' | 'knowledge' | 'memory' | 'bugs' | 'research' | 'research-new';
+  path: 'chat' | 'knowledge' | 'memory' | 'bugs' | 'research-new';
   label: string;
   eyebrow: string;
   description: string;
@@ -31,20 +31,17 @@ export const workspaceModules: readonly WorkspaceModule[] = [
     description: '现场证据、根因假设与案例沉淀。'
   },
   {
-    path: 'research',
+    path: 'research-new',
     label: '深度研究',
     eyebrow: 'RESEARCH',
-    description: '研究计划、证据装配与报告生成。'
-  },
-  {
-    path: 'research-new',
-    label: '新版深度研究',
-    eyebrow: 'RESEARCH NEW',
-    description: '并行验证检索、阅读、证据与报告闭环。'
+    description: '以资料证据为依据生成研究报告。'
   }
 ];
 
 export function findWorkspaceModule(pathname: string) {
+  if (pathname === '/research' || pathname.startsWith('/research/')) {
+    return getWorkspaceModule('research-new');
+  }
   return workspaceModules.find((module) =>
     pathname === `/${module.path}` || pathname.startsWith(`/${module.path}/`)
   );

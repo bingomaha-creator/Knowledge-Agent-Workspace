@@ -19,6 +19,7 @@ import { linkReportEvidence } from './researchNewReport';
 
 type Props = {
   selectedRunId?: string;
+  initialQuestion?: string;
   onSelectRun: (id?: string) => void;
 };
 
@@ -258,8 +259,8 @@ function sourceModeLabel(run: Pick<ResearchNewRun, 'mode' | 'diagnostics'>) {
   return run.mode === 'hybrid' ? '项目资料库与网页' : '公开网页';
 }
 
-function NewResearchForm({ onCreated }: { onCreated: (id: string) => void }) {
-  const [question, setQuestion] = useState('');
+function NewResearchForm({ onCreated, initialQuestion }: { onCreated: (id: string) => void; initialQuestion?: string }) {
+  const [question, setQuestion] = useState(initialQuestion || '');
   const [mode, setMode] = useState<ResearchNewMode>('web');
   const [knowledgeBaseIds, setKnowledgeBaseIds] = useState<string[]>([]);
   const [retrievalBackend, setRetrievalBackend] = useState<'workspace' | 'graphrag'>('workspace');
@@ -286,7 +287,7 @@ function NewResearchForm({ onCreated }: { onCreated: (id: string) => void }) {
             <h2>新建研究</h2>
             <Row>以可追溯证据为边界，先完成检索和阅读，再生成报告。</Row>
           </div>
-          {capabilities.data?.model === false ? <Feedback tone="danger">当前未配置 Qwen 模型，无法启动新版研究。</Feedback> : null}
+          {capabilities.data?.model === false ? <Feedback tone="danger">当前未配置研究模型，无法启动研究。</Feedback> : null}
           {capabilities.data?.webSearch === false ? <Feedback tone="danger">当前未配置联网检索，结果可能只能诚实交付证据不足。</Feedback> : null}
           <Field>
             研究问题
@@ -321,7 +322,7 @@ function NewResearchForm({ onCreated }: { onCreated: (id: string) => void }) {
                   <strong>关键词＋向量</strong><small>使用现有知识库索引</small>
                 </ModeButton>
                 <ModeButton type="button" aria-pressed={retrievalBackend === 'graphrag'} onClick={() => setRetrievalBackend('graphrag')}>
-                  <strong>GraphRAG</strong><small>仅支持已建图的单个资料库</small>
+                  <strong>GraphRAG（实验）</strong><small>仅支持已建图的单个资料库，报告质量尚未验收</small>
                 </ModeButton>
               </ModeGroup>
               <Feedback>两种方式使用同一 Sidecar 研究流程；当前不混合网页来源。图谱在文档变更后需手动重建。</Feedback>
@@ -443,37 +444,37 @@ function RunDetail({ run, onBack }: { run: ResearchNewRun; onBack: () => void })
   );
 }
 
-export function ResearchNewWorkspace({ selectedRunId, onSelectRun }: Props) {
+export function ResearchNewWorkspace({ selectedRunId, initialQuestion, onSelectRun }: Props) {
   const runs = useResearchNewRuns();
-  const selected = useResearchNewRun(selectedRunId);
+  const selected = useResearchNewRun(selectedRunId === 'new' ? undefined : selectedRunId);
   const list = useMemo(() => runs.data || [], [runs.data]);
   const mobilePane = selectedRunId ? 'detail' : 'master';
 
   const master = (
     <Pane>
-      <PaneHeader title="研究记录" description="新引擎的独立验证任务" actions={<Button size="sm" variant="primary" onClick={() => onSelectRun('new')}>新建研究</Button>} />
-      {runs.error ? <Feedback tone="danger" role="alert" action={<button onClick={() => void runs.refetch()}>重试</button>}>{errorText(runs.error)}</Feedback> : null}
+      <PaneHeader title="研究记录" actions={<Button size="sm" variant="primary" onClick={() => onSelectRun('new')}>新建研究</Button>} />
+      {runs.error ? <Feedback tone="danger" role="alert" action={<Button size="sm" onClick={() => void runs.refetch()}>重试</Button>}>{errorText(runs.error)}</Feedback> : null}
       <Scroll>
         {list.length ? <RunList>{list.map((run) => (
           <RunButton key={run.id} aria-current={selectedRunId === run.id ? 'true' : undefined} onClick={() => onSelectRun(run.id)}>
             <RunQuestion>{run.question}</RunQuestion>
             <Row><Status $status={run.status}>{STATUS_LABELS[run.status]}</Status><span>{sourceModeLabel(run)}</span><span>{formatTime(run.updatedAt)}</span></Row>
           </RunButton>
-        ))}</RunList> : runs.isLoading ? <Feedback>正在加载研究记录…</Feedback> : <Empty title="还没有新版研究" description="创建一个 Web 或 Hybrid 任务，验证新引擎的检索、阅读与报告闭环。" icon="⌕" />}
+        ))}</RunList> : runs.isLoading ? <Feedback role="status">正在加载研究记录…</Feedback> : runs.error ? null : <Empty title="还没有研究记录" description="新建研究，选择网页或项目资料作为证据范围。" icon="⌕" />}
       </Scroll>
     </Pane>
   );
 
-  let detail = <Pane><PaneHeader title="新建研究" description="发起一次独立的新引擎任务" mobileControls={<MobileBack size="sm" onClick={() => onSelectRun()}>返回列表</MobileBack>} /><Scroll><NewResearchForm onCreated={onSelectRun} /></Scroll></Pane>;
+  let detail = <Pane><PaneHeader title="新建研究" mobileControls={<MobileBack size="sm" onClick={() => onSelectRun()}>返回列表</MobileBack>} /><Scroll><NewResearchForm key={initialQuestion || 'empty'} initialQuestion={initialQuestion} onCreated={onSelectRun} /></Scroll></Pane>;
   if (selectedRunId && selectedRunId !== 'new') {
     detail = selected.data ? <RunDetail run={selected.data} onBack={() => onSelectRun()} />
-      : <Pane><PaneHeader title="研究详情" mobileControls={<MobileBack size="sm" onClick={() => onSelectRun()}>返回列表</MobileBack>} /><Scroll>{selected.error ? <Feedback tone="danger" role="alert">{errorText(selected.error)}</Feedback> : <Feedback>正在加载任务…</Feedback>}</Scroll></Pane>;
+      : <Pane><PaneHeader title="研究详情" mobileControls={<MobileBack size="sm" onClick={() => onSelectRun()}>返回列表</MobileBack>} /><Scroll>{selected.error ? <Feedback tone="danger" role="alert" action={<Button size="sm" onClick={() => void selected.refetch()}>重试</Button>}>{errorText(selected.error)}</Feedback> : <Feedback role="status">正在加载任务…</Feedback>}</Scroll></Pane>;
   }
 
   return (
     <Shell>
-      <FeatureHeader title="新版深度研究" description="以资料证据为依据生成报告，与现有版本并行验证。" meta={<span>试用</span>} />
-      <MasterDetailLayout master={master} detail={detail} mobilePane={mobilePane} masterLabel="新版研究列表" detailLabel="新版研究详情" />
+      <FeatureHeader title="深度研究" description="以资料证据为依据生成报告，请结合引用原文判断结论。" meta={<span>试用</span>} />
+      <MasterDetailLayout master={master} detail={detail} mobilePane={mobilePane} masterLabel="研究列表" detailLabel="研究详情" />
     </Shell>
   );
 }

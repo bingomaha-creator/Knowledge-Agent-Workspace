@@ -22,8 +22,6 @@
     "preview": "npm run preview --workspace @matthews-workspace/react",
     "start": "node ./server/index.js",
     "test": "node --test \"server/**/*.test.js\"",
-    "eval:research": "node server/regression/research/research-eval-live.js",
-    "eval:ledger-report": "node server/regression/research/generate-ledger-diff-report.js",
     "test:client": "npm run test --workspace @matthews-workspace/react",
     "check:react": "npm run typecheck --workspace @matthews-workspace/react && npm run test:client && npm run build"
   },

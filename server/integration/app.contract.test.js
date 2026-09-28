@@ -6,7 +6,6 @@ import test from 'node:test';
 import { createApp } from '../app.js';
 import { createKnowledgeRouter } from '../modules/knowledge/routes.js';
 import { createMemoryRouter } from '../modules/memory/routes.js';
-import { createResearchRouter } from '../modules/research/routes.js';
 import { createSystemRouter } from '../modules/system/routes.js';
 import { createChatRouter } from '../modules/chat/routes.js';
 import { createBugKnowledgeRouter } from '../modules/bug-knowledge/routes.js';
@@ -100,144 +99,17 @@ test('system routes preserve health, preset, and run response contracts', async 
   assert.equal((await fetch(`${baseUrl}/api/runs/missing`)).status, 404);
 });
 
-test('research routes preserve validation, queueing, and cancellation contracts', async (t) => {
-  const queued = [];
-  const tasks = new Map();
-  const researchStore = {
-    list() {
-      return [...tasks.values()];
-    },
-    get(id) {
-      return tasks.get(id) || null;
-    },
-    create(input) {
-      const task = {
-        id: 'research-1',
-        status: 'queued',
-        sessionId: 'research-1',
-        parentTaskId: '',
-        turnIndex: 1,
-        ...input
-      };
-      tasks.set(task.id, task);
-      return task;
-    },
-    listSession(id) {
-      const task = tasks.get(id);
-      return task ? [task] : null;
-    },
-    continueSession(id, input) {
-      const parent = tasks.get(id);
-      if (!parent) return null;
-      const task = {
-        ...parent,
-        id: 'research-2',
-        question: input.question,
-        status: 'queued',
-        parentTaskId: parent.id,
-        turnIndex: 2
-      };
-      tasks.set(task.id, task);
-      return task;
-    },
-    retry(id) {
-      return tasks.get(id) || null;
-    }
-  };
-  const researchRouter = createResearchRouter({
-    researchStore,
-    researchWorker: {
-      cancel(id) {
-        const task = tasks.get(id);
-        return task ? { ...task, status: 'cancelled' } : null;
-      }
-    },
-    researchKnowledgeStore: {
-      getKnowledgeBase(id) {
-        return id === 'kb-default' ? { id } : null;
-      }
-    },
-    enqueueResearch(id) {
-      queued.push(id);
-    },
-    normalizeKnowledgeBaseIds(value, fallback) {
-      return Array.isArray(value) ? value : fallback;
-    },
-    webSearchConfigured: false
-  });
-  const server = await listen(createApp({ researchRouter }));
-  const { port } = server.address();
-  const baseUrl = `http://127.0.0.1:${port}`;
+test('retired research API returns Gone and cannot start tasks', async (t) => {
+  const server = await listen(createApp());
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
   t.after(() => new Promise((resolve) => server.close(resolve)));
-
-  const capabilities = await fetch(`${baseUrl}/api/research/capabilities`);
-  assert.deepEqual(await capabilities.json(), {
-    capabilities: {
-      localKnowledge: true,
-      publicPrimarySearch: { available: false, role: 'supplemental' }
-    }
-  });
-
-  const invalid = await fetch(`${baseUrl}/api/research`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: '', searchMode: 'local' })
-  });
-  assert.equal(invalid.status, 400);
-  assert.equal((await invalid.json()).code, 'RESEARCH_QUESTION_REQUIRED');
-
-  const created = await fetch(`${baseUrl}/api/research`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      question: '梳理取消边界',
-      searchMode: 'hybrid',
-      knowledgeBaseIds: ['kb-default']
-    })
-  });
-  assert.equal(created.status, 202);
-  const createdBody = await created.json();
-  assert.equal(createdBody.task.id, 'research-1');
-  assert.match(createdBody.notice, /未配置联网检索/);
-  assert.deepEqual(queued, ['research-1']);
-
-  const list = await fetch(`${baseUrl}/api/research?status=queued&limit=10`);
-  assert.equal((await list.json()).tasks.length, 1);
-
-  const detail = await fetch(`${baseUrl}/api/research/research-1`);
-  assert.equal((await detail.json()).task.id, 'research-1');
-
-  const session = await fetch(`${baseUrl}/api/research/research-1/session`);
-  assert.equal((await session.json()).runs.length, 1);
-
-  const followUp = await fetch(`${baseUrl}/api/research/research-1/follow-ups`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question: '继续补充公开项目的实现证据' })
-  });
-  assert.equal(followUp.status, 202);
-  assert.equal((await followUp.json()).task.turnIndex, 2);
-  assert.deepEqual(queued, ['research-1', 'research-2']);
-
-  const retried = await fetch(`${baseUrl}/api/research/research-1/retry`, {
-    method: 'POST'
-  });
-  assert.equal(retried.status, 200);
-  assert.deepEqual(queued, ['research-1', 'research-2', 'research-1']);
-
-  const cancelled = await fetch(`${baseUrl}/api/research/research-1/cancel`, {
-    method: 'POST'
-  });
-  assert.equal(cancelled.status, 200);
-  assert.equal((await cancelled.json()).task.status, 'cancelled');
-
-  assert.equal((await fetch(`${baseUrl}/api/research/missing`)).status, 404);
-  assert.equal((await fetch(`${baseUrl}/api/research/missing/retry`, {
-    method: 'POST'
-  })).status, 404);
-  assert.equal((await fetch(`${baseUrl}/api/research/missing/cancel`, {
-    method: 'POST'
-  })).status, 404);
+  for (const [method, route] of [['GET', '/api/research'], ['GET', '/api/research/old-task'],
+    ['POST', '/api/research'], ['POST', '/api/research/old-task/retry']]) {
+    const response = await fetch(`${baseUrl}${route}`, { method });
+    assert.equal(response.status, 410);
+    assert.equal((await response.json()).code, 'RESEARCH_RETIRED');
+  }
+  assert.equal((await fetch(`${baseUrl}/api/research-new`)).status, 404);
 });
 
 test('knowledge routes keep MCP DTOs and return upload failures as JSON', async (t) => {

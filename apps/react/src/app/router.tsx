@@ -9,7 +9,7 @@ import { Chat } from '@/pages/Chat';
 import { Knowledge } from '@/pages/Knowledge';
 import { Memory } from '@/pages/Memory';
 import { PageNotFound } from '@/pages/PageNotFound';
-import { Research } from '@/pages/Research';
+import { ResearchRetired } from '@/pages/ResearchRetired';
 import { ResearchNew } from '@/pages/ResearchNew';
 
 export const workspaceRoutes: RouteObject[] = [
@@ -34,8 +34,16 @@ export const workspaceRoutes: RouteObject[] = [
         element: <Memory />
       },
       {
-        path: 'research/:taskId?/:action?',
-        element: <Research />
+        path: 'research',
+        element: <Navigate replace to="/research-new" />
+      },
+      {
+        path: 'research/new',
+        element: <Navigate replace to="/research-new/new" />
+      },
+      {
+        path: 'research/*',
+        element: <ResearchRetired />
       },
       {
         path: 'research-new/:runId?',

@@ -11,7 +11,6 @@ import { getErrorPayload } from './shared/http/utils.js';
  */
 export function createApp({
   systemRouter,
-  researchRouter,
   researchNewRouter,
   knowledgeRouter,
   bugKnowledgeRouter,
@@ -22,10 +21,12 @@ export function createApp({
 } = {}) {
   const app = express();
   app.use(express.json({ limit: '4mb' }));
+  app.use('/api/research', (_req, res) => {
+    res.status(410).json({ code: 'RESEARCH_RETIRED', error: '旧版深度研究已退役，请使用当前深度研究入口。' });
+  });
 
   for (const router of [
     systemRouter,
-    researchRouter,
     researchNewRouter,
     knowledgeRouter,
     bugKnowledgeRouter,

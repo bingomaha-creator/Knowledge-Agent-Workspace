@@ -18,8 +18,6 @@ import { createKnowledgeStore } from './modules/knowledge/store.js';
 import { createBugInvestigationStore } from './modules/bug-investigation/store.js';
 import { createBugInvestigationService } from './modules/bug-investigation/service.js';
 import { loadPresets } from './modules/chat/presets.js';
-import { createResearchStore } from './modules/research/store.js';
-import { createResearchWorker } from './modules/research/worker.js';
 import { createResearchNewStore } from './modules/research-new/store.js';
 import { readGraphScope } from './modules/research-new/graph-scope.js';
 import { createResearchNewWorker } from './modules/research-new/worker.js';
@@ -31,25 +29,16 @@ import { createResearchNewSourceReader } from './modules/research-new/acquisitio
 import { createSafeHttpsReader } from './infrastructure/web-reading/safe-request.js';
 import { createWebDocumentReader } from './infrastructure/web-reading/reader.js';
 import { createTavilyWebSearchProvider } from './infrastructure/web-search/provider.js';
-import { normalizeEvidenceLedgerMode } from './modules/research/evidence/ledger.js';
 import { createChatRouter } from './modules/chat/routes.js';
 import { createBugKnowledgeRouter } from './modules/bug-knowledge/routes.js';
 import { createBugInvestigationRouter } from './modules/bug-investigation/routes.js';
 import { createKnowledgeRouter } from './modules/knowledge/routes.js';
 import { createMemoryRouter } from './modules/memory/routes.js';
-import { createResearchRouter } from './modules/research/routes.js';
 import { createResearchNewRouter } from './modules/research-new/routes.js';
 import { createSystemRouter } from './modules/system/routes.js';
 import { createRunStore } from './modules/chat/run-store.js';
 import { parsePricing } from './modules/chat/run-utils.js';
-import {
-  createResearchSearchService,
-  normalizeKnowledgeBaseIds
-} from './modules/research/retrieval/search.js';
-import { createResearchAiService } from './modules/research/planning/ai-planner-writer.js';
 import { createBugInvestigationAiService } from './modules/bug-investigation/ai-analyzer.js';
-import { createResearchSourceReader } from './modules/research/retrieval/source-reader.js';
-import { createResearchRepositoryResolver } from './modules/research/retrieval/repository-resolver.js';
 import { createToolExecutor } from './shared/agent-tools/catalog.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
@@ -112,7 +101,6 @@ const mcpGateway = createMcpGateway({ sessionManager: mcpSessionManager });
 const toolExecutor = createToolExecutor({ gateway: mcpGateway });
 const runStore = createRunStore();
 const chatStore = createChatStore();
-const researchStore = createResearchStore();
 const researchNewStore = createResearchNewStore();
 const bugInvestigationStore = createBugInvestigationStore();
 const researchKnowledgeStore = createKnowledgeStore();
@@ -159,30 +147,6 @@ const researchNewWorker = {
     await Promise.all([researchNewNodeWorker.resume(), researchNewSidecarWorker.resume()]);
   }
 };
-const researchSearchService = createResearchSearchService({
-  searchEvidence: researchKnowledgeSearch.searchEvidence,
-  toolExecutor
-});
-const researchAiService = createResearchAiService({
-  // 研究任务的模型能力是可选增强；没有聊天模型配置时 Worker 会退回单问题、
-  // 确定性证据报告，而不是把任务标成失败。
-  qwenClient: config.apiKey ? qwenClient : null,
-  model: config.model
-});
-const researchSourceReader = createResearchSourceReader();
-const researchRepositoryResolver = createResearchRepositoryResolver();
-// Evidence Ledger 三态（Spec research-harness §12 Phase 2A）：默认 shadow；
-// primary 未通过双写验收门槛前会被 createResearchWorker 拒绝（fail closed）。
-const evidenceLedgerMode = normalizeEvidenceLedgerMode(process.env.RESEARCH_EVIDENCE_LEDGER);
-const researchWorker = createResearchWorker({
-  store: researchStore,
-  searchSources: researchSearchService.searchSources,
-  planResearch: researchAiService.planResearch,
-  resolveResearchRepositories: researchRepositoryResolver.resolveRepositories,
-  readResearchSources: researchSourceReader.readSelected,
-  writeResearchReport: researchAiService.writeResearchReport,
-  evidenceLedgerMode
-});
 const callMcpTool = createRouteMcpCaller({ toolExecutor });
 const callBugMcpTool = createRouteMcpCaller({ toolExecutor, caller: 'bug-ui' });
 const bugInvestigationAiService = createBugInvestigationAiService({
@@ -215,36 +179,15 @@ const chatService = createChatService({
   orchestrator: chatOrchestrator
 });
 
-void researchWorker.resume().catch((error) => {
-  console.error('[research] startup recovery failed:', error?.message || error);
-});
 void researchNewWorker.resume().catch((error) => {
   console.error('[research-new] startup recovery failed:', error?.message || error);
 });
-const enqueueResearch = (id) => {
-  void researchWorker.enqueue(id).catch((error) => {
-    console.error(`[research] task ${id} could not start:`, error?.message || error);
-  });
-};
 
 const app = createApp({
   systemRouter: createSystemRouter({
     presets: config.presets,
     runStore,
     callMcpTool
-  }),
-  researchRouter: createResearchRouter({
-    researchStore,
-    researchWorker,
-    researchKnowledgeStore,
-    enqueueResearch,
-    normalizeKnowledgeBaseIds,
-    webSearchConfigured: Boolean(
-      process.env.BOCHA_API_KEY || (
-        (process.env.RESEARCH_WEB_SEARCH_ENDPOINT || process.env.WEB_SEARCH_ENDPOINT) &&
-        (process.env.RESEARCH_WEB_SEARCH_API_KEY || process.env.WEB_SEARCH_API_KEY)
-      )
-    )
   }),
   researchNewRouter: createResearchNewRouter({
     store: researchNewStore,
@@ -287,8 +230,8 @@ async function shutdown(signal) {
   httpServer.close();
   chatStore.close();
   bugInvestigationStore.close();
-  researchStore.close();
   researchNewStore.close();
+  researchKnowledgeStore.close();
   await mcpSessionManager.close();
 }
 

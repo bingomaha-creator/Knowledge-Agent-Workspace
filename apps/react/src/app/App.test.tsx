@@ -4,10 +4,11 @@ import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppProviders } from './providers';
 import { workspaceRoutes } from './router';
+import { findWorkspaceModule } from './navigation';
 
-function renderRoute(path: string) {
+function renderRoute(path: string, state?: unknown) {
   const router = createMemoryRouter(workspaceRoutes, {
-    initialEntries: [path]
+    initialEntries: [{ pathname: path, state }]
   });
   const queryClient = new QueryClient({
     defaultOptions: {
@@ -16,11 +17,12 @@ function renderRoute(path: string) {
     }
   });
 
-  return render(
+  const view = render(
     <AppProviders queryClient={queryClient}>
       <RouterProvider router={router} />
     </AppProviders>
   );
+  return { ...view, router };
 }
 
 beforeEach(() => {
@@ -110,11 +112,39 @@ describe('React workspace shell', () => {
   it('routes to the independent Research New workspace', async () => {
     renderRoute('/research-new');
 
-    expect(screen.getByRole('heading', { level: 1, name: '新版深度研究' })).toBeInTheDocument();
-    expect(await screen.findByText('还没有新版研究')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 1, name: '深度研究' })).toBeInTheDocument();
+    expect(await screen.findByText('还没有研究记录')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: '开始研究' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: '深度研究' })).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: '新版深度研究' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: '深度研究' })).toHaveLength(1);
+    expect(screen.queryByRole('link', { name: '新版深度研究' })).not.toBeInTheDocument();
+  });
+
+  it.each(['/research', '/research/new'])('redirects the retired entry %s to the active workspace', async (path) => {
+    renderRoute(path);
+    expect(await screen.findByRole('heading', { level: 1, name: '深度研究' })).toBeInTheDocument();
+  });
+
+  it('does not send an old task id to the new engine', async () => {
+    renderRoute('/research/old-task/follow-up');
+    expect(await screen.findByRole('heading', { level: 1, name: '旧版深度研究已退役' })).toBeInTheDocument();
+    expect(findWorkspaceModule('/research/old-task/follow-up')?.path).toBe('research-new');
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/api/research'))).toBe(false);
+  });
+
+  it('prefills a Chat draft without submitting or selecting its knowledge scope', async () => {
+    const { router } = renderRoute('/research-new/new', { researchDraftSeed: { question: '请研究这条消息', knowledgeBaseIds: ['kb-default'] } });
+    expect(await screen.findByRole('textbox', { name: '研究问题' })).toHaveValue('请研究这条消息');
+    expect(screen.getByRole('button', { name: /仅网页/ })).toHaveAttribute('aria-pressed', 'true');
+    expect(vi.mocked(fetch).mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false);
+    expect(router.state.location.state).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: '新建研究' }));
+    expect(screen.getByRole('textbox', { name: '研究问题' })).toHaveValue('');
+  });
+
+  it('ignores invalid Chat draft data', async () => {
+    renderRoute('/research-new/new', { researchDraftSeed: { question: { content: 'not text' } } });
+    expect(await screen.findByRole('textbox', { name: '研究问题' })).toHaveValue('');
   });
 
   it('opens and closes the mobile workspace sidebar', () => {
