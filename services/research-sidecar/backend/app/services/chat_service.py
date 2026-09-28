@@ -83,7 +83,7 @@ class ChatService:
                     # answer, but must never unlock a user-requested detailed report.
                     "min_evidence": 3 if detailed_request else 1,
                     "report_type": "long_document" if detailed_request else request.report_type,
-                    "deep_research_max_iterations": 1 if request.source_mode.value == "graphrag" else 2,
+                    "deep_research_max_iterations": 2,
                     "schema_version": 1,
                     "workspace_run_id": request.workspace_run_id,
                     "retrieval_backend": request.retrieval_backend,

@@ -26,6 +26,29 @@ vi.mock('./researchNewQueries', () => ({
 }));
 
 describe('ResearchNewWorkspace quality wording', () => {
+  it('distinguishes original character offsets from chunk positions', () => {
+    const originalEvidence = run.evidence;
+    const originalDiagnostics = run.diagnostics;
+    run.evidence = ['context', 'chunk', 'unknown'].map((id) => ({
+      id, trackId: 'track-1', sourceId: 'source-0', origin: 'workspace', passage: '原文',
+      supports: [], contradicts: [], relevance: 1, sourceRole: 'primary', contentLevel: 'full_text'
+    }));
+    run.diagnostics = { sidecar: { evidenceTrace: [
+      { evidenceId: 'context', chunkId: 'doc-1:context:1270:2100', position: 1270 },
+      { evidenceId: 'chunk', chunkId: 'chunk-1', position: 0 }
+    ] } };
+    try {
+      render(<ResearchNewWorkspace selectedRunId={run.id} onSelectRun={vi.fn()} />);
+      expect(screen.getByText('项目文档 · 原文字符范围 1270–2100（从 0 起）')).toBeInTheDocument();
+      expect(screen.getByText('项目文档 · 片段位置 0')).toBeInTheDocument();
+      expect(screen.getByText('项目文档')).toBeInTheDocument();
+      expect(screen.queryByText(/第 1270 段/)).not.toBeInTheDocument();
+    } finally {
+      run.evidence = originalEvidence;
+      run.diagnostics = originalDiagnostics;
+    }
+  });
+
   it('does not present delivery checks as verified facts and keeps evidence limitations', () => {
     const view = render(<ResearchNewWorkspace selectedRunId={run.id} onSelectRun={vi.fn()} />);
     expect(screen.getByText('交付检查通过')).toBeInTheDocument();

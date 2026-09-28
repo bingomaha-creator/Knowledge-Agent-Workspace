@@ -2,6 +2,46 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import { createApp } from '../../app.js';
 import { createResearchNewRouter } from './routes.js';
+import { adjacentSection } from './domain.js';
+
+test('adjacent context stays in its section, retains exact offsets and rejects ambiguous anchors', () => {
+  const passage = '这是被检索命中的原文片段，需要上下文解释具体职责。';
+  const document = { id: 'doc', name: 'A', knowledgeBaseId: 'kb-a',
+    content: `## 前章\n不应读取的内容\n## 当前章\n前文解释\n${passage}\n后文规则\n## 后章\n不应读取的内容` };
+  const context = adjacentSection(document, passage);
+  assert.equal(context.snippet, `## 当前章\n前文解释\n${passage}\n后文规则\n`);
+  assert.equal(document.content.slice(context.offset, context.endOffset), context.snippet);
+  assert.deepEqual(adjacentSection(document, `# 文档标题\n## 章节父标题\n### 当前章\n\n${passage}`), context);
+  const spaced = { ...document, content: `## 当前章\n原文规定 state owner 应有明确边界，不能重复存储状态。\n后文规则` };
+  assert.ok(adjacentSection(spaced, '原文规定stateowner应有明确边界，不能重复存储状态。'));
+  assert.equal(adjacentSection(document, '不存在的原文，不能猜测位置，也不能扩大读取范围。'), null);
+  assert.equal(adjacentSection({ ...document, content: `${passage}\n${passage}` }, passage), null);
+  assert.equal(adjacentSection({ ...document, content: `${passage}\n${passage.split('').join(' ')}` }, passage), null);
+  const large = adjacentSection({ ...document, content: `${'前'.repeat(6000)}${passage}${'后'.repeat(6000)}` }, passage);
+  assert.ok(large.snippet.length <= 3200);
+});
+
+test('Sidecar adjacent context uses published frozen scope and rejects cancelled runs', async (t) => {
+  const values = fixture();
+  const passage = '命中的原文片段必须足够明确，允许定位同章节上下文。';
+  values.knowledgeStore.listDocuments = () => [
+    { id: 'doc-a', knowledgeBaseId: 'kb-a', name: 'A', documentType: 'generic', status: 'ready', publicationStatus: 'published', content: `## 章节\n${passage}\n补充规则` },
+    { id: 'foreign', knowledgeBaseId: 'kb-b', name: 'B', documentType: 'generic', status: 'ready', publicationStatus: 'published', content: passage },
+    { id: 'draft', knowledgeBaseId: 'kb-a', name: 'D', documentType: 'generic', status: 'ready', publicationStatus: 'draft', content: passage }
+  ];
+  const run = values.store.create({ mode: 'hybrid', knowledgeBaseIds: ['kb-a'], diagnostics: { engine: 'sidecar', retrievalBackend: 'workspace' } });
+  run.status = 'running';
+  const server = await listen(createApp({ researchNewRouter: createResearchNewRouter(values) }));
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const request = (ids) => fetch(`http://127.0.0.1:${server.address().port}/api/research-new/${run.id}/retrieval`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contextSources: ids.map((documentId) => ({ documentId, passage, sourceId: 'chunk-a' })) }) });
+  assert.equal((await (await request(['doc-a'])).json()).evidence[0].anchorSourceId, 'chunk-a');
+  assert.deepEqual((await (await request(['foreign', 'draft'])).json()).evidence, []);
+  assert.equal((await request(['doc-a', 'doc-a', 'doc-a'])).status, 400);
+  run.cancelRequested = true;
+  assert.equal((await request(['doc-a'])).status, 409);
+});
 
 function listen(app) {
   return new Promise((resolve, reject) => {

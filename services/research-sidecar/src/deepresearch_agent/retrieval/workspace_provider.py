@@ -39,7 +39,7 @@ class WorkspaceProvider:
                 result.metadata.title = doc["name"]
                 result.metadata.extra.update(document_id=doc["documentId"],
                     knowledge_base_id=graph["knowledgeBaseId"], graph_content_hash=doc["contentHash"])
-            return results
+            return await self._with_context(results)
         results = []
         for item in payload.get("evidence", []):
             passage = item["snippet"]
@@ -51,4 +51,29 @@ class WorkspaceProvider:
                     extra={"provider": "workspace", "document_id": item["documentId"],
                         "chunk_id": item["id"], "knowledge_base_id": item["knowledgeBaseId"],
                         "retrieval": payload.get("trace")})))
+        return await self._with_context(results)
+
+    async def _with_context(self, results):
+        anchors = [{"documentId": result.metadata.extra["document_id"],
+                    "sourceId": result.metadata.source_id, "passage": str(result.evidence)}
+                   for result in results[:2] if 20 <= len(str(result.evidence)) <= 3200]
+        if not anchors:
+            return results
+        async with httpx.AsyncClient(timeout=30, trust_env=False) as client:
+            response = await client.post(
+                f"{self.base_url}/api/research-new/{quote(self.run_id, safe='')}/retrieval",
+                json={"contextSources": anchors})
+            response.raise_for_status()
+            payload = response.json()
+        # Keep original chunks intact; bounded context has its own source identity and range.
+        for item in payload.get("evidence", []):
+            passage = item["snippet"]
+            results.append(RetrievalResult(result_id=item["id"], granularity="Chunk",
+                evidence=passage, source="custom", source_mode="graphrag", score=0.5,
+                metadata=RetrievalMetadata(source_id=item["id"], source_type="chunk",
+                    title=item["title"], content_hash=hashlib.sha256(passage.encode()).hexdigest(),
+                    extra={"provider": self.provider_name, "document_id": item["documentId"],
+                        "knowledge_base_id": item["knowledgeBaseId"], "chunk_id": item["id"],
+                        "anchor_source_id": item["anchorSourceId"], "position": item["offset"],
+                        "end_offset": item["endOffset"], "context_kind": "adjacent_section"})))
         return results

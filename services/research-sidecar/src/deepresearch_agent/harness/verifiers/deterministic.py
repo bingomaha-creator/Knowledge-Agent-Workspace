@@ -11,7 +11,7 @@ _CITATION = re.compile(r"\[\^?(ev_[A-Za-z0-9_-]+)\]")
 
 
 class DeterministicVerifiers:
-    version = "1.0"
+    version = "1.1"
 
     def __init__(self, *, run_id: str, source_mode: SourceMode, report: str, evidence: list[Any]):
         self.run_id = run_id
@@ -135,7 +135,10 @@ class DeterministicVerifiers:
         claims: list[str] = []
         excluded_section = False
         lines = self.report.splitlines()
+        consumed_lines: set[int] = set()
         for index, raw in enumerate(lines):
+            if index in consumed_lines:
+                continue
             line = raw.strip()
             if line.startswith("#"):
                 excluded_section = bool(re.search(r"局限|限制|方法|证据引用|参考来源", line, re.I))
@@ -149,5 +152,22 @@ class DeterministicVerifiers:
                 if (len(following) - len(following.lstrip()) > len(raw) - len(raw.lstrip())
                     and re.match(r"(?:\d+[.)]|[-*+])\s+", following.strip())):
                     continue  # Structural parent label; its child claims are checked normally.
-            claims.append(line)
+            # ponytail: only adjacent quotes or indented list continuations;
+            # this recognizes Markdown structure, not semantic support.
+            unit = [line]
+            indentation = len(raw) - len(raw.lstrip())
+            list_marker = re.match(r"(?:\d+[.)]|[-*+])\s+", line)
+            for following_index in range(index + 1, len(lines)):
+                following = lines[following_index]
+                text = following.strip()
+                depth = len(following) - len(following.lstrip())
+                if not text or re.match(r"(?:#{1,6}\s|```|~~~|\||(?:\d+[.)]|[-*+])\s)", text):
+                    break
+                attached_quote = text.startswith(">") and depth >= indentation
+                continuation = list_marker and depth >= indentation + len(list_marker.group())
+                if not (attached_quote or continuation):
+                    break
+                unit.append(text)
+                consumed_lines.add(following_index)
+            claims.append("\n".join(unit))
         return claims

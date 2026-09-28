@@ -28,6 +28,12 @@ def search_iteration_indexes(max_iterations: int) -> range:
     return range(max(1, int(max_iterations)))
 
 
+def planned_query_batch(pending_queries, remaining_rounds):
+    """Fit the bounded initial plan into existing rounds without losing its last aspects."""
+    size = max(2, (len(pending_queries) + remaining_rounds - 1) // remaining_rounds)
+    return pending_queries[:size]
+
+
 class DeepResearchTool(BaseSearchTool):
     """
     深度研究工具：整合多种搜索策略，实现多步骤的思考-搜索-推理过程
@@ -589,9 +595,10 @@ class DeepResearchTool(BaseSearchTool):
             # 确定当前迭代要处理的查询
             queries_to_process = []
             
-            if iteration == 0 and initial_sub_queries:
-                # 第一轮迭代使用预先生成的子查询
-                queries_to_process = initial_sub_queries[:2]  # 限制首轮使用的子查询数量
+            pending_queries = [q for q in initial_sub_queries if not self.thinking_engine.has_executed_query(q)]
+            if pending_queries:
+                # Finish planned questions before answer_ready can stop research.
+                queries_to_process = planned_query_batch(pending_queries, self.max_iterations - iteration)
                 query_think = "开始根据分解的子问题进行搜索"
             else:
                 # 非首轮，使用思考引擎生成下一步查询
@@ -932,9 +939,10 @@ class DeepResearchTool(BaseSearchTool):
             # 确定当前迭代要处理的查询
             queries_to_process = []
             
-            if iteration == 0 and initial_sub_queries:
-                # 第一轮迭代使用预先生成的子查询
-                queries_to_process = initial_sub_queries[:2]  # 限制首轮使用的子查询数量
+            pending_queries = [q for q in initial_sub_queries if not self.thinking_engine.has_executed_query(q)]
+            if pending_queries:
+                # Finish planned questions before answer_ready can stop research.
+                queries_to_process = planned_query_batch(pending_queries, self.max_iterations - iteration)
                 query_think = "开始根据分解的子问题进行搜索"
                 yield "\n**开始根据分解的子问题进行初始搜索**...\n"
             else:

@@ -351,10 +351,10 @@ function RunDetail({ run, onBack }: { run: ResearchNewRun; onBack: () => void })
   ];
   const sidecar = run.diagnostics.sidecar as {
     corpus?: string;
-    evidenceTrace?: { evidenceId: string; position?: number | null }[];
+    evidenceTrace?: { evidenceId: string; chunkId?: string; position?: number | null }[];
     verification?: { kind: string; passed: boolean; required?: boolean }[];
   } | undefined;
-  const positions = new Map(sidecar?.evidenceTrace?.map((item) => [item.evidenceId, item.position]) || []);
+  const traces = new Map(sidecar?.evidenceTrace?.map((item) => [item.evidenceId, item]) || []);
   const requiredChecks = sidecar?.verification?.filter((item) => item.required) || [];
   const scope = sidecar?.corpus === 'prebuilt_sidecar_graph'
     ? `预建图谱 · ${workspaceDocuments} 份项目文档、${run.evidence.length} 条证据；所选资料库尚未同步`
@@ -409,11 +409,15 @@ function RunDetail({ run, onBack }: { run: ResearchNewRun; onBack: () => void })
           {run.evidence.length ? <Disclosure ref={sourcesDisclosure}><summary>引用来源（{run.evidence.length} 条）</summary><div><Sources>{orderedEvidence.map((evidence) => {
             const source = sourcesById.get(evidence.sourceId);
             const number = citedNumbers.get(evidence.id);
-            const position = positions.get(evidence.id);
+            const trace = traces.get(evidence.id);
+            const contextRange = trace?.chunkId?.match(/:context:(\d+):(\d+)$/);
+            const location = contextRange
+              ? `原文字符范围 ${contextRange[1]}–${contextRange[2]}（从 0 起）`
+              : typeof trace?.position === 'number' ? `片段位置 ${trace.position}` : '';
             return (
               <li key={evidence.id} id={`evidence-${evidence.id}`} tabIndex={-1}>
                 <strong>{number ? `[${number}] ` : '补充材料 · '}{source?.title || '未命名来源'}</strong>
-                <span>{evidence.origin === 'workspace' ? '项目文档' : '网页来源'}{typeof position === 'number' ? ` · 第 ${position} 段` : ''}</span>
+                <span>{evidence.origin === 'workspace' ? '项目文档' : '网页来源'}{location ? ` · ${location}` : ''}</span>
                 <details><summary>查看支持内容</summary><p>{evidence.passage}</p></details>
                 {source?.url?.startsWith('https://') ? <p><a href={source.url} target="_blank" rel="noopener noreferrer">打开网页来源</a></p> : null}
               </li>

@@ -49,17 +49,26 @@ def _context(mode: SourceMode) -> ToolCallContext:
     return ToolCallContext(run_id="run_test", task_id="task_1", tool_call_id="call_1", source_mode=mode)
 
 
-def test_graph_relevance_rejects_broad_disease_overlap() -> None:
-    def result(text: str) -> RetrievalResult:
-        return RetrievalResult(
-            granularity="Chunk", evidence=text, source="hybrid_search", source_mode="graphrag", score=0.8,
-            metadata=RetrievalMetadata(source_id=text[:8], source_type="chunk"),
-        )
+@pytest.mark.asyncio
+@pytest.mark.parametrize("query", ["页面组装应该放在哪里？", "React 页面的组件结构应该放在哪里？"])
+async def test_graph_provider_preserves_retrieval_order_without_literal_veto(query) -> None:
+    passages = ["pages 只负责路由页面组装。", "备份作业每日执行。", "组件样式与组件同文件。"]
 
-    query = "概括急性缺血性脑血管病的药物治疗原则"
-    specific = result("阿司匹林常用于预防缺血性脑血管病。")
-    broad = result("药物治疗是急性脑血管病的主要治疗手段。")
-    assert GraphRAGProvider._filter_relevant(query, [specific, broad]) == [specific]
+    class Tool:
+        def structured_search(self, payload):
+            return {"retrieval_results": [RetrievalResult(
+                result_id=f"ev_{index}", granularity="Chunk", evidence=text,
+                source="hybrid_search", score=0.9 - index * 0.1,
+                metadata=RetrievalMetadata(source_id=f"chunk-{index}", source_type="chunk"),
+            ) for index, text in enumerate(passages)]}
+
+    results = await GraphRAGProvider(tool_registry={"hybrid_search": Tool}).search(
+        query, top_k=2, search_depth="basic", filters=SearchFilters(),
+        call_context=_context(SourceMode.GRAPHRAG),
+    )
+    # Relevance belongs to retrieval ranking; the adapter must not veto its
+    # candidates by query wording (including a lower-relevance candidate).
+    assert [result.evidence for result in results] == passages[:2]
 
 
 @pytest.mark.asyncio
@@ -156,7 +165,7 @@ async def test_graphrag_provider_maps_existing_structured_results():
         call_context=_context(SourceMode.GRAPHRAG),
     )
     assert [(r.source_mode, r.metadata.source_id) for r in results] == [("graphrag", "chunk-1")]
-    assert results[0].metadata.extra == {"document_id": "architecture.md", "position": 3, "provider": "graphrag", "strategy": "local_search", "query_subject_matches": ["query"]}
+    assert results[0].metadata.extra == {"document_id": "architecture.md", "position": 3, "provider": "graphrag", "strategy": "local_search"}
 
 
 @pytest.mark.asyncio

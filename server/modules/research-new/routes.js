@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { normalizeKnowledgeBaseIds } from './domain.js';
+import { adjacentSection, normalizeKnowledgeBaseIds } from './domain.js';
 import { getErrorPayload } from '../../shared/http/utils.js';
 
 function hasRetrievableDocument(knowledgeStore, knowledgeBaseIds) {
@@ -67,6 +67,28 @@ export function createResearchNewRouter({
       if (!run || run.status !== 'running' || run.cancelRequested || run.mode !== 'hybrid'
           || run.diagnostics?.engine !== 'sidecar') {
         return res.status(409).json({ code: 'RESEARCH_RETRIEVAL_INACTIVE', error: '研究任务不允许检索' });
+      }
+      if (req.body?.contextSources !== undefined) {
+        if (!Array.isArray(req.body.contextSources) || req.body.contextSources.length > 2) {
+          return res.status(400).json({ code: 'RESEARCH_CONTEXT_INVALID', error: '上下文来源最多两项' });
+        }
+        if (run.diagnostics.retrievalBackend === 'graphrag') graphScope(run.knowledgeBaseIds);
+        const documents = knowledgeStore.listDocuments(run.knowledgeBaseIds).filter((doc) =>
+          doc.status === 'ready' && doc.publicationStatus === 'published' && doc.documentType === 'generic'
+          && run.knowledgeBaseIds.includes(doc.knowledgeBaseId));
+        const evidence = [];
+        for (const anchor of req.body.contextSources) {
+          if (!anchor || typeof anchor.documentId !== 'string' || typeof anchor.passage !== 'string'
+              || anchor.passage.length > 3200 || typeof anchor.sourceId !== 'string') {
+            return res.status(400).json({ code: 'RESEARCH_CONTEXT_INVALID', error: '原文定位参数无效' });
+          }
+          const document = documents.find((doc) => doc.id === anchor.documentId);
+          const context = document && adjacentSection(document, anchor.passage);
+          if (context && !evidence.some((item) => item.id === context.id)) {
+            evidence.push({ ...context, anchorSourceId: anchor.sourceId });
+          }
+        }
+        return res.json({ evidence });
       }
       if (run.diagnostics.retrievalBackend === 'graphrag') {
         return res.json({ graph: graphScope(run.knowledgeBaseIds) });

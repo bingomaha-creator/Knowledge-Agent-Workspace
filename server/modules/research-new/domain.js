@@ -46,3 +46,28 @@ export function createResearchNewError(code, message, status = 500, details = ''
   error.details = details;
   return error;
 }
+
+// ponytail: only heading prefixes and whitespace loss are supported, not fuzzy text matching.
+export function adjacentSection(document, passage) {
+  // The Knowledge chunker prepends ancestor headings that are not contiguous in the document.
+  passage = String(passage || '').replace(/^(?:#{1,6}[ \t]+[^\n]*\r?\n[ \t\r\n]*)+/, '').trim();
+  if (!passage || passage.length < 20) return null;
+  const content = String(document.content || '');
+  // GraphRAG removes whitespace. Map identical non-whitespace characters back to original offsets.
+  const positions = [...content.matchAll(/\S/g)].map((match) => match.index);
+  const normalized = positions.map((index) => content[index]).join('');
+  const anchor = passage.replace(/\s/g, '');
+  const index = normalized.indexOf(anchor);
+  if (index < 0 || normalized.indexOf(anchor, index + 1) !== -1) return null;
+  const start = positions[index];
+  const end = positions[index + anchor.length - 1] + 1;
+  const headings = [...content.matchAll(/^#{1,3}\s+.+$/gm)].map((match) => match.index);
+  const sectionStart = headings.filter((index) => index <= start).at(-1) ?? 0;
+  const sectionEnd = headings.find((index) => index >= end) ?? content.length;
+  const offset = Math.max(sectionStart, start - 800);
+  const until = Math.min(sectionEnd, end + 800, offset + 3200);
+  if (until < end || (offset === start && until === end)) return null;
+  return { id: `${document.id}:context:${offset}:${until}`, documentId: document.id,
+    knowledgeBaseId: document.knowledgeBaseId, title: document.name,
+    snippet: content.slice(offset, until), offset, endOffset: until };
+}

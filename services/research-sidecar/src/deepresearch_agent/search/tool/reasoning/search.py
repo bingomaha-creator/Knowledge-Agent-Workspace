@@ -229,7 +229,8 @@ class QueryGenerator:
                 try:
                     # 解析列表
                     sub_queries = ast.literal_eval(list_text.group(0))
-                    return sub_queries
+                    if isinstance(sub_queries, list) and all(isinstance(q, str) for q in sub_queries):
+                        return list(dict.fromkeys(q.strip() for q in sub_queries if q.strip()))[:6] or [original_query]
                 except Exception as e:
                     print(f"[子查询生成] 解析列表失败: {str(e)}")
             

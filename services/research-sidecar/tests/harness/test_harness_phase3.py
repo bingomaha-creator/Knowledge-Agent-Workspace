@@ -294,10 +294,12 @@ async def test_web_deep_research_bypasses_answer_cache_and_replan_reexecutes():
     class Agent:
         def __init__(self):
             self.calls = []
+            self.queries = []
             self.research_tool = type("Tool", (), {"provider_results": [], "provider_calls": []})()
 
         def ask(self, query, session_id, *, bypass_cache=False):
             self.calls.append(bypass_cache)
+            self.queries.append(query)
             return "answer"
 
     context = RunContext(
@@ -306,12 +308,14 @@ async def test_web_deep_research_bypasses_answer_cache_and_replan_reexecutes():
         status=RunStatus.QUEUED, original_query="current web query", budget_limits=BudgetLimits(),
     )
     agent = Agent()
+    context.model_input = "SYSTEM CONTRACT: internal envelope must not become search terms"
     driver = DeepResearchDriver(context, agent)
     await driver.plan()
     await driver.execute()
     await driver.plan(["min_evidence"])
     await driver.execute()
     assert agent.calls == [True, True]
+    assert agent.queries == ["current web query", "current web query"]
 
 
 @pytest.mark.asyncio
@@ -380,7 +384,12 @@ async def test_real_deep_driver_repairs_uncited_claim_without_retrieval():
     context = RunContext(run_id="run-repair", session_id="ses-repair", trigger_message_id="msg-repair",
         source_mode=SourceMode.GRAPHRAG, workflow_mode=WorkflowMode.DEEP_RESEARCH,
         status=RunStatus.REPORTING, original_query="question", budget_limits=BudgetLimits())
-    driver = DeepResearchDriver(context, SimpleNamespace(research_tool=None))
+    prompts = []
+    class RepairModel:
+        def invoke(self, prompt):
+            prompts.append(prompt)
+            return SimpleNamespace(content="# 回答\n\n服务层负责请求协议，不操作页面状态。 [ev_a]\n\n## 局限\n\n本轮证据未覆盖其他要求。")
+    driver = DeepResearchDriver(context, SimpleNamespace(research_tool=None, llm=RepairModel()))
     driver.results = [RetrievalResult(result_id="ev_a", granularity="Chunk",
         evidence="服务层只处理请求协议，不操作页面状态。", source="hybrid_search",
         source_mode="graphrag", score=0.8,
@@ -388,9 +397,21 @@ async def test_real_deep_driver_repairs_uncited_claim_without_retrieval():
     driver.answer = "未经证据支持的主张不能自动加上引用。"
     await driver.report()
     assert await driver.repair_report(["citation_integrity", "claim_support"])
+    assert not prompts  # Model work belongs to the budgeted reporting stage.
     report = await driver.report()
     assert "未经证据支持" not in report
-    assert "服务层只处理请求协议" in report and "[ev_a]" in report
+    assert "服务层负责请求协议" in report and "[ev_a]" in report
+    assert "证据支持的要点" not in report
+    assert len(prompts) == 1 and "未经证据支持" in str(prompts[0])
+    repair_input = prompts[0][1].content
+    assert '"uncited_claims"' in repair_input
+    assert '"missing"' in repair_input
+    assert '"claims": 1' in repair_input
+    assert "仅修复列出的失败项" in prompts[0][0].content
+    assert not await driver.repair_report(["claim_support"])
+    restored_context = context.model_copy(update={"workflow_state": driver.snapshot()})
+    restored = DeepResearchDriver(restored_context, driver.agent)
+    assert not await restored.repair_report(["claim_support"])
 
 
 @pytest.mark.asyncio
@@ -406,6 +427,10 @@ async def test_runtime_bounds_real_deep_driver_report_repair(database, tmp_path,
         metadata=RetrievalMetadata(source_id="doc-a", source_type="chunk"))
     class Agent:
         research_tool = SimpleNamespace(provider_results=[result], provider_calls=[])
+        class llm:
+            @staticmethod
+            def invoke(prompt):
+                return SimpleNamespace(content=f"# 回答\n\n服务层只处理请求协议，不操作页面状态。 [{result.result_id}]\n\n## 局限\n\n仅引用一个来源。")
         def ask(self, query, session_id, **kwargs):
             calls.append(query)
             return "这是一个没有引用且不能直接交付的结论。"
@@ -419,6 +444,30 @@ async def test_runtime_bounds_real_deep_driver_report_repair(database, tmp_path,
     if repair_limit:
         assert "这是一个没有引用" not in finished.report
         assert "服务层只处理请求协议" in finished.report
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("repaired_report", [
+    "# 回答\n\n仍然包含无法支持的结论 [ev_foreign]",
+    "# 回答\n\n初次生成的结论缺少引用，不能交付。\n\n## 局限\n\n本轮证据未覆盖其他内容。",
+])
+async def test_deep_repair_rejection_does_not_complete_with_evidence_dump(database, tmp_path, repaired_report):
+    from types import SimpleNamespace
+    from deepresearch_agent.harness.workflow import DeepResearchDriver
+    _, run = await create_run(database)
+    result = RetrievalResult(result_id="raw-1", granularity="Chunk", evidence="原文证据材料",
+        source="hybrid_search", source_mode="graphrag", score=0.8,
+        metadata=RetrievalMetadata(source_id="doc-a", source_type="chunk"))
+    class Agent:
+        research_tool = SimpleNamespace(provider_results=[result], provider_calls=[])
+        llm = SimpleNamespace(invoke=lambda prompt: SimpleNamespace(content=repaired_report))
+        def ask(self, *args, **kwargs):
+            return "初次生成的结论缺少引用，不能交付。"
+    finished = await build_runtime(database, tmp_path,
+        lambda ctx, events=None: DeepResearchDriver(ctx, Agent(), events)).execute_run(run.run_id)
+    assert finished.status is RunStatus.FAILED
+    assert finished.budget_usage.task_retries == 1
+    assert "证据支持的要点" not in (finished.report or "")
 
 
 def test_real_deep_research_agent_ask_accepts_and_forwards_bypass_cache(monkeypatch):

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import re
 from typing import Any, Mapping, Optional
 
 from deepresearch_agent.agents.multi_agent.core.retrieval_result import RetrievalResult
@@ -52,34 +51,11 @@ class GraphRAGProvider:
             result for result in results
             if result.metadata.source_type == "chunk" and str(result.evidence).strip()
         ]
-        results = self._filter_relevant(query, results)
         for result in results:
             result.source_mode = self.mode.value
             result.metadata.extra.setdefault("provider", self.provider_name)
             result.metadata.extra.setdefault("strategy", strategy)
         return results[:top_k]
-
-    @staticmethod
-    def _filter_relevant(query: str, results: list[RetrievalResult]) -> list[RetrievalResult]:
-        """Reject graph chunks that do not mention the query's subject at all."""
-        stop = {"私有库中", "私有数据库", "药物治疗原则", "总结库内材料", "引用证据", "三条要点"}
-        chinese_segments = re.split(r"[，。！？；：、\s]|(?:是什么)|(?:请用)|(?:根据)|(?:概括)|(?:总结)|的", query)
-        subjects = [part for part in chinese_segments if len(part) >= 4 and part not in stop]
-        # Four-character overlaps such as “脑血管病” are too broad: they let
-        # hemorrhagic/general stroke chunks satisfy an ischemic-stroke query.
-        chinese_terms = subjects + [part[index:index + 6] for part in subjects if len(part) > 6 for index in range(len(part) - 5)]
-        latin_terms = [part.lower() for part in re.findall(r"[A-Za-z][A-Za-z0-9_-]{3,}", query)]
-        terms = list(dict.fromkeys(chinese_terms + latin_terms))
-        if not terms:
-            return results
-        relevant: list[RetrievalResult] = []
-        for result in results:
-            text = str(result.evidence).lower()
-            matched = [term for term in terms if term.lower() in text]
-            if matched:
-                result.metadata.extra["query_subject_matches"] = matched[:5]
-                relevant.append(result)
-        return relevant
 
     def _get_tool(self, strategy: str) -> Any:
         if self._tool_registry is None:

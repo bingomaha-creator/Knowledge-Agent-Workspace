@@ -1,5 +1,6 @@
 from deepresearch_agent.harness.contracts import SourceMode
 from types import SimpleNamespace
+import pytest
 
 from deepresearch_agent.harness.report_safety import add_inline_citations, citation_evidence_ids, has_internal_material, sanitize_report
 from deepresearch_agent.harness.verifiers.deterministic import DeterministicVerifiers
@@ -83,3 +84,35 @@ def test_list_group_label_is_not_a_claim_but_its_uncited_child_is() -> None:
     # A standalone bold statement must not be exempted merely for ending in a colon.
     verifier.report = "# 报告\n\n**服务层禁止读取任何页面状态**："
     assert verifier.citation_integrity().passed is False
+
+
+@pytest.mark.parametrize("report,passed", [
+    ("1. **页面只负责路由页面的组装。**\n   > pages 只负责路由页面组装。 [ev_a]", True),
+    ("这是一个需要原文支持的完整结论。\n> 第一段原文说明职责。\n> 第二段原文提供依据。 [ev_a]", True),
+    ("这是一个没有证据支持的完整结论。\n\n> 另一段材料虽然带引用。 [ev_a]", False),
+    ("1. 这是第一条没有证据支持的结论。\n2. 这是第二条带有引用的结论。 [ev_a]", False),
+    ("这是一个需要原文支持的完整结论。\n> 引用了本轮不存在的材料。 [ev_foreign]", False),
+    ("这是一个没有引用支持的完整结论。\n## 其他内容\n> 另一节的材料不能向前归属。 [ev_a]", False),
+    ("这是一个需要原文支持的完整结论。\n> 紧邻原文明确说明该结论。 [ev_a]\n这是另一条没有证据支持的结论。", False),
+])
+def test_verifier_treats_only_adjacent_blockquote_as_claim_unit(report, passed) -> None:
+    verifier = DeterministicVerifiers(run_id="run-1", source_mode=SourceMode.GRAPHRAG,
+        report="# 报告\n\n" + report, evidence=[evidence("ev_a")])
+    assert verifier.citation_integrity().passed is passed
+    assert verifier.claim_support().passed is passed
+
+
+@pytest.mark.parametrize("report,passed", [
+    ('1. **页面只负责路由页面组装**：\n   “pages 只负责路由页面组装。”\n   [ev_a]', True),
+    ('- **页面只负责路由页面组装**：\n  原文明确限定了页面职责。 [ev_a]', True),
+    ('1. **页面只负责路由页面组装**：\n\n   “pages 只负责路由页面组装。” [ev_a]', False),
+    ('1. **页面只负责路由页面组装**：\n2. 另一个结论只能引用自己的材料。 [ev_a]', False),
+    ('1. **页面只负责路由页面组装**：\n   - 子条目有自己的原文引用。 [ev_a]', False),
+    ('1. **页面只负责路由页面组装**：\n   ## 另一个章节\n   原文不能越过标题借给前一条。 [ev_a]', False),
+    ('1. **页面只负责路由页面组装**：\n   原文的引用不属于本轮。 [ev_foreign]', False),
+])
+def test_verifier_groups_only_continuations_of_the_same_list_item(report, passed):
+    verifier = DeterministicVerifiers(run_id="run-1", source_mode=SourceMode.GRAPHRAG,
+        report="# 报告\n\n" + report, evidence=[evidence("ev_a")])
+    assert verifier.citation_integrity().passed is passed
+    assert verifier.claim_support().passed is passed
