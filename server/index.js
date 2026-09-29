@@ -218,7 +218,7 @@ const app = createApp({
     orchestrator: chatOrchestrator,
     chatService
   }),
-  frontendDir: path.resolve(__dirname, '../dist')
+  frontendDir: path.resolve(__dirname, '../apps/react/dist')
 });
 
 const httpServer = app.listen(config.port, config.host, () => {

@@ -31,9 +31,7 @@ const ListRegion = styled.section`
   flex: 1;
   min-width: 0;
   min-height: 0;
-  background:
-    linear-gradient(180deg, rgba(238, 244, 255, 0.42), transparent 7rem),
-    var(--color-background);
+  background: var(--color-surface);
 `;
 
 const EmptyConversation = styled.div`

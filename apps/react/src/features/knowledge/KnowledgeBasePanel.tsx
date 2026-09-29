@@ -6,7 +6,7 @@ const Panel = styled.aside`
   display: flex;
   min-height: 0;
   flex-direction: column;
-  background: var(--color-background);
+  background: var(--color-surface);
 
   @media (max-width: 48rem) { display: none; }
 `;

@@ -7,7 +7,7 @@ const ListPane = styled.div`
   height: 100%;
   min-height: 0;
   flex-direction: column;
-  background: var(--color-background);
+  background: var(--color-surface);
 `;
 
 const List = styled.div`

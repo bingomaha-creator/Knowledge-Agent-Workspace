@@ -17,6 +17,7 @@ const StyledHeader = styled.header`
   min-width: 0;
   min-height: 4.75rem;
   padding: var(--space-4) var(--space-5);
+  background: var(--color-background);
   border-bottom: 1px solid var(--color-border);
 
   @media (max-width: 48rem) {

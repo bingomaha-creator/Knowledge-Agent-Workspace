@@ -2,7 +2,7 @@
 
 本目录保存从 `deepresearch_agent_harness` 迁入的 Python Deep Research 实现。
 
-当前状态：M3 最小产品链路验收完成。现有 Research New 可通过配置调用 Sidecar，沿用上游研究流程，并加入知识库范围隔离、引用展示与报告交付检查修复；默认 Node 引擎和旧 Research 均未删除。交付检查不等于逐句语义核验。
+当前状态：Sidecar Demo 已接入当前唯一的深度研究入口，沿用上游研究流程，并加入知识库范围隔离、引用展示与报告交付检查修复。Legacy Research 已退役；Node MVP 仅保留为配置回退。GraphRAG 为实验选项，交付检查不等于逐句语义核验，报告质量未全面验收。
 
 ## 本地运行
 
