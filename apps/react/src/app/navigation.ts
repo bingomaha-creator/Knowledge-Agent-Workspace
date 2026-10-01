@@ -1,11 +1,12 @@
 export type WorkspaceModule = {
-  path: 'chat' | 'knowledge' | 'memory' | 'bugs' | 'research-new';
+  path: 'chat' | 'knowledge' | 'memory' | 'bugs' | 'research-new' | 'bug-review';
   label: string;
   eyebrow: string;
   description: string;
 };
 
 export const workspaceModules: readonly WorkspaceModule[] = [
+  { path: 'bug-review', label: 'Bug 复盘（试用）', eyebrow: 'BUG REVIEW', description: '从已合入 PR 沉淀修复经验。' },
   {
     path: 'chat',
     label: '对话',

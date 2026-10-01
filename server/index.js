@@ -6,6 +6,8 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
+import { createBugReviewRouter } from './modules/bug-review/routes.js';
+import { createBugReviewClient } from './modules/bug-review/sidecar-client.js';
 import { createChatOrchestrator } from './modules/chat/orchestrator.js';
 import { createChatService } from './modules/chat/service.js';
 import { createChatStore } from './modules/chat/store.js';
@@ -184,6 +186,7 @@ void researchNewWorker.resume().catch((error) => {
 });
 
 const app = createApp({
+  bugReviewRouter: createBugReviewRouter({ client: createBugReviewClient() }),
   systemRouter: createSystemRouter({
     presets: config.presets,
     runStore,

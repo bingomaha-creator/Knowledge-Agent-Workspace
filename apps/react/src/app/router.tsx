@@ -4,6 +4,7 @@ import {
   type RouteObject
 } from 'react-router';
 import { App } from './App';
+import { BugReview } from '@/pages/BugReview';
 import { BugAgent } from '@/pages/BugAgent';
 import { Chat } from '@/pages/Chat';
 import { Knowledge } from '@/pages/Knowledge';
@@ -48,6 +49,10 @@ export const workspaceRoutes: RouteObject[] = [
       {
         path: 'research-new/:runId?',
         element: <ResearchNew />
+      },
+      {
+        path: 'bug-review/:section?/:reviewId?',
+        element: <BugReview />
       },
       {
         path: 'bugs/:section?/:recordId?',

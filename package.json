@@ -23,7 +23,10 @@
     "start": "node ./server/index.js",
     "test": "node --test \"server/**/*.test.js\"",
     "test:client": "npm run test --workspace @matthews-workspace/react",
-    "check:react": "npm run typecheck --workspace @matthews-workspace/react && npm run test:client && npm run build"
+    "check:react": "npm run typecheck --workspace @matthews-workspace/react && npm run test:client && npm run build",
+    "dev:bug-review-sidecar": "node services/bug-review-sidecar/start.mjs",
+    "test:bug-review-sidecar": "node services/bug-review-sidecar/start.mjs --test",
+    "dev:with-bug-review-sidecar": "concurrently -n server,react,bug-review -c yellow,green,cyan \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:bug-review-sidecar\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

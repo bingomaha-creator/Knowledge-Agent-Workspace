@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "repo-autonomy-platform"
+version = "0.1.0"
+description = "Self-evolving autonomous agent platform for repository maintenance."
+readme = "README.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+  { name = "OpenAI Codex" }
+]
+dependencies = [
+  "fastapi>=0.115.0,<1.0.0",
+  "uvicorn>=0.32.0,<1.0.0",
+  "faiss-cpu>=1.8.0",
+  "hnswlib>=0.8.0",
+  "sentence-transformers>=5.0.0",
+  "pymilvus>=2.4.0",
+  "psycopg[binary]>=3.2.0",
+  "pgvector>=0.3.0",
+]
+
+[project.scripts]
+repo-agent = "repo_maintainer.cli:main"
+repo-agent-api = "repo_maintainer.api:run_dev_server"
+
+[tool.setuptools]
+package-dir = { "" = "src" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
