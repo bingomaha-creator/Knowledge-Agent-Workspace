@@ -157,3 +157,42 @@ it('restores search input when URL query changes', async () => {
   await waitFor(()=>expect(screen.getByLabelText('搜索修复经验')).toHaveValue('ETag'));
   vi.restoreAllMocks();
 });
+
+
+it.each([
+  ['review',false,'detail'],['review',true,'detail'],['library',false,'detail'],['library',true,'detail'],['library',false,'published']
+] as const)('shows unpublished changes accurately in %s (changed: %s)', async (section,changed,failureTarget) => {
+  const document = {title:'案例标题',symptom:'问题现象',root_cause:{content:'已核对根因',basis:'fact',source:{}},impact:{scope:'upload',severity:'P2'},fix_solution:'修复说明',prevention:'增加测试',validation:'已有测试',related_modules:[],keywords:['upload'],source_refs:[],completeness:'incomplete',gaps:[],human_notes:'',human_edits:['title'],review_status:'approved'};
+  const publishedDocument = {...document,human_edits:[],review_status:'published',root_cause:{source:{},basis:'fact',content:'已核对根因'}};
+  const review = {id:'demo',identity:{owner:'a',repo:'b',number:1,url:'https://github.com/a/b/pull/1'},revision:9,status:'approved',document:{...document,gaps:changed?['缺少复现依据']:[]},candidate:null,material:{sources:[],gaps:[]},history:[],published:{document:publishedDocument,material:{sources:[],gaps:[]},published_at:'2026-10-01T10:00:00Z',revision:4},task:{id:'t',status:'completed',error:null,operation:'import'}} as unknown as BugReview;
+  vi.spyOn(bugReviewApi,'list').mockResolvedValue([]);
+  vi.spyOn(bugReviewApi,'library').mockResolvedValue([]);
+  const get = vi.spyOn(bugReviewApi,'get').mockResolvedValue(review);
+  const published = vi.spyOn(bugReviewApi,'published').mockResolvedValue({id:review.id,identity:review.identity,...review.published!});
+  const navigate = vi.fn();
+  const client = new QueryClient({defaultOptions:{queries:{retry:false}}});
+  render(<QueryClientProvider client={client}><BugReviewWorkspace section={section} selectedId="demo" query="" onNavigate={navigate}/></QueryClientProvider>);
+  expect(await screen.findByRole('heading',{name:'案例标题'})).toBeInTheDocument();
+  if(changed) {
+    const openDraft = await screen.findByRole('button',{name:'查看未发布修改'});
+    expect(screen.queryByText('当前没有未发布修改')).not.toBeInTheDocument();
+    await userEvent.setup().click(openDraft);
+    expect(navigate).toHaveBeenCalledWith('review','demo','','draft');
+  } else {
+    expect(await screen.findByText('当前没有未发布修改')).toBeInTheDocument();
+    expect(screen.queryByRole('button',{name:'查看未发布修改'})).not.toBeInTheDocument();
+  }
+  expect(screen.queryByRole('button',{name:'查看工作稿'})).not.toBeInTheDocument();
+  expect(screen.getByRole('button',{name:'编辑复盘'})).toBeInTheDocument();
+  let fail!: (error:Error)=>void;
+  if(failureTarget==='published')published.mockImplementationOnce(()=>new Promise((_resolve,reject)=>{fail=reject;}));
+  else get.mockImplementationOnce(()=>new Promise((_resolve,reject)=>{fail=reject;}));
+  let refetch!:Promise<void>;
+  await act(async()=>{refetch=client.invalidateQueries({queryKey:['bug-review',failureTarget,'demo']});});
+  expect(await screen.findByText('正在核对未发布修改…')).toBeInTheDocument();
+  expect(screen.queryByText('当前没有未发布修改')).not.toBeInTheDocument();
+  await act(async()=>{fail(new Error('核对请求失败'));await refetch;});
+  expect(await screen.findByText('暂时无法核对未发布修改')).toBeInTheDocument();
+  expect(screen.queryByText('当前没有未发布修改')).not.toBeInTheDocument();
+  expect(screen.queryByRole('button',{name:'查看未发布修改'})).not.toBeInTheDocument();
+});

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { replaceEqualDeep, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import styled from 'styled-components';
 import { bugReviewApi, type BugReview, type ReviewDocument, type ReviewMaterial, type ReviewOperation, type ReviewSource } from '@/services/bugReviewApi';
 import { Button } from '@/ui/Button';
@@ -33,6 +33,19 @@ const EditorControls = styled(Controls)`position:sticky;top:0;z-index:1;backgrou
 const fieldLabels:Record<string,string> = {title:'标题',symptom:'问题现象',root_cause:'根因与来源',impact:'影响评估',fix_solution:'修复方案',prevention:'规避措施',validation:'验证依据',human_notes:'人工补充',keywords:'关键词',gaps:'缺口说明',completeness:'证据完整性'};
 const statusText:Record<string,string> = {draft:'草稿',pending:'待审核',approved:'已通过，待发布',rejected:'已驳回',published:'已发布',queued:'等待执行',collecting:'采集 PR 材料',generating:'Qwen 生成中',completed:'任务完成',failed:'任务失败'};
 const active = (review?:BugReview) => review && ['queued','collecting','generating'].includes(review.task.status);
+
+function hasUnpublishedChanges(review:BugReview) {
+  if (!review.document || !review.published) return false;
+  // Review status and edit history describe the workflow, not the case content.
+  const content = (document:ReviewDocument) => Object.fromEntries(Object.entries(document).filter(([key])=>key!=='review_status' && key!=='human_edits'));
+  const draft = content(review.document);
+  return replaceEqualDeep(draft,content(review.published.document)) !== draft;
+}
+function UnpublishedChanges({review,error,checking,onOpen}:{review?:BugReview;error?:Error|null;checking:boolean;onOpen:()=>void}) {
+  if (error) return <Subtle>暂时无法核对未发布修改</Subtle>;
+  if (checking || !review) return <Subtle>正在核对未发布修改…</Subtle>;
+  return hasUnpublishedChanges(review) ? <Button onClick={onOpen}>查看未发布修改</Button> : <Subtle>当前没有未发布修改</Subtle>;
+}
 
 function Quality({document}:{document:ReviewDocument}) {
   return <Details><summary>证据缺口与人工修订记录（{document.gaps.length}）</summary>
@@ -119,7 +132,7 @@ export function BugReviewWorkspace({section,selectedId,query,view,onNavigate,onD
   useEffect(()=>{setNotes('');setNotice('');},[selectedId,section]);
   const list = useQuery({queryKey:['bug-review','reviews'],queryFn:bugReviewApi.list,refetchInterval:q=>q.state.data?.some(record=>['queued','collecting','generating'].includes(record.task.status)) ? 2000 : false});
   const library = useQuery({queryKey:['bug-review','library',query],queryFn:()=>bugReviewApi.library(query),enabled:section === 'library'});
-  const detail = useQuery({queryKey:['bug-review','detail',selectedId],queryFn:()=>bugReviewApi.get(selectedId!),enabled:!!selectedId && section === 'review',refetchInterval:q=>active(q.state.data) ? 1500 : false});
+  const detail = useQuery({queryKey:['bug-review','detail',selectedId],queryFn:()=>bugReviewApi.get(selectedId!),enabled:!!selectedId,refetchInterval:q=>active(q.state.data) ? 1500 : false});
   const published = useQuery({queryKey:['bug-review','published',selectedId],queryFn:()=>bugReviewApi.published(selectedId!),enabled:!!selectedId && section === 'library'});
   const importing = useMutation({mutationFn:bugReviewApi.import,onSuccess:async result=>{setNotice(result.existing?'已打开该 PR 的现有复盘，未重复调用模型。':'已开始采集与生成。');onNavigate('review',result.review.id);await client.invalidateQueries({queryKey:['bug-review']});}});
   const action = useMutation({mutationFn:({id,revision,op,doc,notes}:{id:string;revision:number;op:ReviewOperation;doc?:ReviewDocument;notes?:string})=>bugReviewApi.action(id,op,{revision,document:doc,notes}),onMutate:()=>({...selection.current}),onSuccess:async(result,{op},origin)=>{
@@ -160,12 +173,12 @@ export function BugReviewWorkspace({section,selectedId,query,view,onNavigate,onD
         <ReadingTitle>{editing?'编辑复盘':displayed?.title || '正在整理复盘'}</ReadingTitle>
         <Subtle role="status">{editing?'正在编辑工作稿':snapshot?'已发布版本':'工作稿 · '+statusText[review.status]}{!editing && displayed?' · '+(displayed.completeness==='complete'?'证据完整':'证据不完整'):''}{active(review)?' · '+statusText[review.task.status]:''}</Subtle>
         {snapshot && <Subtle>发布于 {new Date(snapshot.published_at).toLocaleString('zh-CN',{hour12:false})}；工作稿的修改不会自动进入此版本。</Subtle>}
-        {snapshot && review.status!=='published' && <Subtle>另有{statusText[review.status]}的工作稿，尚未替换已发布版本。</Subtle>}
+        {snapshot && hasUnpublishedChanges(review) && <Subtle>另有{statusText[review.status]}的工作稿，尚未替换已发布版本。</Subtle>}
         {review.task.error && <Feedback role="alert" tone="danger">{review.task.error.message}{!editing && <Button disabled={disabled} onClick={()=>performAction('retry')}>重试采集与生成</Button>}</Feedback>}
         {editing && <Editor key={`${review.id}:${review.revision}`} review={review} busy={actingOnSelection && action.isPending} onDirtyChange={onDirtyChange} onSave={doc=>performAction('edit',doc)} onCancel={()=>{onDirtyChange?.(false);action.reset();onNavigate('review',selectedId,query);}}/>}
         {!editing && displayed && <>
           <Controls><Button disabled={disabled} onClick={()=>onNavigate('review',selectedId,query,'edit')}>编辑复盘</Button>
-            {snapshot && <Button onClick={()=>onNavigate('review',selectedId,query,'draft')}>查看工作稿</Button>}
+            {snapshot && <UnpublishedChanges review={review} error={detail.error} checking={detail.isFetching} onOpen={()=>onNavigate('review',selectedId,query,'draft')}/>}
             {!snapshot && review.published && <Button onClick={()=>onNavigate('review',selectedId,query)}>查看已发布快照</Button>}
             {!snapshot && ['draft','rejected','pending'].includes(review.status) && <Button variant="primary" disabled={disabled} onClick={()=>performAction('approve',undefined,notes)}>审核通过</Button>}
             {!snapshot && review.status==='approved' && <Button variant="primary" disabled={disabled} onClick={()=>performAction('publish')}>发布到案例库</Button>}
@@ -183,7 +196,7 @@ export function BugReviewWorkspace({section,selectedId,query,view,onNavigate,onD
       {section==='library' && published.data && <>
         <Subtle><a href={published.data.identity.url} target="_blank" rel="noreferrer">{published.data.identity.owner}/{published.data.identity.repo} #{published.data.identity.number} · 来源 PR</a></Subtle>
         <ReadingTitle>{published.data.document.title}</ReadingTitle><Subtle>已发布版本 · {published.data.document.completeness==='complete'?'证据完整':'证据不完整'} · {new Date(published.data.published_at).toLocaleString('zh-CN',{hour12:false})}</Subtle>
-        <Controls><Button onClick={()=>onNavigate('review',selectedId,query,'edit')}>编辑复盘</Button><Button onClick={()=>onNavigate('review',selectedId,query,'draft')}>查看工作稿</Button></Controls>
+        <Controls><Button onClick={()=>onNavigate('review',selectedId,query,'edit')}>编辑复盘</Button><UnpublishedChanges review={review} error={detail.error || published.error} checking={detail.isFetching || published.isFetching} onOpen={()=>onNavigate('review',selectedId,query,'draft')}/></Controls>
         <DocumentView document={published.data.document} material={published.data.material}/><Material material={published.data.material}/>
       </>}
     </Pane>}/>
