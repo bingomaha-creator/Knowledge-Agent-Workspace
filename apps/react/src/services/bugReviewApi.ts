@@ -13,7 +13,7 @@ export type ReviewIdentity = { owner: string; repo: string; number: number; url:
 export type ReviewTask = { id: string; status: 'queued' | 'collecting' | 'generating' | 'completed' | 'failed'; error: {code:string;message:string} | null; operation: string };
 export type ReviewSummary = {id:string; identity:ReviewIdentity; revision:number; title:string; status: 'draft' | 'pending' | 'approved' | 'rejected' | 'published'; task:ReviewTask; updated_at:string};
 export type PublishedReview = {id:string; identity:ReviewIdentity; document:ReviewDocument; material:ReviewMaterial; published_at:string; revision:number};
-export type BugReview = Omit<ReviewSummary,'title'> & { document:ReviewDocument | null; material:ReviewMaterial | null; document_material?:ReviewMaterial | null; candidate:ReviewDocument | null; published:Omit<PublishedReview,'id'|'identity'> | null; history:{action:string;reviewer:string;notes?:string;created_at:string}[] };
+export type BugReview = Omit<ReviewSummary,'title'> & { document:ReviewDocument | null; material:ReviewMaterial | null; document_material?:ReviewMaterial | null; candidate:ReviewDocument | null; candidate_material?:ReviewMaterial | null; published:Omit<PublishedReview,'id'|'identity'> | null; history:{action:string;reviewer:string;notes?:string;created_at:string}[] };
 export type ReviewOperation = 'edit' | 'approve' | 'reject' | 'publish' | 'retry' | 'refresh' | 'regenerate' | 'adopt' | 'discard';
 
 export function createBugReviewApi(fetcher:Fetcher = fetch) {
