@@ -5,7 +5,6 @@ import path from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import {
-  COMMON_BUG_KNOWLEDGE_BASE_ID,
   createKnowledgeStore,
   DEFAULT_KNOWLEDGE_BASE_ID
 } from './store.js';
@@ -561,11 +560,6 @@ test('v2 databases migrate additively and keep legacy rows generic plus confirme
       { id: 'kb-existing', kind: 'generic', projectRef: null }
     ]
   );
-  const common = store.getKnowledgeBase(COMMON_BUG_KNOWLEDGE_BASE_ID);
-  assert.deepEqual(
-    { id: common.id, kind: common.kind, projectRef: common.projectRef },
-    { id: COMMON_BUG_KNOWLEDGE_BASE_ID, kind: 'common_bugs', projectRef: null }
-  );
   assert.deepEqual(
     store.listDocuments().map(({ id, documentType, reviewStatus, publicationStatus, metadata }) => ({
       id,
@@ -597,192 +591,6 @@ test('v2 databases migrate additively and keep legacy rows generic plus confirme
   migrated.close();
 });
 
-test('common Bug knowledge base creation is idempotent and refuses an occupied legacy id', () => {
-  const dbPath = createTempDbPath();
-  const first = createKnowledgeStore(dbPath);
-  first.close();
-  const second = createKnowledgeStore(dbPath);
-  assert.equal(second.getKnowledgeBase(COMMON_BUG_KNOWLEDGE_BASE_ID).kind, 'common_bugs');
-  second.close();
-
-  const conflictPath = createTempDbPath();
-  const conflict = new DatabaseSync(conflictPath);
-  conflict.exec(`
-    CREATE TABLE knowledge_bases (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL,
-      description TEXT NOT NULL DEFAULT '',
-      created_at INTEGER NOT NULL,
-      updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE documents (
-      id TEXT PRIMARY KEY, name TEXT NOT NULL, content TEXT NOT NULL,
-      knowledge_base_id TEXT NOT NULL, status TEXT NOT NULL, error TEXT,
-      created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
-    );
-    CREATE TABLE chunks (
-      id TEXT PRIMARY KEY, document_id TEXT NOT NULL, document_name TEXT NOT NULL,
-      knowledge_base_id TEXT NOT NULL, heading_path_json TEXT NOT NULL, text TEXT NOT NULL,
-      tokens_json TEXT NOT NULL, embedding_json TEXT NOT NULL, kind TEXT NOT NULL,
-      chunk_index INTEGER NOT NULL, created_at INTEGER NOT NULL
-    );
-    CREATE TABLE knowledge_metadata (key TEXT PRIMARY KEY, value TEXT NOT NULL);
-    INSERT INTO knowledge_bases VALUES ('kb-default', '默认知识库', '', 1, 1);
-    INSERT INTO knowledge_bases VALUES ('kb-common-bugs', '用户已有库', '不得覆盖', 2, 2);
-    PRAGMA user_version = 2;
-  `);
-  conflict.close();
-
-  assert.throws(
-    () => createKnowledgeStore(conflictPath),
-    (error) => error.code === 'COMMON_BUG_KNOWLEDGE_BASE_CONFLICT' && error.status === 409
-  );
-  const unchanged = new DatabaseSync(conflictPath);
-  assert.equal(
-    unchanged.prepare("SELECT name FROM knowledge_bases WHERE id = 'kb-common-bugs'").get().name,
-    '用户已有库'
-  );
-  assert.equal(unchanged.prepare('PRAGMA user_version').get().user_version, 2);
-  unchanged.close();
-});
-
-test('generic store operations cannot mutate or clear system Bug knowledge bases', () => {
-  const store = createKnowledgeStore(createTempDbPath());
-  const common = store.getKnowledgeBase(COMMON_BUG_KNOWLEDGE_BASE_ID);
-
-  assert.equal(common.kind, 'common_bugs');
-  assert.throws(
-    () => store.updateKnowledgeBase(common.id, { name: 'Hijacked' }),
-    (error) => error.code === 'SYSTEM_KNOWLEDGE_BASE_PROTECTED' && error.status === 409
-  );
-  assert.throws(
-    () => store.deleteKnowledgeBase(common.id, { force: true }),
-    (error) => error.code === 'SYSTEM_KNOWLEDGE_BASE_PROTECTED' && error.status === 409
-  );
-  assert.throws(
-    () => store.clearDocuments({ knowledgeBaseId: common.id }),
-    (error) => error.code === 'SYSTEM_KNOWLEDGE_BASE_PROTECTED' && error.status === 409
-  );
-  assert.throws(
-    () => store.insertQueuedDocuments([
-      createDocument('not-a-bug-case', common.id)
-    ]),
-    (error) => error.code === 'SYSTEM_KNOWLEDGE_BASE_PROTECTED' && error.status === 409
-  );
-  store.close();
-});
-
-test('candidate and rejected Bug chunks stay ineligible after an FTS/cache rebuild', () => {
-  const dbPath = createTempDbPath();
-  const store = createKnowledgeStore(dbPath);
-  const project = store.createBugProject({
-    projectRef: 'project-restart',
-    knowledgeBaseId: 'kb-project-restart',
-    name: 'Restart project'
-  });
-  store.insertBugCaseDocument({
-    id: 'bug-restart',
-    knowledgeBaseId: project.id,
-    name: 'restart.bug.md',
-    content: 'restartcandidate marker',
-    metadata: { sourceProjectRef: project.projectRef }
-  });
-  store.replaceDocumentChunks('bug-restart', [
-    createChunk('chunk-restart', 'bug-restart', 'restartcandidate marker')
-  ]);
-  store.updateDocumentStatus('bug-restart', 'ready');
-  assert.deepEqual(store.searchChunksByKeyword('restartcandidate', 5), []);
-  store.close();
-
-  const reopened = createKnowledgeStore(dbPath);
-  assert.deepEqual(reopened.loadState().chunks, []);
-  assert.deepEqual(reopened.searchChunksByKeyword('restartcandidate', 5), []);
-  reopened.reviewBugCaseDocument('bug-restart', {
-    reviewStatus: 'confirmed',
-    metadata: {
-      sourceProjectRef: project.projectRef,
-      reviewedBy: 'local-user',
-      reviewReason: 'verified',
-      reviewedAt: 2000
-    },
-    updatedAt: 2000
-  });
-  assert.equal(reopened.searchChunksByKeyword('restartcandidate', 5).length, 1);
-  reopened.reviewBugCaseDocument('bug-restart', {
-    reviewStatus: 'rejected',
-    metadata: {
-      sourceProjectRef: project.projectRef,
-      reviewedBy: 'local-user',
-      reviewReason: 'revoked',
-      reviewedAt: 2001
-    },
-    updatedAt: 2001
-  });
-  assert.deepEqual(reopened.loadState().chunks, []);
-  assert.deepEqual(reopened.searchChunksByKeyword('restartcandidate', 5), []);
-  reopened.close();
-});
-
-test('Bug metadata must be a JSON object and promotion rolls back every scope on failure', () => {
-  const dbPath = createTempDbPath();
-  const store = createKnowledgeStore(dbPath);
-  const project = store.createBugProject({
-    projectRef: 'project-atomic',
-    knowledgeBaseId: 'kb-project-atomic',
-    name: 'Atomic project'
-  });
-  assert.throws(
-    () => store.insertBugCaseDocument({
-      id: 'bug-invalid-metadata',
-      knowledgeBaseId: project.id,
-      name: 'invalid.bug.md',
-      content: 'invalid',
-      metadata: ['not', 'an', 'object']
-    }),
-    (error) => error.code === 'INVALID_DOCUMENT_METADATA' && error.status === 400
-  );
-
-  store.insertBugCaseDocument({
-    id: 'bug-atomic',
-    knowledgeBaseId: project.id,
-    name: 'atomic.bug.md',
-    content: 'atomicpromotion marker',
-    metadata: { sourceProjectRef: project.projectRef }
-  });
-  store.replaceDocumentChunks('bug-atomic', [
-    createChunk('chunk-atomic', 'bug-atomic', 'atomicpromotion marker')
-  ]);
-  store.updateDocumentStatus('bug-atomic', 'ready');
-  store.reviewBugCaseDocument('bug-atomic', {
-    reviewStatus: 'confirmed',
-    metadata: { sourceProjectRef: project.projectRef },
-    updatedAt: 2000
-  });
-
-  const faultConnection = new DatabaseSync(dbPath);
-  faultConnection.exec(`
-    CREATE TRIGGER fail_bug_chunk_move
-    BEFORE UPDATE OF knowledge_base_id ON chunks
-    WHEN OLD.document_id = 'bug-atomic'
-    BEGIN
-      SELECT RAISE(ABORT, 'injected promotion failure');
-    END;
-  `);
-  faultConnection.close();
-
-  assert.throws(
-    () => store.promoteBugCaseDocument('bug-atomic', 3000),
-    /injected promotion failure/
-  );
-  assert.equal(store.getBugCaseDocument('bug-atomic').knowledgeBaseId, project.id);
-  assert.equal(store.searchChunksByKeyword('atomicpromotion', 5, project.id).length, 1);
-  assert.deepEqual(
-    store.searchChunksByKeyword('atomicpromotion', 5, COMMON_BUG_KNOWLEDGE_BASE_ID),
-    []
-  );
-  store.close();
-});
-
 test('document inserts reject missing knowledge bases and roll back the whole batch', () => {
   const store = createKnowledgeStore(createTempDbPath());
 
@@ -798,4 +606,53 @@ test('document inserts reject missing knowledge bases and roll back the whole ba
   );
   assert.deepEqual(store.loadState().documents, []);
   store.close();
+});
+
+test('retirement preserves legacy rows and never resumes, edits or clears archived Bug cases', () => {
+  const dbPath = createTempDbPath();
+  const initial = createKnowledgeStore(dbPath);
+  assert.equal(initial.getKnowledgeBase('kb-common-bugs'), null);
+  initial.close();
+  const fixture = new DatabaseSync(dbPath);
+  fixture.exec(`
+    INSERT INTO knowledge_bases VALUES ('kb-common-bugs', '旧公共案例', '保留', 'common_bugs', NULL, 1, 1);
+    INSERT INTO knowledge_bases VALUES ('kb-old-project', '旧项目案例', '保留', 'project_bugs', 'old-project', 1, 1);
+    INSERT INTO documents (id, name, content, knowledge_base_id, status, error, document_type,
+      review_status, metadata_json, publication_status, published_at, created_at, updated_at)
+    VALUES ('legacy-queued', '旧案例', '旧根因', 'kb-old-project', 'queued', NULL,
+      'bug_case', 'candidate', '{}', 'published', 1, 1, 1),
+      ('legacy-processing', '旧执行案例', '旧证据', 'kb-common-bugs', 'processing', NULL,
+      'bug_case', 'candidate', '{}', 'published', 1, 1, 1),
+      ('legacy-ready', '旧发布案例', 'archive evidence', 'kb-common-bugs', 'ready', NULL,
+      'bug_case', 'confirmed', '{}', 'published', 1, 1, 1);
+    INSERT INTO chunks VALUES ('legacy-chunk', 'legacy-ready', '旧发布案例', 'kb-common-bugs', '[]',
+      'archive evidence', '["archive"]', '[1]', 'plain-text', 0, 1);
+  `);
+  const before = fixture.prepare("SELECT * FROM documents WHERE document_type = 'bug_case' ORDER BY id").all();
+  const chunksBefore = fixture.prepare("SELECT * FROM chunks").all();
+  fixture.close();
+  const store = createKnowledgeStore(dbPath);
+  assert.equal(store.getKnowledgeBase('kb-common-bugs').kind, 'common_bugs');
+  assert.equal(store.listKnowledgeBases().some(base => base.kind !== 'generic'), false);
+  assert.equal(store.listDocumentsByStatus(['queued', 'processing']).length, 0);
+  assert.equal(store.loadState().documents.length, 0);
+  assert.equal(store.loadState().chunks.length, 0);
+  assert.equal(store.searchChunksByKeyword('archive', 5).length, 0);
+  assert.equal(store.claimDocumentForIndex('legacy-queued'), null);
+  assert.equal(store.claimDocumentForIndex('legacy-processing'), null);
+  assert.equal(store.completeDocumentIndex('legacy-processing', []), null);
+  assert.equal(store.failDocumentIndex('legacy-processing', 'new error'), null);
+  assert.equal(store.updateDocumentStatus('legacy-queued', 'ready'), null);
+  assert.throws(() => store.replaceDocumentChunks('legacy-queued', []));
+  assert.throws(() => store.deleteDocument('legacy-queued'));
+  assert.throws(() => store.updateKnowledgeBase('kb-common-bugs', { name: 'overwrite' }));
+  assert.throws(() => store.deleteKnowledgeBase('kb-common-bugs', { force: true }));
+  assert.throws(() => store.clearDocuments({ knowledgeBaseId: 'kb-old-project' }));
+  assert.equal(store.clearDocuments(), 0);
+  store.close();
+  const reopened = new DatabaseSync(dbPath);
+  assert.deepEqual(reopened.prepare("SELECT * FROM documents WHERE document_type = 'bug_case' ORDER BY id").all(), before);
+  assert.deepEqual(reopened.prepare('SELECT * FROM chunks').all(), chunksBefore);
+  assert.equal(reopened.prepare("SELECT name FROM knowledge_bases WHERE id = 'kb-common-bugs'").get().name, '旧公共案例');
+  reopened.close();
 });

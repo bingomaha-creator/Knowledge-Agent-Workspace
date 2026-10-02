@@ -6,7 +6,10 @@ review → approval → published Markdown + upstream BM25 case search.
 Independent from Research and the old Bug investigation runtime. The formal React
 entry is `/bug-review` (published library); import and review: `/bug-review/review`.
 Legacy lists redirect here; legacy records display a retirement notice. Old data
-is retained separately and is not mapped to new review IDs.
+is retained separately and is not mapped to new review IDs. Legacy HTTP APIs
+(`/api/bug-projects`, `/api/bug-cases`, `/api/bug-investigations`) return JSON 410;
+legacy MCP tools and investigation runtime have been removed. Knowledge SQLite
+retains old schema values and protects archived records without resuming their jobs.
 
 ## Setup
 
@@ -58,7 +61,10 @@ with missing-evidence wording. Title-only quotes cannot support these claims;
 runtime symptoms require an author report rather than a diff-based hypothesis.
 Generated impact quotes remain verbatim; otherwise scope lists collected changed
 files explicitly without claiming runtime impact. Affected users and severity
-remain unconfirmed (`severity=unknown`) until human correction. Generated model
+remain unconfirmed (`severity=unknown`) until human correction. The reading view
+shows scope, affected users and severity; the editor can change all three fields.
+Saving changes updates the working draft and requires renewed approval/publication,
+without changing the existing published snapshot. Generated model
 self-scores remain in raw material, without becoming document reliability scores.
 Implemented measures require source quotes; advice
 is labelled as suggestions. Internal generation evidence is stored in the raw

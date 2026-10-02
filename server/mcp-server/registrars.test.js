@@ -1,6 +1,5 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { registerBugTools } from './register-bug-tools.js';
 import { registerKnowledgeTools } from './register-knowledge-tools.js';
 import { registerMemoryTools } from './register-memory-tools.js';
 import { registerSystemTools } from './register-system-tools.js';
@@ -169,72 +168,4 @@ test('system registrar keeps current-time and bounded web-search tool DTOs', asy
     (await tools.get('search_web').handler({ query: 'MCP', topK: 2 })).structuredContent,
     { query: 'MCP', topK: 2, status: 'success', results: [] }
   );
-});
-
-test('Bug registrar exposes explicit project, CRUD, review, and promote DTO adapters', async () => {
-  const calls = [];
-  const service = new Proxy({}, {
-    get(_target, method) {
-      return (...args) => {
-        calls.push({ method, args });
-        if (method === 'listProjects') return [{ projectRef: 'project-1' }];
-        if (method === 'listBugCases') return [{ id: 'bug-1' }];
-        return { id: 'bug-1', ok: true };
-      };
-    }
-  });
-  const tools = captureRegistrations((server) =>
-    registerBugTools(server, { bugKnowledgeService: service })
-  );
-  assert.deepEqual([...tools.keys()].sort(), [
-    'create_bug_case',
-    'create_bug_project',
-    'delete_bug_case',
-    'get_bug_case',
-    'list_bug_cases',
-    'list_bug_projects',
-    'promote_bug_case',
-    'review_bug_case',
-    'search_bug_cases',
-    'update_bug_case',
-    'update_bug_project'
-  ]);
-  assert.doesNotThrow(() => tools.get('create_bug_case').config.inputSchema.parse({
-    sourceProjectRef: 'project-1',
-    title: 'Verified workaround',
-    symptom: 'Intermittent failure',
-    resolutionType: 'verified_workaround',
-    rootCause: null,
-    fix: 'Bounded workaround'
-  }));
-
-  const reviewed = await tools.get('review_bug_case').handler({
-    id: 'bug-1',
-    reviewStatus: 'confirmed',
-    reviewReason: '人工复现通过'
-  });
-  assert.deepEqual(calls.at(-1), {
-    method: 'reviewBugCase',
-    args: ['bug-1', { reviewStatus: 'confirmed', reviewReason: '人工复现通过' }]
-  });
-  assert.equal(reviewed.structuredContent.bugCase.id, 'bug-1');
-
-  const signal = new AbortController().signal;
-  await tools.get('search_bug_cases').handler({
-    query: 'TypeError',
-    projectRef: 'project-1',
-    includeCommon: true,
-    additionalProjectRefs: [],
-    topK: 5
-  }, { signal });
-  assert.deepEqual(calls.at(-1), {
-    method: 'searchBugCases',
-    args: [{
-      query: 'TypeError',
-      projectRef: 'project-1',
-      includeCommon: true,
-      additionalProjectRefs: [],
-      topK: 5
-    }, signal]
-  });
 });

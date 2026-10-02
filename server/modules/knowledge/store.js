@@ -12,7 +12,6 @@ import { expandCjkBigrams, tokenize } from '../../shared/retrieval/ranking.js';
 const DEFAULT_DB_PATH = path.resolve(process.cwd(), 'server/data/knowledge.sqlite');
 const SCHEMA_VERSION = 4;
 export const DEFAULT_KNOWLEDGE_BASE_ID = 'kb-default';
-export const COMMON_BUG_KNOWLEDGE_BASE_ID = 'kb-common-bugs';
 // 文档只能在这四个处理态之间流转；检索端会硬性排除非 ready 文档。
 const DOCUMENT_STATUSES = new Set(['queued', 'processing', 'ready', 'failed']);
 const DOCUMENT_TYPES = new Set(['generic', 'bug_case']);
@@ -429,32 +428,6 @@ function migrateDatabase(db) {
       END;
     `);
 
-    // 公共 Bug 库是系统身份而非名称约定。固定 ID 被旧 generic 库占用时必须整批回滚，
-    // 不能为了启动成功而悄悄改写用户已有的数据。
-    const commonBase = db.prepare(`
-      SELECT id, kind FROM knowledge_bases WHERE id = ?
-    `).get(COMMON_BUG_KNOWLEDGE_BASE_ID);
-    if (commonBase && commonBase.kind !== 'common_bugs') {
-      throw createStoreError(
-        'COMMON_BUG_KNOWLEDGE_BASE_CONFLICT',
-        `Knowledge base id ${COMMON_BUG_KNOWLEDGE_BASE_ID} is already occupied`,
-        409
-      );
-    }
-    if (!commonBase) {
-      db.prepare(`
-        INSERT INTO knowledge_bases (
-          id, name, description, kind, project_ref, created_at, updated_at
-        ) VALUES (?, ?, ?, 'common_bugs', NULL, ?, ?)
-      `).run(
-        COMMON_BUG_KNOWLEDGE_BASE_ID,
-        '公共 Bug 知识库',
-        '经过人工确认、可跨项目复用的 BugCase',
-        now,
-        now
-      );
-    }
-
     const ftsColumns = tableColumns(db, 'chunks_fts');
     if (ftsColumns.size && !ftsColumns.has('knowledge_base_id')) {
       // FTS5 虚拟表不能像普通表一样安全 ALTER 补列，旧索引会在事务内丢弃，稍后由 chunks 真实数据重建。
@@ -509,17 +482,6 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
              created_at ASC,
              name COLLATE NOCASE ASC
   `);
-  const selectBugProjects = db.prepare(`
-    SELECT id, name, description, kind, project_ref, created_at, updated_at
-    FROM knowledge_bases
-    WHERE kind = 'project_bugs'
-    ORDER BY created_at ASC, project_ref ASC
-  `);
-  const selectBugProjectByRef = db.prepare(`
-    SELECT id, name, description, kind, project_ref, created_at, updated_at
-    FROM knowledge_bases
-    WHERE kind = 'project_bugs' AND project_ref = ?
-  `);
   const insertKnowledgeBase = db.prepare(`
     INSERT INTO knowledge_bases (
       id, name, description, kind, project_ref, created_at, updated_at
@@ -555,17 +517,17 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
   const updateDocumentStatusStatement = db.prepare(`
     UPDATE documents
     SET status = ?, error = ?, updated_at = ?
-    WHERE id = ?
+    WHERE id = ? AND document_type = 'generic'
   `);
   const claimDocumentForIndexStatement = db.prepare(`
     UPDATE documents
     SET status = 'processing', error = NULL, updated_at = ?
-    WHERE id = ? AND status IN ('queued', 'processing')
+    WHERE id = ? AND document_type = 'generic' AND status IN ('queued', 'processing')
   `);
   const failDocumentIndexStatement = db.prepare(`
     UPDATE documents
     SET status = 'failed', error = ?, updated_at = ?
-    WHERE id = ? AND status = 'processing'
+    WHERE id = ? AND document_type = 'generic' AND status = 'processing'
   `);
   const countDocumentChunks = db.prepare(`
     SELECT count(*) AS count FROM chunks WHERE document_id = ?
@@ -588,25 +550,6 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
     UPDATE documents
     SET publication_status = 'draft', published_at = NULL, updated_at = ?
     WHERE id = ? AND document_type = 'generic' AND publication_status = 'published'
-  `);
-  const updateBugCaseContentStatement = db.prepare(`
-    UPDATE documents
-    SET name = ?, content = ?, status = 'queued', error = NULL,
-        review_status = 'candidate', metadata_json = ?, updated_at = ?
-    WHERE id = ? AND document_type = 'bug_case'
-  `);
-  const updateBugCaseReviewStatement = db.prepare(`
-    UPDATE documents
-    SET review_status = ?, metadata_json = ?, updated_at = ?
-    WHERE id = ? AND document_type = 'bug_case'
-  `);
-  const moveBugCaseDocumentStatement = db.prepare(`
-    UPDATE documents
-    SET knowledge_base_id = ?, updated_at = ?
-    WHERE id = ? AND document_type = 'bug_case'
-  `);
-  const moveBugCaseChunksStatement = db.prepare(`
-    UPDATE chunks SET knowledge_base_id = ? WHERE document_id = ?
   `);
   const insertChunk = db.prepare(`
     INSERT INTO chunks (
@@ -702,7 +645,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
     if (!allowedKinds.includes(row.kind)) {
       throw createStoreError(
         'SYSTEM_KNOWLEDGE_BASE_PROTECTED',
-        `Knowledge base ${knowledgeBaseId} is managed by the Bug knowledge domain`,
+        `Knowledge base ${knowledgeBaseId} is a protected legacy archive`,
         409
       );
     }
@@ -710,29 +653,25 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
   }
 
   function insertDocumentRow(document, fallbackStatus, {
-    allowBugCase = false,
     defaultPublicationStatus = 'published'
   } = {}) {
     // 在真正 INSERT 前先校验知识库与状态，防止把不可检索的“半合法”数据写入。
     const documentType = normalizeDocumentType(document.documentType);
-    if (documentType === 'bug_case' && !allowBugCase) {
+    if (documentType === 'bug_case') {
       throw createStoreError(
         'BUG_CASE_REQUIRES_DEDICATED_API',
-        'BugCase documents must use the dedicated Bug knowledge API',
+        'Legacy BugCase documents are retained as a read-only archive',
         409
       );
     }
-    const allowedKinds = documentType === 'bug_case'
-      ? ['project_bugs', 'common_bugs']
-      : ['generic'];
-    const knowledgeBaseId = requireKnowledgeBase(document.knowledgeBaseId, allowedKinds);
+    const knowledgeBaseId = requireKnowledgeBase(document.knowledgeBaseId);
     const createdAt = Number.isFinite(document.createdAt) ? document.createdAt : Date.now();
     const updatedAt = Number.isFinite(document.updatedAt) ? document.updatedAt : createdAt;
     const status = normalizeStatus(document.status, fallbackStatus);
     const error = status === 'failed' ? readableError(document.error) : null;
     const reviewStatus = normalizeReviewStatus(
       document.reviewStatus,
-      documentType === 'bug_case' ? 'candidate' : 'confirmed'
+      'confirmed'
     );
     if (documentType === 'generic' && reviewStatus !== 'confirmed') {
       throw createStoreError(
@@ -819,7 +758,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       ? [
           "documents.status = 'ready'",
           "documents.publication_status = 'published'",
-          "(documents.document_type != 'bug_case' OR documents.review_status = 'confirmed')"
+          "documents.document_type = 'generic'"
         ]
       : [];
     const params = [];
@@ -883,50 +822,6 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       return mapKnowledgeBase(selectKnowledgeBase.get(id));
     },
 
-    listBugProjects() {
-      return selectBugProjects.all().map(mapKnowledgeBase);
-    },
-
-    getBugProject(projectRef) {
-      return mapKnowledgeBase(selectBugProjectByRef.get(String(projectRef || '').trim()));
-    },
-
-    createBugProject(input = {}) {
-      const projectRef = String(input.projectRef || '').trim();
-      const id = String(input.knowledgeBaseId || '').trim();
-      const name = String(input.name || '').trim();
-      if (!projectRef) throw new TypeError('Bug projectRef is required');
-      if (!id) throw new TypeError('Bug project knowledgeBaseId is required');
-      if (!name) throw new TypeError('Bug project name is required');
-      const description = String(input.description || '').trim();
-      const createdAt = Number.isFinite(input.createdAt) ? input.createdAt : Date.now();
-      const updatedAt = Number.isFinite(input.updatedAt) ? input.updatedAt : createdAt;
-      insertKnowledgeBase.run(
-        id,
-        name,
-        description,
-        'project_bugs',
-        projectRef,
-        createdAt,
-        updatedAt
-      );
-      return mapKnowledgeBase(selectBugProjectByRef.get(projectRef));
-    },
-
-    updateBugProject(projectRef, patch = {}) {
-      const current = mapKnowledgeBase(selectBugProjectByRef.get(String(projectRef || '').trim()));
-      if (!current) return null;
-      const name = patch.name === undefined ? current.name : String(patch.name || '').trim();
-      if (!name) throw new TypeError('Bug project name is required');
-      const description = patch.description === undefined
-        ? current.description
-        : String(patch.description || '').trim();
-      const updatedAt = Number.isFinite(patch.updatedAt) ? patch.updatedAt : Date.now();
-      // 只更新展示字段；不可变 project_ref 与系统 knowledge-base id 不进入 SET 子句。
-      updateKnowledgeBaseStatement.run(name, description, updatedAt, current.id);
-      return mapKnowledgeBase(selectBugProjectByRef.get(current.projectRef));
-    },
-
     createKnowledgeBase(input) {
       const values = typeof input === 'string' ? { name: input } : (input || {});
       const name = String(values.name || '').trim();
@@ -935,7 +830,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       if (!id) throw new TypeError('Knowledge base id is required');
       const description = String(values.description || '').trim();
       const now = Date.now();
-      // 通用入口永远只能创建 generic；project/common 身份只能由专用 Bug 方法产生。
+      // 新写入仅创建 generic；旧项目/公共库身份只为兼容已有数据库保留。
       insertKnowledgeBase.run(id, name, description, 'generic', null, now, now);
       return mapKnowledgeBase(selectKnowledgeBase.get(id));
     },
@@ -946,7 +841,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       if (current.kind !== 'generic') {
         throw createStoreError(
           'SYSTEM_KNOWLEDGE_BASE_PROTECTED',
-          `Knowledge base ${id} is managed by the Bug knowledge domain`,
+          `Knowledge base ${id} is a protected legacy archive`,
           409
         );
       }
@@ -980,7 +875,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       if (current.kind !== 'generic') {
         throw createStoreError(
           'SYSTEM_KNOWLEDGE_BASE_PROTECTED',
-          `Knowledge base ${id} is managed by the Bug knowledge domain`,
+          `Knowledge base ${id} is a protected legacy archive`,
           409
         );
       }
@@ -1032,15 +927,15 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
         (Array.isArray(statuses) ? statuses : [statuses]).map((status) => normalizeStatus(status))
       );
       if (!requestedStatuses.length) return [];
-      return listAllDocuments(scope, requestedStatuses);
+      return listAllDocuments(scope, requestedStatuses).filter(document => document.documentType === 'generic');
     },
 
     loadState(scope) {
       // 返回调用时的 SQLite 快照：管理界面需要看到全部文档，
       // 而检索只能加载 ready 文档的 chunks。
       return {
-        // 后台处理器必须看到 BugCase candidate，管理 API 的 generic 过滤不能影响作业恢复。
-        documents: listAllDocuments(scope),
+        // 旧 Bug 存档不恢复任务，也不进入当前知识工作区。
+        documents: listAllDocuments(scope).filter(document => document.documentType === 'generic'),
         // Only ready + published documents may participate in vector retrieval after restart.
         chunks: listChunks(scope, true)
       };
@@ -1107,7 +1002,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       // 后台处理完成后原子替换该文档的旧 chunk 和 FTS 行，避免读者看到一半新一半旧。
       // 状态转为 ready 是业务层的下一步，本方法只负责分块替换。
       const document = mapDocument(selectDocument.get(documentId));
-      if (!document) throw new Error(`Document not found: ${documentId}`);
+      if (!document || document.documentType !== 'generic') throw new Error(`Knowledge document not found: ${documentId}`);
       if (chunks.some((chunk) => chunk.documentId !== documentId)) {
         throw new Error(`Every replacement chunk must belong to document ${documentId}`);
       }
@@ -1136,7 +1031,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       const document = mapDocument(selectDocument.get(documentId));
       // 编辑会把同一文档重新置为 queued。旧 worker 只能结算它领取的 processing
       // 代际，不能用旧 chunk 覆盖刚提交的新原文。
-      if (!document || document.status !== 'processing') return null;
+      if (!document || document.documentType !== 'generic' || document.status !== 'processing') return null;
       if (chunks.some((chunk) => chunk.documentId !== documentId)) {
         throw new Error(`Every replacement chunk must belong to document ${documentId}`);
       }
@@ -1211,133 +1106,6 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       return result.changes ? mapDocument(selectDocument.get(id)) : null;
     },
 
-    listBugCaseDocuments(scope) {
-      return listAllDocuments(scope).filter((document) => document.documentType === 'bug_case');
-    },
-
-    getBugCaseDocument(id) {
-      const document = mapDocument(selectDocument.get(id));
-      return document?.documentType === 'bug_case' ? document : null;
-    },
-
-    insertBugCaseDocument(document) {
-      // 创建入口固定 candidate + queued；调用方提供的状态字段在这里没有生效机会。
-      db.exec('BEGIN');
-      try {
-        insertDocumentRow({
-          ...document,
-          documentType: 'bug_case',
-          reviewStatus: 'candidate',
-          status: 'queued',
-          error: null
-        }, 'queued', { allowBugCase: true });
-        db.exec('COMMIT');
-      } catch (error) {
-        db.exec('ROLLBACK');
-        throw error;
-      }
-      const inserted = mapDocument(selectDocument.get(document.id));
-      publishQueuedDocuments([inserted.id]);
-      return inserted;
-    },
-
-    updateBugCaseContent(id, input = {}) {
-      const current = mapDocument(selectDocument.get(id));
-      if (!current) return null;
-      if (current.documentType !== 'bug_case') {
-        throw createStoreError(
-          'BUG_CASE_NOT_FOUND',
-          `BugCase not found: ${id}`,
-          404
-        );
-      }
-      const metadata = normalizeMetadata(input.metadata);
-      const updatedAt = Number.isFinite(input.updatedAt) ? input.updatedAt : Date.now();
-      // 删除派生索引、退回 candidate 和写入新原文属于同一事务。即使随后的 embedding 失败，
-      // 旧 citation 也不会继续描述已经被用户修改过的内容。
-      db.exec('BEGIN');
-      try {
-        deleteDocumentFts.run(id);
-        deleteDocumentChunks.run(id);
-        updateBugCaseContentStatement.run(
-          input.name,
-          input.content,
-          JSON.stringify(metadata),
-          updatedAt,
-          id
-        );
-        db.exec('COMMIT');
-      } catch (error) {
-        db.exec('ROLLBACK');
-        throw error;
-      }
-      const updated = mapDocument(selectDocument.get(id));
-      publishQueuedDocuments([updated.id]);
-      return updated;
-    },
-
-    reviewBugCaseDocument(id, input = {}) {
-      const current = mapDocument(selectDocument.get(id));
-      if (!current || current.documentType !== 'bug_case') return null;
-      const reviewStatus = normalizeReviewStatus(input.reviewStatus);
-      const metadata = normalizeMetadata(input.metadata);
-      const updatedAt = Number.isFinite(input.updatedAt) ? input.updatedAt : Date.now();
-      db.exec('BEGIN');
-      try {
-        updateBugCaseReviewStatement.run(
-          reviewStatus,
-          JSON.stringify(metadata),
-          updatedAt,
-          id
-        );
-        db.exec('COMMIT');
-      } catch (error) {
-        db.exec('ROLLBACK');
-        throw error;
-      }
-      return mapDocument(selectDocument.get(id));
-    },
-
-    deleteBugCaseDocument(id) {
-      const current = mapDocument(selectDocument.get(id));
-      if (!current || current.documentType !== 'bug_case') return 0;
-      db.exec('BEGIN');
-      try {
-        deleteDocumentFts.run(id);
-        deleteDocumentChunks.run(id);
-        const result = deleteDocumentStatement.run(id);
-        db.exec('COMMIT');
-        return result.changes;
-      } catch (error) {
-        db.exec('ROLLBACK');
-        throw error;
-      }
-    },
-
-    promoteBugCaseDocument(id, updatedAt = Date.now()) {
-      const current = mapDocument(selectDocument.get(id));
-      if (!current || current.documentType !== 'bug_case') return null;
-      requireKnowledgeBase(COMMON_BUG_KNOWLEDGE_BASE_ID, ['common_bugs']);
-
-      // chunks_fts 没有 UPDATE 语义，先删后按已移动的权威 chunks 重建；整个过程共享事务，
-      // 读者不会看到 document/chunk/FTS 分属两个 scope 的中间状态。
-      db.exec('BEGIN');
-      try {
-        deleteDocumentFts.run(id);
-        moveBugCaseDocumentStatement.run(COMMON_BUG_KNOWLEDGE_BASE_ID, updatedAt, id);
-        moveBugCaseChunksStatement.run(COMMON_BUG_KNOWLEDGE_BASE_ID, id);
-        const chunks = selectChunksForRebuild.all()
-          .map(mapChunk)
-          .filter((chunk) => chunk.documentId === id);
-        for (const chunk of chunks) indexChunk(chunk, COMMON_BUG_KNOWLEDGE_BASE_ID);
-        db.exec('COMMIT');
-      } catch (error) {
-        db.exec('ROLLBACK');
-        throw error;
-      }
-      return mapDocument(selectDocument.get(id));
-    },
-
     deleteDocument(id, scope) {
       // scope 是调用方指定范围内的一致性/隔离校验：ID 存在但不在指定库中时，
       // 按“未删除”处理。它本身不是身份授权，因为当前存储层没有用户/租户上下文。
@@ -1347,7 +1115,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
       if (document.documentType !== 'generic') {
         throw createStoreError(
           'BUG_CASE_REQUIRES_DEDICATED_API',
-          'BugCase documents must use the dedicated Bug knowledge API',
+          'Legacy BugCase documents are retained as a read-only archive',
           409
         );
       }
@@ -1368,7 +1136,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
     },
 
     clearDocuments(scope) {
-      // 通用“全部”只表示全部 generic 库；系统 Bug 库必须经显式领域动作管理。
+      // 通用“全部”仅表示 generic 库；保留旧 Bug 存档。
       // 这层保护避免旧 API 在新增系统范围后意外变成跨域 destructive operation。
       let ids = normalizeScope(scope);
       if (ids === null) {
@@ -1379,7 +1147,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
           if (knowledgeBase && knowledgeBase.kind !== 'generic') {
             throw createStoreError(
               'SYSTEM_KNOWLEDGE_BASE_PROTECTED',
-              `Knowledge base ${id} is managed by the Bug knowledge domain`,
+              `Knowledge base ${id} is a protected legacy archive`,
               409
             );
           }
@@ -1407,7 +1175,7 @@ export function createKnowledgeStore(dbPath = DEFAULT_DB_PATH) {
         "chunks_fts MATCH ?",
         "documents.status = 'ready'",
         "documents.publication_status = 'published'",
-        "(documents.document_type != 'bug_case' OR documents.review_status = 'confirmed')"
+        "documents.document_type = 'generic'"
       ];
       const params = [ftsQuery];
       if (ids) {

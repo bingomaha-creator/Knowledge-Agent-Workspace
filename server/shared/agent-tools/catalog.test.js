@@ -9,7 +9,6 @@ import {
   listToolSpecs
 } from './catalog.js';
 import { registerKnowledgeTools } from '../../mcp-server/register-knowledge-tools.js';
-import { registerBugTools } from '../../mcp-server/register-bug-tools.js';
 import { registerMemoryTools } from '../../mcp-server/register-memory-tools.js';
 import { registerSystemTools } from '../../mcp-server/register-system-tools.js';
 
@@ -34,18 +33,7 @@ const EXPECTED_TOOL_NAMES = [
   'update_memory',
   'delete_memory',
   'get_current_time',
-  'search_web',
-  'list_bug_projects',
-  'create_bug_project',
-  'update_bug_project',
-  'list_bug_cases',
-  'create_bug_case',
-  'get_bug_case',
-  'update_bug_case',
-  'delete_bug_case',
-  'review_bug_case',
-  'promote_bug_case',
-  'search_bug_cases'
+  'search_web'
 ];
 
 function captureRegistrarNames() {
@@ -54,7 +42,6 @@ function captureRegistrarNames() {
   registerKnowledgeTools(server, { knowledgeService: {} });
   registerMemoryTools(server, { memoryService: {} });
   registerSystemTools(server, { webSearchProvider: {} });
-  registerBugTools(server, { bugKnowledgeService: {} });
   return names;
 }
 
@@ -233,39 +220,6 @@ test('Research can orchestrate confirmed knowledge reads without gaining knowled
   }
 });
 
-test('Bug tools require a trusted explicit bug-ui or internal caller', () => {
-  for (const name of EXPECTED_TOOL_NAMES.filter((toolName) => toolName.includes('_bug_'))) {
-    assert.equal(evaluateToolCall(name, {
-      caller: 'bug-ui',
-      invocation: 'explicit'
-    }).allowed, true, name);
-    assert.equal(evaluateToolCall(name, {
-      caller: 'chat',
-      invocation: 'autonomous'
-    }).allowed, false, name);
-    assert.equal(evaluateToolCall(name, {
-      caller: 'bug-ui',
-      invocation: 'orchestrated'
-    }).allowed, false, name);
-  }
-});
-
-test('Bug search reserves coding-agent caller without exposing it to chat or internal routes', () => {
-  assert.deepEqual(getToolSpec('search_bug_cases').allowedCallers, ['bug-ui', 'coding-agent']);
-  assert.equal(evaluateToolCall('search_bug_cases', {
-    caller: 'coding-agent',
-    invocation: 'explicit'
-  }).allowed, true);
-  assert.equal(evaluateToolCall('search_bug_cases', {
-    caller: 'internal',
-    invocation: 'explicit'
-  }).allowed, false);
-  assert.equal(evaluateToolCall('search_bug_cases', {
-    caller: 'chat',
-    invocation: 'autonomous'
-  }).allowed, false);
-});
-
 test('trusted knowledge scope replaces model arguments and preserves an explicit empty scope', () => {
   assert.deepEqual(
     applyTrustedToolArguments(
@@ -332,11 +286,18 @@ test('registrar descriptions equal the single ToolSpec descriptions', () => {
   registerKnowledgeTools(server, { knowledgeService: {} });
   registerMemoryTools(server, { memoryService: {} });
   registerSystemTools(server, { webSearchProvider: {} });
-  registerBugTools(server, { bugKnowledgeService: {} });
   for (const registration of registrations) {
     assert.equal(
       registration.description,
       getToolSpec(registration.name).description
     );
+  }
+});
+
+test('retired Bug tools are absent from both catalog and MCP registration', () => {
+  for (const name of ['list_bug_projects', 'create_bug_case', 'search_bug_cases']) {
+    assert.equal(getToolSpec(name), undefined);
+    assert.equal(captureRegistrarNames().includes(name), false);
+    assert.equal(evaluateToolCall(name, { caller: 'internal', invocation: 'explicit' }).allowed, false);
   }
 });

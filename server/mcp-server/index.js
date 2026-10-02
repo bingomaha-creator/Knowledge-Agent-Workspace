@@ -10,10 +10,8 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { createEmbeddingQwenClient } from '../infrastructure/ai/qwen-client.js';
 import { createKnowledgeStore } from '../modules/knowledge/store.js';
-import { createBugKnowledgeService } from '../modules/bug-knowledge/service.js';
 import { createMemoryStore } from '../modules/memory/store.js';
 import { registerKnowledgeTools } from './register-knowledge-tools.js';
-import { registerBugTools } from './register-bug-tools.js';
 import { registerMemoryTools } from './register-memory-tools.js';
 import { registerSystemTools } from './register-system-tools.js';
 import { createKnowledgeIndexLifecycle } from '../modules/knowledge/index-lifecycle.js';
@@ -50,10 +48,6 @@ const knowledgeIndexLifecycle = createKnowledgeIndexLifecycle({
   store: knowledgeStore,
   embeddingClient
 });
-const bugKnowledgeService = createBugKnowledgeService({
-  store: knowledgeStore,
-  knowledgeRetrieval: knowledgeService
-});
 const memoryService = createMemoryService({
   store: memoryStore,
   embeddingClient,
@@ -65,7 +59,6 @@ const server = new McpServer({
   version: '1.0.0'
 });
 registerKnowledgeTools(server, { knowledgeService });
-registerBugTools(server, { bugKnowledgeService });
 registerMemoryTools(server, { memoryService });
 registerSystemTools(server, { webSearchProvider });
 

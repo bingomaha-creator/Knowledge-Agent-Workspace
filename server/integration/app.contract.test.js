@@ -8,7 +8,6 @@ import { createKnowledgeRouter } from '../modules/knowledge/routes.js';
 import { createMemoryRouter } from '../modules/memory/routes.js';
 import { createSystemRouter } from '../modules/system/routes.js';
 import { createChatRouter } from '../modules/chat/routes.js';
-import { createBugKnowledgeRouter } from '../modules/bug-knowledge/routes.js';
 
 function listen(app) {
   return new Promise((resolve, reject) => {
@@ -342,149 +341,17 @@ test('feature routes preserve MCP business error codes and details as JSON', asy
   });
 });
 
-test('Bug knowledge routes cover project, candidate, review, and promote contracts with allowlists', async (t) => {
-  const calls = [];
-  const bugKnowledgeRouter = createBugKnowledgeRouter({
-    async callMcpTool(name, args) {
-      calls.push({ name, args });
-      if (name === 'list_bug_projects') return { projects: [{ projectRef: 'project-1' }] };
-      if (name === 'create_bug_project' || name === 'update_bug_project') {
-        return { project: { projectRef: args.projectRef || 'project-1', ...args } };
-      }
-      if (name === 'list_bug_cases') return { bugCases: [{ id: 'bug-1' }] };
-      if (name === 'search_bug_cases') {
-        return {
-          results: [{ bugCase: { id: 'bug-1' }, rank: 1, matchedChannels: ['exact'], citations: [] }],
-          scope: {
-            projectRefs: [args.projectRef, ...(args.additionalProjectRefs || [])],
-            knowledgeBaseIds: ['kb-project-1', 'kb-common-bugs'],
-            includesCommon: args.includeCommon !== false
-          },
-          trace: { degradedChannels: [], ambiguous: false, evidenceGap: false }
-        };
-      }
-      if (name === 'delete_bug_case') return { ok: true, id: args.id };
-      return {
-        bugCase: {
-          id: args.id || 'bug-1',
-          reviewStatus: args.reviewStatus || 'candidate',
-          ...args
-        }
-      };
+test('retired Bug APIs return explicit 410 responses without loading a legacy store', async (t) => {
+  const frontendDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bug-retired-'));
+  fs.writeFileSync(path.join(frontendDir, 'index.html'), '<html>Frontend fallback</html>');
+  const server = await listen(createApp({ frontendDir }));
+  t.after(async () => { await new Promise(resolve => server.close(resolve)); fs.rmSync(frontendDir, { recursive: true, force: true }); });
+  const baseUrl = `http://127.0.0.1:${server.address().port}`;
+  for (const method of ['GET', 'POST', 'PATCH', 'DELETE']) {
+    for (const endpoint of ['/api/bug-projects', '/api/bug-cases/search', '/api/bug-investigations/legacy/analyze']) {
+      const response = await fetch(`${baseUrl}${endpoint}`, { method });
+      assert.equal(response.status, 410);
+      assert.equal((await response.json()).code, 'BUG_RETIRED');
     }
-  });
-  const server = await listen(createApp({ bugKnowledgeRouter }));
-  const { port } = server.address();
-  const baseUrl = `http://127.0.0.1:${port}`;
-  t.after(() => new Promise((resolve) => server.close(resolve)));
-
-  assert.deepEqual(await (await fetch(`${baseUrl}/api/bug-projects`)).json(), {
-    projects: [{ projectRef: 'project-1' }]
-  });
-  assert.equal((await fetch(`${baseUrl}/api/bug-projects`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Storefront', description: 'Web', projectRef: 'forged' })
-  })).status, 201);
-  await fetch(`${baseUrl}/api/bug-projects/project-1`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: 'Storefront Web', projectRef: 'forged', kind: 'generic' })
-  });
-  assert.deepEqual(calls.find(({ name }) => name === 'create_bug_project').args, {
-    name: 'Storefront',
-    description: 'Web'
-  });
-  assert.deepEqual(calls.find(({ name }) => name === 'update_bug_project').args, {
-    projectRef: 'project-1',
-    name: 'Storefront Web'
-  });
-
-  const listed = await fetch(
-    `${baseUrl}/api/bug-cases?sourceProjectRef=project-1&scope=project&reviewStatus=candidate,confirmed&status=ready`
-  );
-  assert.deepEqual(await listed.json(), { bugCases: [{ id: 'bug-1' }] });
-  assert.deepEqual(calls.find(({ name }) => name === 'list_bug_cases').args, {
-    sourceProjectRef: 'project-1',
-    scope: 'project',
-    reviewStatuses: ['candidate', 'confirmed'],
-    statuses: ['ready']
-  });
-
-  const content = {
-    sourceProjectRef: 'project-1',
-    title: 'Hydration mismatch',
-    symptom: 'Mismatch',
-    fix: 'Use UTC',
-    reviewStatus: 'confirmed',
-    reviewedBy: 'forged-admin'
-  };
-  const created = await fetch(`${baseUrl}/api/bug-cases`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(content)
-  });
-  assert.equal(created.status, 201);
-  assert.deepEqual(calls.find(({ name }) => name === 'create_bug_case').args, {
-    sourceProjectRef: 'project-1',
-    title: 'Hydration mismatch',
-    symptom: 'Mismatch',
-    fix: 'Use UTC'
-  });
-
-  const searched = await fetch(`${baseUrl}/api/bug-cases/search`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      query: 'Hydration mismatch',
-      projectRef: 'project-1',
-      includeCommon: true,
-      additionalProjectRefs: ['project-2'],
-      filters: { framework: 'Vue', versions: ['3.5.13'], ignored: 'drop' },
-      topK: 5,
-      caller: 'coding-agent'
-    })
-  });
-  assert.equal(searched.status, 200);
-  assert.equal((await searched.json()).results[0].bugCase.id, 'bug-1');
-  assert.deepEqual(calls.find(({ name }) => name === 'search_bug_cases').args, {
-    query: 'Hydration mismatch',
-    projectRef: 'project-1',
-    includeCommon: true,
-    additionalProjectRefs: ['project-2'],
-    filters: { framework: 'Vue', versions: ['3.5.13'] },
-    topK: 5
-  });
-
-  assert.equal((await fetch(`${baseUrl}/api/bug-cases/bug-1`)).status, 200);
-  await fetch(`${baseUrl}/api/bug-cases/bug-1`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ symptom: 'Updated', sourceProjectRef: 'project-2', reviewStatus: 'confirmed' })
-  });
-  assert.deepEqual(calls.find(({ name }) => name === 'update_bug_case').args, {
-    id: 'bug-1',
-    symptom: 'Updated'
-  });
-
-  await fetch(`${baseUrl}/api/bug-cases/bug-1/review`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      reviewStatus: 'confirmed',
-      reviewReason: '人工复现通过',
-      reviewedBy: 'forged-admin'
-    })
-  });
-  assert.deepEqual(calls.find(({ name }) => name === 'review_bug_case').args, {
-    id: 'bug-1',
-    reviewStatus: 'confirmed',
-    reviewReason: '人工复现通过'
-  });
-  assert.equal((await fetch(`${baseUrl}/api/bug-cases/bug-1/promote`, {
-    method: 'POST'
-  })).status, 200);
-  assert.equal((await fetch(`${baseUrl}/api/bug-cases/bug-1`, {
-    method: 'DELETE'
-  })).status, 200);
+  }
 });

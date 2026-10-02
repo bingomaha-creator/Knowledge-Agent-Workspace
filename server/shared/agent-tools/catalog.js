@@ -1,4 +1,4 @@
-const CALLERS = new Set(['chat', 'research', 'bug-ui', 'coding-agent', 'internal']);
+const CALLERS = new Set(['chat', 'research', 'internal']);
 const INVOCATIONS = new Set(['autonomous', 'orchestrated', 'explicit']);
 
 function spec(definition) {
@@ -117,95 +117,6 @@ const TOOL_SPECS = [
     autonomous: false,
     requiresExplicitAction: true,
     allowedCallers: ['internal']
-  }),
-  spec({
-    name: 'list_bug_projects',
-    description: '列出服务端管理的项目 Bug 知识库及稳定 projectRef',
-    effects: ['knowledge.read'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'create_bug_project',
-    description: '创建一个具有服务端稳定身份的项目 Bug 知识库',
-    effects: ['knowledge.write'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'update_bug_project',
-    description: '更新项目 Bug 知识库的显示名和描述',
-    effects: ['knowledge.write'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'list_bug_cases',
-    description: '按项目、范围、处理态和审核态列出 BugCase',
-    effects: ['knowledge.read'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'create_bug_case',
-    description: '人工创建 candidate BugCase 并安排索引处理',
-    effects: ['knowledge.write'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'get_bug_case',
-    description: '读取一个 BugCase 的结构化内容与审核记录',
-    effects: ['knowledge.read'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'update_bug_case',
-    description: '编辑 BugCase 内容并原子撤销旧索引与确认状态',
-    effects: ['knowledge.write'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'delete_bug_case',
-    description: '删除指定 BugCase 及其派生索引',
-    effects: ['knowledge.write'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'review_bug_case',
-    description: '以服务端身份确认或拒绝一个 ready BugCase',
-    effects: ['knowledge.write'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'promote_bug_case',
-    description: '把 confirmed 项目 BugCase 原子移动到公共 Bug 知识库',
-    effects: ['knowledge.write'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    allowedCallers: ['bug-ui', 'internal']
-  }),
-  spec({
-    name: 'search_bug_cases',
-    description: '在显式项目、公共库和用户选择的附加项目范围内混合检索 confirmed BugCase',
-    effects: ['knowledge.read'],
-    autonomous: false,
-    requiresExplicitAction: true,
-    // coding-agent 只是未来 caller 的能力保留；本批没有创建任何 Coding Agent 入口。
-    allowedCallers: ['bug-ui', 'coding-agent']
   }),
   spec({
     name: 'retrieve_memory',

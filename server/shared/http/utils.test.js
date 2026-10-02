@@ -10,12 +10,12 @@ test('route MCP callers pin a server-owned caller and ignore forged caller argum
       return { structured: { ok: true } };
     }
   };
-  const callBugTool = createRouteMcpCaller({ toolExecutor, caller: 'bug-ui' });
-  await callBugTool('create_bug_case', { title: 'x', caller: 'internal' });
+  const callKnowledgeTool = createRouteMcpCaller({ toolExecutor, caller: 'internal' });
+  await callKnowledgeTool('ingest_knowledge_documents', { documents: [], caller: 'chat' });
 
   assert.deepEqual(calls[0].context, {
-    caller: 'bug-ui',
+    caller: 'internal',
     invocation: 'explicit'
   });
-  assert.equal(calls[0].args.caller, 'internal');
+  assert.equal(calls[0].args.caller, 'chat');
 });

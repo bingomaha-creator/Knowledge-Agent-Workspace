@@ -14,8 +14,6 @@ export function createApp({
   researchNewRouter,
   bugReviewRouter,
   knowledgeRouter,
-  bugKnowledgeRouter,
-  bugInvestigationRouter,
   memoryRouter,
   chatRouter,
   frontendDir
@@ -26,13 +24,15 @@ export function createApp({
     res.status(410).json({ code: 'RESEARCH_RETIRED', error: '旧版深度研究已退役，请使用当前深度研究入口。' });
   });
 
+  app.use(['/api/bug-projects', '/api/bug-cases', '/api/bug-investigations'], (_req, res) => {
+    res.status(410).json({ code: 'BUG_RETIRED', error: '旧版 Bug 调查与案例接口已退役，请使用 Bug 复盘入口。' });
+  });
+
   for (const router of [
     systemRouter,
     researchNewRouter,
     bugReviewRouter,
     knowledgeRouter,
-    bugKnowledgeRouter,
-    bugInvestigationRouter,
     memoryRouter,
     chatRouter
   ]) {

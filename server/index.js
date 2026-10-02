@@ -17,8 +17,6 @@ import { createMcpSessionManager } from './infrastructure/mcp-client/session.js'
 import { createChatQwenClient } from './infrastructure/ai/qwen-client.js';
 import { createMcpKnowledgeSearchAdapter } from './shared/retrieval/knowledge-search-adapter.js';
 import { createKnowledgeStore } from './modules/knowledge/store.js';
-import { createBugInvestigationStore } from './modules/bug-investigation/store.js';
-import { createBugInvestigationService } from './modules/bug-investigation/service.js';
 import { loadPresets } from './modules/chat/presets.js';
 import { createResearchNewStore } from './modules/research-new/store.js';
 import { readGraphScope } from './modules/research-new/graph-scope.js';
@@ -32,15 +30,12 @@ import { createSafeHttpsReader } from './infrastructure/web-reading/safe-request
 import { createWebDocumentReader } from './infrastructure/web-reading/reader.js';
 import { createTavilyWebSearchProvider } from './infrastructure/web-search/provider.js';
 import { createChatRouter } from './modules/chat/routes.js';
-import { createBugKnowledgeRouter } from './modules/bug-knowledge/routes.js';
-import { createBugInvestigationRouter } from './modules/bug-investigation/routes.js';
 import { createKnowledgeRouter } from './modules/knowledge/routes.js';
 import { createMemoryRouter } from './modules/memory/routes.js';
 import { createResearchNewRouter } from './modules/research-new/routes.js';
 import { createSystemRouter } from './modules/system/routes.js';
 import { createRunStore } from './modules/chat/run-store.js';
 import { parsePricing } from './modules/chat/run-utils.js';
-import { createBugInvestigationAiService } from './modules/bug-investigation/ai-analyzer.js';
 import { createToolExecutor } from './shared/agent-tools/catalog.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
@@ -104,7 +99,6 @@ const toolExecutor = createToolExecutor({ gateway: mcpGateway });
 const runStore = createRunStore();
 const chatStore = createChatStore();
 const researchNewStore = createResearchNewStore();
-const bugInvestigationStore = createBugInvestigationStore();
 const researchKnowledgeStore = createKnowledgeStore();
 const researchKnowledgeSearch = createMcpKnowledgeSearchAdapter({ toolExecutor });
 const researchNewWebSearchProvider = createTavilyWebSearchProvider();
@@ -150,21 +144,6 @@ const researchNewWorker = {
   }
 };
 const callMcpTool = createRouteMcpCaller({ toolExecutor });
-const callBugMcpTool = createRouteMcpCaller({ toolExecutor, caller: 'bug-ui' });
-const bugInvestigationAiService = createBugInvestigationAiService({
-  qwenClient: config.apiKey ? qwenClient : null,
-  model: config.model
-});
-const bugInvestigationService = createBugInvestigationService({
-  store: bugInvestigationStore,
-  projectExists: async (projectRef) => {
-    const result = await callBugMcpTool('list_bug_projects');
-    return (result.projects || []).some((project) => project.projectRef === projectRef);
-  },
-  searchBugCases: (input) => callBugMcpTool('search_bug_cases', input),
-  analyzeEvidence: bugInvestigationAiService.analyze,
-  createBugCase: (input) => callBugMcpTool('create_bug_case', input)
-});
 const chatOrchestrator = createChatOrchestrator({
   qwenClient,
   mcpGateway,
@@ -211,8 +190,6 @@ const app = createApp({
     webSearchConfigured: researchNewEngine === 'sidecar' || researchNewWebSearchProvider.configured
   }),
   knowledgeRouter: createKnowledgeRouter({ callMcpTool }),
-  bugKnowledgeRouter: createBugKnowledgeRouter({ callMcpTool: callBugMcpTool }),
-  bugInvestigationRouter: createBugInvestigationRouter({ investigationService: bugInvestigationService }),
   memoryRouter: createMemoryRouter({
     callMcpTool,
     syncMemoryProjection: (id, memory) => chatStore.syncMemoryCandidateProjection(id, memory)
@@ -232,7 +209,6 @@ async function shutdown(signal) {
   console.log(`[server] received ${signal}, shutting down`);
   httpServer.close();
   chatStore.close();
-  bugInvestigationStore.close();
   researchNewStore.close();
   researchKnowledgeStore.close();
   await mcpSessionManager.close();
