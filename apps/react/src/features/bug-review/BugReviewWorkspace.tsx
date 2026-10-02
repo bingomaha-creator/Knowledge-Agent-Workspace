@@ -82,8 +82,9 @@ function Material({material}:{material:ReviewMaterial|null}) {
 }
 function DocumentView({document,material}:{document:ReviewDocument;material?:ReviewMaterial|null}) {
   return <><Article aria-label="复盘正文">
-    {([['问题现象',document.symptom],['根因',document.root_cause.content],['修复方案',document.fix_solution],['验证依据',document.validation],['规避措施',document.prevention]] as const).map(([title,value])=><Chapter key={title}><ChapterTitle>{title}</ChapterTitle><Text>{value || '未提供'}</Text>
+    {([['问题现象',document.symptom],['根因',document.root_cause.content],['影响评估',document.impact.scope],['修复方案',document.fix_solution],['验证依据',document.validation],['规避措施',document.prevention]] as const).map(([title,value])=><Chapter key={title}><ChapterTitle>{title}</ChapterTitle><Text>{value || '未提供'}</Text>
       {title==='根因' && <><Subtle>判断依据：{({fact:'材料事实（仍需核对）',inference:'推断，待确认',human:'人工补充'} as const)[document.root_cause.basis]}</Subtle><Citation reference={document.root_cause.source} material={material} label="查看根因依据"/></>}
+      {title==='影响评估' && <><Subtle>受影响用户：{document.impact.affected_users || '待确认'} · 严重程度：{document.impact.severity==='unknown'?'待确认':document.impact.severity}</Subtle><Subtle>变更文件范围不代表实际故障影响；评级由审核者结合证据确认。</Subtle></>}
     </Chapter>)}
     {document.human_notes && <Chapter><ChapterTitle>人工补充</ChapterTitle><Text>{document.human_notes}</Text></Chapter>}
   </Article><Quality document={document}/>
@@ -112,6 +113,10 @@ function Editor({review, busy, onSave, onCancel, onDirtyChange}:{review:BugRevie
     {selectedSource && <Details><summary>查看所选来源原文</summary><a href={selectedSource.url} target="_blank" rel="noreferrer">打开来源</a><Code>{selectedSource.text}</Code></Details>}
     <Label>根因原文引用<Textarea value={document.root_cause.source.snippet || ''} disabled={disabled} onChange={e=>setDocument({...document,root_cause:{...document.root_cause,source:{...document.root_cause.source,snippet:e.target.value}}})}/></Label>
     </Details>
+    <Label>影响范围<Textarea value={document.impact.scope} disabled={disabled} onChange={e=>setDocument({...document,impact:{...document.impact,scope:e.target.value}})}/></Label>
+    <Label>受影响用户<Input value={document.impact.affected_users || ''} disabled={disabled} onChange={e=>setDocument({...document,impact:{...document.impact,affected_users:e.target.value || null}})}/></Label>
+    <Label>严重程度<Select value={document.impact.severity} disabled={disabled} onChange={e=>setDocument({...document,impact:{...document.impact,severity:e.target.value}})}><option value="unknown">待确认</option>{['P0','P1','P2','P3'].map(severity=><option key={severity} value={severity}>{severity}</option>)}</Select></Label>
+    <Subtle>请依据实际影响补充用户范围与评级；缺少证据时保留待确认。</Subtle>
     {field('fix_solution','修复方案')}{field('prevention','规避措施')}{field('validation','验证依据')}{field('human_notes','人工补充背景')}
     <Label>关键词（逗号分隔）<Input value={document.keywords.join(', ')} disabled={disabled} onChange={e=>setDocument({...document,keywords:e.target.value.split(/[,，]/).map(x=>x.trim()).filter(Boolean)})}/></Label>
     <Label>证据完整性<Select value={document.completeness} disabled={disabled} onChange={e=>setDocument({...document,completeness:e.target.value as ReviewDocument['completeness']})}><option value="incomplete">证据不完整</option><option value="complete">证据完整（由审核者判断）</option></Select></Label>

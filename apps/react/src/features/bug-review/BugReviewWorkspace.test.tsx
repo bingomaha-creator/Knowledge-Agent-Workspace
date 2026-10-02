@@ -10,7 +10,7 @@ import { BugReview as BugReviewPage } from '@/pages/BugReview';
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllGlobals();});
 
 it('opens the published snapshot instead of an unpublished working draft', async () => {
-  const document = {title:'工作稿新标题',symptom:'尚未发布的现象',root_cause:{content:'待确认',basis:'inference',source:{}},impact:{scope:'upload',severity:'P2'},fix_solution:'处理异常',prevention:'建议增加测试',related_modules:[],keywords:[],source_refs:[],completeness:'incomplete',gaps:['根因待确认'],human_notes:''};
+  const document = {title:'工作稿新标题',symptom:'尚未发布的现象',root_cause:{content:'待确认',basis:'inference',source:{}},impact:{scope:'upload',severity:'unknown'},fix_solution:'处理异常',prevention:'建议增加测试',related_modules:[],keywords:[],source_refs:[],completeness:'incomplete',gaps:['根因待确认'],human_notes:''};
   const review = {id:'demo',identity:{owner:'a',repo:'b',number:1,url:'https://github.com/a/b/pull/1'},revision:2,status:'draft',document,candidate:null,material:{sources:[],gaps:[]},history:[],published:{document:{...document,title:'已发布的复盘',symptom:'已发布的现象'},material:{sources:[],gaps:[]},published_at:'2026-10-01T10:00:00Z',revision:1},task:{id:'t',status:'completed',error:null,operation:'import'}} as unknown as BugReview;
   review.material = {sources:[{id:'pr',type:'pr_body',url:review.identity.url,text:'重新采集的新材料'}],gaps:['最新材料仍有缺口']};
   vi.spyOn(bugReviewApi,'list').mockResolvedValue([]);
@@ -19,6 +19,8 @@ it('opens the published snapshot instead of an unpublished working draft', async
   render(<QueryClientProvider client={client}><BugReviewWorkspace section="review" selectedId="demo" query="" onNavigate={vi.fn()} /></QueryClientProvider>);
   expect(await screen.findByRole('heading',{name:'已发布的复盘'})).toBeInTheDocument();
   expect(screen.getByText('已发布的现象')).toBeInTheDocument();
+  expect(screen.getByRole('heading',{name:'影响评估'})).toBeInTheDocument();
+  expect(screen.getByText('受影响用户：待确认 · 严重程度：待确认')).toBeInTheDocument();
   expect(screen.queryByText('尚未发布的现象')).not.toBeInTheDocument();
   expect(screen.queryByRole('textbox',{name:'标题'})).not.toBeInTheDocument();
   const user = userEvent.setup();
@@ -50,11 +52,15 @@ it('keeps incomplete evidence visible and requires saving edits before approval'
   await user.click(screen.getByRole('button',{name:'编辑复盘'}));
   await user.clear(screen.getByLabelText('标题'));
   await user.type(screen.getByLabelText('标题'),'人工修订');
+  await user.clear(screen.getByLabelText('影响范围'));
+  await user.type(screen.getByLabelText('影响范围'),'人工核对的上传影响');
+  await user.type(screen.getByLabelText('受影响用户'),'测试用户');
+  await user.selectOptions(screen.getByLabelText('严重程度'),'unknown');
   expect(screen.queryByRole('button',{name:'审核通过'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'丢弃新结果'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'重试采集与生成'})).not.toBeInTheDocument();
   await user.click(screen.getByRole('button',{name:'保存草稿'}));
-  await waitFor(() => expect(action).toHaveBeenCalledWith('demo','edit',expect.objectContaining({document:expect.objectContaining({title:'人工修订'})})));
+  await waitFor(() => expect(action).toHaveBeenCalledWith('demo','edit',expect.objectContaining({document:expect.objectContaining({title:'人工修订',impact:{scope:'人工核对的上传影响',affected_users:'测试用户',severity:'unknown'}})})));
   expect(await screen.findByRole('heading',{name:'人工修订'})).toBeInTheDocument();
   expect(screen.queryByRole('textbox',{name:'标题'})).not.toBeInTheDocument();
   vi.restoreAllMocks();
