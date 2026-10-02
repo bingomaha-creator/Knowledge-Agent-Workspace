@@ -92,7 +92,11 @@ class Pipeline:
                     self.save(review)
                 document = self.extractor.generate(material)
                 material['generated_document'] = deepcopy(document)
-                document = self.validate_document(document, material)
+                with self.lock:
+                    review = self.get(review_id)
+                    review['material'] = deepcopy(material)
+                    self.save(review)
+                document = self.validate_document(document, material, generated=True)
                 with self.lock:
                     review = self.get(review_id)
                     review['material'] = material
@@ -115,7 +119,7 @@ class Pipeline:
                     'message': error.message if isinstance(error, ReviewError) else '任务失败，已保存的内容保留。'})
                 self.save(review)
 
-    def validate_document(self, document, material, human=False):
+    def validate_document(self, document, material, human=False, generated=False):
         if not isinstance(document, dict):
             raise ReviewError('INVALID_DOCUMENT', '复盘必须是结构化对象。', 422)
         doc = deepcopy(document)
@@ -146,13 +150,14 @@ class Pipeline:
         for key in ['gaps', 'keywords', 'related_modules']:
             if any(not isinstance(x, str) for x in doc[key]):
                 raise ReviewError('INVALID_DOCUMENT', key + ' 必须是字符串数组。', 422)
-        sources = {x['id']: x for x in (material or {}).get('sources', [])}
+        snapshot = material or {}
+        sources = {x['id']: x for x in snapshot.get('model_sources' if generated and 'model_sources' in snapshot else 'sources', [])}
         gaps = list((material or {}).get('gaps', [])) + list((material or {}).get('model_gaps', [])) + doc['gaps']
         def bind(ref):
             if not isinstance(ref, dict):
                 raise ReviewError('INVALID_DOCUMENT', '来源格式错误。', 422)
             sid, snippet = ref.get('location'), ref.get('snippet')
-            if sid in sources and isinstance(snippet, str) and snippet.strip() and snippet.replace('\r\n', '\n') in sources[sid]['text'].replace('\r\n', '\n'):
+            if isinstance(sid, str) and sid in sources and isinstance(snippet, str) and snippet.strip() and snippet.replace('\r\n', '\n') in sources[sid]['text'].replace('\r\n', '\n'):
                 return {**ref, 'source_id': sid, 'url': sources[sid]['url'], 'type': sources[sid]['type']}
             return None
         root_ref = bind(root.get('source') or {})
@@ -161,6 +166,73 @@ class Pipeline:
         if any(ref is None for ref in refs):
             gaps.append('生成或提交的部分来源无法与原文绑定，已移除。')
         doc['source_refs'] = [ref for ref in refs if ref]
+        if generated:
+            # A matching quote proves traceability, not semantic entailment. Keep
+            # reported evidence verbatim and leave independent verification to humans.
+            evidence = doc.pop('evidence', {})
+            evidence = evidence if isinstance(evidence, dict) else {}
+            def grounded_refs(value, allowed):
+                if not isinstance(value, list):
+                    return []
+                result = []
+                for ref in value:
+                    bound = bind(ref) if isinstance(ref, dict) else None
+                    if bound and bound['type'] in allowed:
+                        source_text = sources[bound['source_id']]['text'].replace('\r\n', '\n')
+                        title = snapshot.get('pr', {}).get('title', '').strip()
+                        # The collector prepends the PR title to its body source.
+                        # A title (or any substring of it) is no independent report.
+                        if bound['source_id'] == 'pr':
+                            source_text = source_text.partition('\n')[2]
+                        elif source_text.strip() == title:
+                            source_text = ''
+                        if bound['snippet'].replace('\r\n', '\n') not in source_text:
+                            continue
+                        if bound not in result:
+                            result.append(bound)
+                        if bound not in doc['source_refs']:
+                            doc['source_refs'].append(bound)
+                return result
+            narrative = {'pr_body', 'pr_comment', 'commit_message', 'issue', 'log'}
+            symptom = evidence.get('symptom', {})
+            symptom = symptom if isinstance(symptom, dict) else {}
+            symptom_refs = grounded_refs(symptom.get('sources'), narrative | ({'diff'} if symptom.get('basis') == 'inference' else set()))
+            if symptom.get('basis') == 'fact' and symptom_refs:
+                doc['symptom'] = '作者材料原文（本模块未独立复现）：\n' + '\n'.join(ref['snippet'] for ref in symptom_refs)
+            elif symptom.get('basis') == 'inference' and symptom_refs and doc['symptom'].strip():
+                doc['symptom'] = '代码推断，待复现：' + doc['symptom']
+                gaps.append('问题现象属于推断，尚无明确运行记录。')
+            else:
+                doc['symptom'] = '未提供明确的故障现象或运行记录。'
+                gaps.append('问题现象缺少独立依据，未采用模型的确定性描述。')
+            validation_refs = grounded_refs(evidence.get('validation'), narrative)
+            validation = ['作者报告（本模块未执行验证）：' + ref['snippet'] for ref in validation_refs]
+            checks = snapshot.get('checks', [])
+            if checks:
+                validation.append('GitHub 检查状态（不证明根因或本模块复现）：\n' + '\n'.join(
+                    str(check.get('context') or '未命名检查') + ': ' + str(check.get('state') or '未知') for check in checks))
+            if not validation:
+                validation = ['未提供可追溯的验证结果；本模块未执行目标仓库构建或测试。']
+                gaps.append('验证结论缺少独立依据，未采用模型的验证成功描述。')
+            doc['validation'] = '\n'.join(validation)
+            prevention = evidence.get('prevention', {})
+            prevention = prevention if isinstance(prevention, dict) else {}
+            implemented = grounded_refs(prevention.get('implemented'), narrative | {'diff'})
+            suggestions = prevention.get('suggestions', [])
+            suggestions = [x.strip() for x in suggestions if isinstance(x, str) and x.strip()] if isinstance(suggestions, list) else []
+            lines = [('变更证据（落实范围需人工核对）：' if ref['type'] == 'diff' else '作者报告的措施（未独立核验）：') + ref['snippet'] for ref in implemented]
+            lines += ['建议（尚未确认落实）：' + text for text in suggestions]
+            doc['prevention'] = '\n'.join(lines) or '建议：补充实际故障和修复验证记录，审核后再发布。'
+            if not implemented:
+                gaps.append('没有已落实规避措施的独立证据，仅保留建议。')
+            if root['basis'] == 'fact' and root_ref and (
+                root_ref['type'] in {'diff', 'ci'} or
+                sources[root_ref['source_id']]['text'].strip() == snapshot.get('pr', {}).get('title', '').strip() or
+                (root_ref['source_id'] == 'pr' and root_ref['snippet'].replace('\r\n', '\n') not in
+                 sources['pr']['text'].replace('\r\n', '\n').partition('\n')[2])
+            ):
+                root['basis'] = 'inference'
+                gaps.append('根因引用仅为代码变更、检查状态或 PR 标题，按推断处理。')
         if root['basis'] == 'fact' and not root_ref:
             root['basis'] = 'inference'
         if root['basis'] != 'human' and not root_ref:

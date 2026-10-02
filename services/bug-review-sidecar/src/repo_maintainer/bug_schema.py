@@ -119,12 +119,15 @@ class BugReviewDocument:
     completeness: str = "incomplete"
     gaps: list[str] = field(default_factory=list)
     basis: str = "inference"
+    # Generation-only evidence; the pipeline stores it with the material snapshot.
+    evidence: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "symptom": self.symptom, "validation": self.validation,
             "completeness": self.completeness, "gaps": self.gaps,
             "basis": self.basis,
+            "evidence": self.evidence,
             "title": self.title,
             "root_cause": self.root_cause.to_dict(),
             "impact": self.impact.to_dict(),
@@ -151,6 +154,7 @@ class BugReviewDocument:
         return cls(
             symptom=data.get("symptom", ""), validation=data.get("validation", "未提供验证依据"),
             completeness=data.get("completeness", "incomplete"), gaps=list(data.get("gaps", [])), basis=data.get("basis", "inference"),
+            evidence=data.get("evidence", {}),
             title=data.get("title", ""),
             root_cause=RootCause.from_dict(data.get("root_cause", {})),
             impact=Impact.from_dict(data.get("impact", {})),
@@ -265,7 +269,7 @@ BUG_REVIEW_JSON_SCHEMA = {
                     "properties": {
                         "type": {
                             "type": "string",
-                            "enum": ["pr_comment", "commit_message", "log", "chat", "manual"]
+                            "enum": ["pr_body", "pr_comment", "commit_message", "diff", "ci", "issue", "log", "chat", "manual"]
                         },
                         "location": {"type": "string"},
                         "snippet": {"type": "string", "description": "必须引用原始文本片段"}
@@ -331,6 +335,21 @@ BUG_REVIEW_JSON_SCHEMA["properties"].update({
     "gaps": {"type": "array", "items": {"type": "string"}},
     "basis": {"type": "string", "enum": ["fact", "inference", "human"]},
 })
+
+_EVIDENCE_REFS = BUG_REVIEW_JSON_SCHEMA["properties"]["source_refs"]
+BUG_REVIEW_JSON_SCHEMA["properties"]["evidence"] = {
+    "type": "object",
+    "required": ["symptom", "validation", "prevention"],
+    "properties": {
+        "symptom": {"type": "object", "required": ["basis", "sources"], "properties": {
+            "basis": {"type": "string", "enum": ["fact", "inference", "unknown"]},
+            "sources": _EVIDENCE_REFS}},
+        "validation": _EVIDENCE_REFS,
+        "prevention": {"type": "object", "required": ["implemented", "suggestions"], "properties": {
+            "implemented": _EVIDENCE_REFS,
+            "suggestions": {"type": "array", "items": {"type": "string"}}}},
+    },
+}
 
 def validate_bug_review_document(data: dict[str, Any]) -> tuple[bool, list[str]]:
     """

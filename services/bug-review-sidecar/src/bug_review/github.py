@@ -9,6 +9,25 @@ class ReviewError(Exception):
         self.code, self.message, self.status = code, message, status
         super().__init__(message)
 
+def select_sources(sources, budget):
+    """Reserve background space, then share each group's budget across sources."""
+    background = [s for s in sources if s['type'] != 'diff']
+    diffs = [s for s in sources if s['type'] == 'diff']
+    background_size = sum(len(s['text']) for s in background)
+    diff_size = sum(len(s['text']) for s in diffs)
+    background_budget = min(background_size, budget if not diffs else budget // 3)
+    diff_budget = min(diff_size, budget - background_budget)
+    background_budget = min(background_size, budget - diff_budget)
+    slices = {}
+    for group, remaining in [(background, background_budget), (diffs, diff_budget)]:
+        # Short sources remain whole; large files share the remaining space.
+        ordered = sorted(group, key=lambda s: len(s['text']))
+        for index, source in enumerate(ordered):
+            text = source['text'][:remaining // (len(ordered) - index)]
+            remaining -= len(text)
+            slices[source['id']] = text
+    return [{**source, 'text': slices[source['id']]} for source in sources]
+
 def parse_pr_url(value):
     try:
         parsed = urlsplit(value.strip())
@@ -69,15 +88,8 @@ class GitHubCollector:
         if not pr.get('merged'):
             raise ReviewError('PR_NOT_MERGED', '第一阶段仅支持已合入的 PR。', 422)
         gaps, sources = [], []
-        remaining = self.max_chars
         def source(source_id, kind, url, text):
-            nonlocal remaining
-            text = text or ''
-            accepted = text[:max(0, remaining)]
-            remaining -= len(accepted)
-            if len(accepted) < len(text):
-                gaps.append(f'{source_id} 超过材料字符预算，已截断。')
-            sources.append({'id': source_id, 'type': kind, 'url': url, 'text': accepted})
+            sources.append({'id': source_id, 'type': kind, 'url': url, 'text': text or ''})
         source('pr', 'pr_body', pr['html_url'], (pr.get('title') or '') + '\n' + (pr.get('body') or ''))
         if not pr.get('body'):
             gaps.append('PR 描述为空，修复背景需要人工补充。')
@@ -127,8 +139,11 @@ class GitHubCollector:
                 source('ci', 'ci', pr['html_url'] + '/checks', __import__('json').dumps(checks, ensure_ascii=False))
             except ReviewError as error:
                 gaps.append('CI 辅助材料获取失败：' + error.message)
+        selected = select_sources(sources, self.max_chars)
+        gaps += [source['id'] + ' 超过材料字符预算，已截断。' for source, kept in zip(sources, selected)
+                 if len(source['text']) != len(kept['text'])]
         return {'pr': {key: pr.get(key) for key in ['title', 'body', 'html_url', 'merged', 'merged_at', 'merge_commit_sha', 'number']},
                 'identity': identity, 'head_sha': sha, 'base_sha': pr.get('base', {}).get('sha'),
                 'collected_at': datetime.now(timezone.utc).isoformat(),
                 'files': [{key: item.get(key) for key in ['filename', 'status', 'additions', 'deletions', 'sha']} for item in files],
-                'sources': sources, 'gaps': gaps, 'checks': checks}
+                'sources': selected, 'gaps': gaps, 'checks': checks}

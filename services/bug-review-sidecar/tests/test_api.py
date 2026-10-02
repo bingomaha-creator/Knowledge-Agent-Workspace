@@ -141,6 +141,7 @@ def test_refresh_keeps_draft_source_snapshot_and_human_corrections(tmp_path):
         doc['root_cause'].update(content='经审核补充根因',basis='human')
         doc['human_notes']='人工核对测试与修复过程'
         doc['gaps']=[]
+        doc['completeness']='complete'
         edited = client.post(url+'/edit',json={'revision':approved['revision'],'document':doc}).json()['review']
         assert edited['document']['completeness'] == 'complete'
 

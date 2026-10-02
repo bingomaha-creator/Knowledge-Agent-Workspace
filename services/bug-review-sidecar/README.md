@@ -50,7 +50,15 @@ source execution, webhook, full CI logs, arbitrary external pages or repair acti
 Missing bodies, patches, auxiliary fetch errors, CI gaps and budget truncations
 remain visible in evidence gaps. Linked issues currently come from explicit closing
 references in the PR body; externally managed/development-only associations are
-not discovered. Evidence completeness never implies semantic proof.
+not discovered. Evidence completeness never implies semantic proof. Collection and model budgets
+reserve space for background and share the rest across diffs; each truncation is
+disclosed. Generated author reports remain verbatim and labelled as unverified;
+CI states come from collected checks. Unsupported validation claims are replaced
+with missing-evidence wording. Title-only quotes cannot support these claims;
+symptom inferences also require a traceable quote. Implemented measures require source quotes; advice
+is labelled as suggestions. Internal generation evidence is stored in the raw
+material snapshot, without changing the frontend document contract. These checks
+do not establish semantic truth, and never overwrite existing drafts automatically.
 
 `data/reviews/*.json`: authoritative material, draft, candidate, task, history and
 published snapshot; `review_records.json`: upstream audit mirror; `index.sqlite`:

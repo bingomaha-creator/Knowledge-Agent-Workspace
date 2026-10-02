@@ -30,6 +30,17 @@ Migration changes:
   snippets; inference is not a fact check.
 - Remove hidden 4k context/10-file truncation from the retained extractor;
   explicit collection/model budgets disclose every truncation in the snapshot.
+  Both budgets now reserve background space and share diff space fairly, retaining
+  short sources instead of letting the first large file consume all context.
+- The retained extractor prompt explains unified diff markers and requests
+  generation-only evidence for symptoms, verification and prevention. The pipeline
+  preserves raw output before governance, uses author quotes verbatim, renders
+  actual CI states, and drops unsupported verification/implemented claims. Title-only
+  quotes are excluded from symptom/validation/prevention evidence, and inferred
+  symptoms also require a bound quote. Code,
+  CI and title-only root evidence cannot promote a generated root cause to fact.
+  This is conservative source governance, not semantic entailment verification;
+  human editing and approval remain separate and existing snapshots are preserved.
 - JSON records and Markdown write atomically; Markdown names use full review ID.
 - Case JSON is authoritative for work稿, candidate and published snapshots;
   the original review engine handles allowed approval transitions and provides

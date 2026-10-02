@@ -48,3 +48,31 @@ def test_unmerged_pr_rejected():
     with pytest.raises(ReviewError) as error:
         collector.collect(parse_pr_url('https://github.com/a/b/pull/1'))
     assert error.value.code == 'PR_NOT_MERGED'
+
+
+def test_collection_budget_keeps_background_after_large_diff():
+    def handler(request):
+        path = request.url.path
+        if path.endswith('/pulls/8'):
+            return httpx.Response(200, json={'merged': True, 'title': 'Restore sources', 'body': '',
+                'html_url': 'https://github.com/a/b/pull/8', 'head': {'sha': 'head'}})
+        if path.endswith('/files'):
+            return httpx.Response(200, json=[{'filename': 'large.vue', 'patch': '+' + 'x' * 20000},
+                {'filename': '.gitignore', 'patch': '-research/\n+/research/'}])
+        if path.endswith('/comments'):
+            return httpx.Response(200, json=[{'id': 1, 'body': 'Author reported reproduction.'}])
+        if path.endswith('/commits'):
+            return httpx.Response(200, json=[{'sha': 'fix', 'commit': {'message': 'Limit ignore scope to root.'}}])
+        if path.endswith('/status'):
+            return httpx.Response(200, json={'statuses': []})
+        if path.endswith('/check-runs'):
+            return httpx.Response(200, json={'check_runs': []})
+        return httpx.Response(200, json=[])
+    collector = GitHubCollector(client=httpx.Client(transport=httpx.MockTransport(handler)), max_chars=500)
+    material = collector.collect(parse_pr_url('https://github.com/a/b/pull/8'))
+    selected = {s['id']: s['text'] for s in material['sources']}
+    assert selected['comments:1'] == 'Author reported reproduction.'
+    assert selected['commits:fix'] == 'Limit ignore scope to root.'
+    assert '-research/\n+/research/' in selected['file:1']
+    assert sum(len(s['text']) for s in material['sources']) <= 500
+    assert any('file:0 超过材料字符预算' in gap for gap in material['gaps'])
