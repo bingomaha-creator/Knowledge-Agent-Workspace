@@ -1,12 +1,11 @@
 export type WorkspaceModule = {
-  path: 'chat' | 'knowledge' | 'memory' | 'bugs' | 'research-new' | 'bug-review';
+  path: 'chat' | 'knowledge' | 'memory' | 'research-new' | 'bug-review';
   label: string;
   eyebrow: string;
   description: string;
 };
 
 export const workspaceModules: readonly WorkspaceModule[] = [
-  { path: 'bug-review', label: 'Bug 复盘（试用）', eyebrow: 'BUG REVIEW', description: '从已合入 PR 沉淀修复经验。' },
   {
     path: 'chat',
     label: '对话',
@@ -26,10 +25,10 @@ export const workspaceModules: readonly WorkspaceModule[] = [
     description: '候选、人工审核与相关记忆召回。'
   },
   {
-    path: 'bugs',
-    label: 'Bug 案例',
-    eyebrow: 'BUG AGENT',
-    description: '现场证据、根因假设与案例沉淀。'
+    path: 'bug-review',
+    label: 'Bug 复盘',
+    eyebrow: 'BUG REVIEW',
+    description: '从已合入 PR 沉淀可检索的修复经验。'
   },
   {
     path: 'research-new',
@@ -40,6 +39,9 @@ export const workspaceModules: readonly WorkspaceModule[] = [
 ];
 
 export function findWorkspaceModule(pathname: string) {
+  if (pathname === '/bugs' || pathname.startsWith('/bugs/')) {
+    return getWorkspaceModule('bug-review');
+  }
   if (pathname === '/research' || pathname.startsWith('/research/')) {
     return getWorkspaceModule('research-new');
   }

@@ -5,7 +5,7 @@ import {
 } from 'react-router';
 import { App } from './App';
 import { BugReview } from '@/pages/BugReview';
-import { BugAgent } from '@/pages/BugAgent';
+import { BugRetired } from '@/pages/BugRetired';
 import { Chat } from '@/pages/Chat';
 import { Knowledge } from '@/pages/Knowledge';
 import { Memory } from '@/pages/Memory';
@@ -56,7 +56,11 @@ export const workspaceRoutes: RouteObject[] = [
       },
       {
         path: 'bugs/:section?/:recordId?',
-        element: <BugAgent />
+        element: <BugRetired />
+      },
+      {
+        path: 'bugs/*',
+        element: <BugRetired />
       },
       {
         path: '*',

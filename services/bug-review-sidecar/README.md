@@ -3,8 +3,10 @@
 Manual merged GitHub PR → real material → existing Qwen configuration → editable
 review → approval → published Markdown + upstream BM25 case search.
 
-Independent from Research and the old Bug investigation runtime. Temporary React
-entry: `/bug-review/review`; published case library: `/bug-review/library`.
+Independent from Research and the old Bug investigation runtime. The formal React
+entry is `/bug-review` (published library); import and review: `/bug-review/review`.
+Legacy lists redirect here; legacy records display a retirement notice. Old data
+is retained separately and is not mapped to new review IDs.
 
 ## Setup
 
@@ -64,5 +66,6 @@ npm run check:react
 ```
 
 See UPSTREAM.md for retained code, baseline failures and necessary changes.
-Real Qwen/GitHub acceptance is distinct from these connector-stub tests; manual
-root-cause review and an authorized private PR are required before retiring old UI.
+Real Qwen/GitHub acceptance is distinct from these connector-stub tests; the user
+authorized the formal Demo entry after inspecting public PR cases on 2026-10-02.
+Private PR acceptance remains pending; incomplete evidence remains labelled.

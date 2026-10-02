@@ -49,22 +49,17 @@ describe('MessageCard', () => {
     expect(screen.getByText(/生成最终回答/)).toBeInTheDocument();
   });
 
-  it('publishes stable cross-module intents from a user message', async () => {
+  it('keeps the Research intent while retiring Bug investigation', async () => {
     const onStartResearch = vi.fn();
-    const onStartBugInvestigation = vi.fn();
     renderCard(<MessageCard
       message={message({ id: 'user-1', role: 'user', content: 'TypeError: failed' })}
       onStartResearch={onStartResearch}
-      onStartBugInvestigation={onStartBugInvestigation}
     />);
 
     await userEvent.click(screen.getByRole('button', { name: '转为深度研究' }));
-    await userEvent.click(screen.getByRole('button', { name: '转为 Bug 调查' }));
+    expect(screen.queryByRole('button', { name: '转为 Bug 调查' })).not.toBeInTheDocument();
     expect(onStartResearch).toHaveBeenCalledWith({
       question: 'TypeError: failed', sourceMessageId: 'user-1'
-    });
-    expect(onStartBugInvestigation).toHaveBeenCalledWith({
-      content: 'TypeError: failed', sourceMessageId: 'user-1'
     });
   });
 

@@ -31,11 +31,7 @@ type ChatWorkspaceProps = {
     sourceMessageId: string;
     knowledgeBaseIds: string[];
   }) => void;
-  onStartBugInvestigation?: (seed: {
-    content: string;
-    sourceSessionId?: string;
-    sourceMessageId: string;
-  }) => void;
+
 };
 
 const Workspace = styled.section`
@@ -89,8 +85,7 @@ function streamStatusLabel(status: ReturnType<typeof useChatStreamStore.getState
 export function ChatWorkspace({
   sessionId,
   onSessionAccepted,
-  onStartResearch,
-  onStartBugInvestigation
+  onStartResearch
 }: ChatWorkspaceProps) {
   const queryClient = useQueryClient();
   const sessionQuery = useChatSession(sessionId);
@@ -269,10 +264,6 @@ export function ChatWorkspace({
           ...seed,
           sourceSessionId: sessionId,
           knowledgeBaseIds
-        })}
-        onStartBugInvestigation={(seed) => onStartBugInvestigation?.({
-          ...seed,
-          sourceSessionId: sessionId
         })}
         onReviewMemory={(messageId, memoryId, decision) => {
           void updateMemoryCandidate(messageId, memoryId, { status: decision });

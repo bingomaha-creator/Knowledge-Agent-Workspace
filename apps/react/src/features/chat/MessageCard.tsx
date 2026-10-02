@@ -22,7 +22,6 @@ type MessageCardProps = {
   message: ChatMessage;
   memoryBusy?: boolean;
   onStartResearch?: (seed: { question: string; sourceMessageId: string }) => void;
-  onStartBugInvestigation?: (seed: { content: string; sourceMessageId: string }) => void;
   onReviewMemory?: (
     messageId: string,
     memoryId: string,
@@ -293,7 +292,6 @@ export function MessageCard({
   message,
   memoryBusy = false,
   onStartResearch,
-  onStartBugInvestigation,
   onReviewMemory,
   onCorrectMemory,
   onReadingStart
@@ -335,9 +333,6 @@ export function MessageCard({
           <button type="button" onClick={() => onStartResearch?.({
             question: message.content.trim(), sourceMessageId: message.id
           })}>转为深度研究</button>
-          <button type="button" onClick={() => onStartBugInvestigation?.({
-            content: message.content.trim(), sourceMessageId: message.id
-          })}>转为 Bug 调查</button>
         </SecondaryActions>
       ) : null}
 

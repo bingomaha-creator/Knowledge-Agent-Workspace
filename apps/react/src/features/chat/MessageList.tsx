@@ -13,7 +13,6 @@ type MessageListProps = {
   streamAssistantMessageId?: string | null;
   memoryBusyIds?: Set<string>;
   onStartResearch?: (seed: { question: string; sourceMessageId: string }) => void;
-  onStartBugInvestigation?: (seed: { content: string; sourceMessageId: string }) => void;
   onReviewMemory?: (
     messageId: string,
     memoryId: string,
@@ -88,7 +87,6 @@ export function MessageList({
   streamAssistantMessageId,
   memoryBusyIds = new Set(),
   onStartResearch,
-  onStartBugInvestigation,
   onReviewMemory,
   onCorrectMemory
 }: MessageListProps) {
@@ -136,7 +134,6 @@ export function MessageList({
             message={message}
             memoryBusy={memoryBusyIds.has(message.id)}
             onStartResearch={onStartResearch}
-            onStartBugInvestigation={onStartBugInvestigation}
             onReviewMemory={onReviewMemory}
             onCorrectMemory={onCorrectMemory}
             onReadingStart={() => setIsAtBottom(false)}

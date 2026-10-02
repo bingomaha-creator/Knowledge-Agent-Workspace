@@ -14,19 +14,6 @@ export function Chat() {
       onStartResearch={(chatSeed) => {
         navigate('/research-new/new', { state: { researchDraftSeed: chatSeed } });
       }}
-      onStartBugInvestigation={(chatSeed) => {
-        const firstLine = chatSeed.content.split('\n').find((line) => line.trim())?.trim() || '';
-        navigate('/bugs/investigations/new', {
-          state: {
-            bugInvestigationSeed: {
-              title: firstLine.slice(0, 120),
-              evidence: { type: 'error', content: chatSeed.content },
-              sourceMessageId: chatSeed.sourceMessageId,
-              sourceSessionId: chatSeed.sourceSessionId
-            }
-          }
-        });
-      }}
     />
   );
 }

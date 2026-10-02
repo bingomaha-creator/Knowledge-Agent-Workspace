@@ -1,5 +1,5 @@
 import { QueryClient } from '@tanstack/react-query';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { createMemoryRouter, RouterProvider } from 'react-router';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppProviders } from './providers';
@@ -61,11 +61,8 @@ beforeEach(() => {
     if (url === '/api/memories?status=candidate&limit=1&offset=0') {
       return new Response(JSON.stringify({ memories: [], total: 0 }), { status: 200 });
     }
-    if (url === '/api/bug-projects') {
-      return Response.json({ projects: [{
-        projectRef: 'project-a', knowledgeBaseId: 'kb-a', name: '结算系统', description: '',
-        kind: 'project_bugs', bugCaseCount: 0, createdAt: 1, updatedAt: 1
-      }] });
+    if (url === '/api/bug-review/reviews' || url === '/api/bug-review/library?q=') {
+      return Response.json({ reviews: [] });
     }
     throw new Error(`Unexpected request: ${url}`);
   }));
@@ -102,11 +99,47 @@ describe('React workspace shell', () => {
     expect(screen.getByText('从左侧选择一条记忆查看详情。')).toBeInTheDocument();
   });
 
-  it('restores a deep Bug Agent work area from the URL', async () => {
-    renderRoute('/bugs/library/case-1?project=project-a');
+  it('exposes one formal Bug review entry in the desktop navigation', async () => {
+    renderRoute('/bug-review');
+    expect(await screen.findByRole('heading', { name: '选择案例开始阅读' })).toBeInTheDocument();
+    expect(screen.getAllByRole('link', { name: 'Bug 复盘' })).toHaveLength(1);
+    expect(screen.getByRole('link', { name: 'Bug 复盘' })).toHaveAttribute('href', '/bug-review');
+    expect(screen.queryByRole('link', { name: 'Bug 案例' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Bug 复盘（试用）' })).not.toBeInTheDocument();
+  });
 
-    expect(await screen.findByRole('heading', { level: 1, name: 'Bug Agent' })).toBeInTheDocument();
-    expect(screen.getByRole('tab', { name: '案例库' })).toHaveAttribute('aria-selected', 'true');
+  it.each([
+    ['/bugs', '/bug-review'],
+    ['/bugs/library', '/bug-review/library'],
+    ['/bugs/review', '/bug-review/review'],
+    ['/bugs/investigations', '/bug-review/review'],
+    ['/bugs/review/new', '/bug-review/review'],
+    ['/bugs/investigations/new', '/bug-review/review']
+  ])('redirects the old Bug entry %s without using the old API', async (path, target) => {
+    const { router } = renderRoute(path);
+    expect(await screen.findByRole('heading', { name: 'Bug 修复经验沉淀' })).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe(target);
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => /\/api\/(bug-projects|bug-cases|bug-investigations)/.test(String(url)))).toBe(false);
+  });
+
+  it.each(['/bugs/library/case-1', '/bugs/review/case-1', '/bugs/investigations/investigation-1', '/bugs/legacy/id/history', '/bugs/unknown', '/bugs/unknown/new', '/bugs/library/new'])('keeps old record identity out of the new module at %s', async path => {
+    renderRoute(path);
+    expect(await screen.findByRole('heading', { name: '旧版 Bug 工作区已退役' })).toBeInTheDocument();
+    expect(screen.getByText('旧记录保留在本地，不会自动迁入新的 PR 复盘。')).toBeInTheDocument();
+    expect(findWorkspaceModule(path)?.path).toBe('bug-review');
+    expect(vi.mocked(fetch).mock.calls.some(([url]) => String(url).includes('/api/bug'))).toBe(false);
+    fireEvent.click(screen.getByRole('button', { name: '进入 Bug 复盘' }));
+    expect(await screen.findByRole('heading', { name: '选择案例开始阅读' })).toBeInTheDocument();
+  });
+
+  it('opens the formal Bug review entry from the mobile navigation', async () => {
+    renderRoute('/chat');
+    fireEvent.click(screen.getByLabelText('打开工作区侧栏'));
+    const dialog = screen.getByRole('dialog', { name: '工作区侧栏' });
+    // happy-dom does not lay out the mobile media query; verify visibility in the browser.
+    fireEvent.click(within(dialog).getByRole('link', { name: /Bug 复盘/, hidden: true }));
+    expect(await screen.findByRole('heading', { name: '选择案例开始阅读' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog', { name: '工作区侧栏' })).not.toBeInTheDocument();
   });
 
   it('routes to the independent Research New workspace', async () => {
