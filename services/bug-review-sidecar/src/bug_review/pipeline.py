@@ -131,7 +131,7 @@ class Pipeline:
             if not isinstance(doc[key], str):
                 raise ReviewError('INVALID_DOCUMENT', key + ' 必须是文本。', 422)
         impact = doc.get('impact')
-        if not isinstance(impact, dict) or not isinstance(impact.get('scope'), str) or impact.get('severity') not in ['P0', 'P1', 'P2', 'P3']:
+        if not isinstance(impact, dict) or not isinstance(impact.get('scope'), str) or impact.get('severity') not in ['P0', 'P1', 'P2', 'P3', 'unknown']:
             raise ReviewError('INVALID_DOCUMENT', '影响评估格式错误。', 422)
         confidence = doc.get('confidence', 0)
         if not isinstance(confidence, (float, int)) or not math.isfinite(confidence) or not 0 <= confidence <= 1:
@@ -196,15 +196,22 @@ class Pipeline:
             narrative = {'pr_body', 'pr_comment', 'commit_message', 'issue', 'log'}
             symptom = evidence.get('symptom', {})
             symptom = symptom if isinstance(symptom, dict) else {}
-            symptom_refs = grounded_refs(symptom.get('sources'), narrative | ({'diff'} if symptom.get('basis') == 'inference' else set()))
-            if symptom.get('basis') == 'fact' and symptom_refs:
+            symptom_refs = grounded_refs(symptom.get('sources'), narrative)
+            if symptom_refs:
                 doc['symptom'] = '作者材料原文（本模块未独立复现）：\n' + '\n'.join(ref['snippet'] for ref in symptom_refs)
-            elif symptom.get('basis') == 'inference' and symptom_refs and doc['symptom'].strip():
-                doc['symptom'] = '代码推断，待复现：' + doc['symptom']
-                gaps.append('问题现象属于推断，尚无明确运行记录。')
             else:
                 doc['symptom'] = '未提供明确的故障现象或运行记录。'
                 gaps.append('问题现象缺少独立依据，未采用模型的确定性描述。')
+            impact_refs = grounded_refs(evidence.get('impact'), narrative)
+            filenames = [item['filename'] for item in snapshot.get('files', [])]
+            impact['scope'] = ('作者报告的影响（未独立核验）：\n' + '\n'.join(ref['snippet'] for ref in impact_refs)
+                               if impact_refs else '变更涉及文件（不代表实际故障影响）：\n' + '\n'.join(filenames)
+                               if filenames else '未提供可追溯的实际影响范围。')
+            impact['affected_users'] = None
+            impact['severity'] = 'unknown'
+            gaps.append('实际受影响用户和严重程度待人工确认，未采用模型的自动评级。')
+            # A model self-score is not a calibrated reliability measurement.
+            doc.pop('confidence', None)
             validation_refs = grounded_refs(evidence.get('validation'), narrative)
             validation = ['作者报告（本模块未执行验证）：' + ref['snippet'] for ref in validation_refs]
             checks = snapshot.get('checks', [])

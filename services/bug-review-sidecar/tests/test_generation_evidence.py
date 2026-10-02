@@ -14,7 +14,7 @@ class RestoreCollector:
                 'sources': [
                     {'id': 'pr', 'type': 'pr_body', 'url': identity['url'], 'text': 'fix: restore research sources'},
                     {'id': 'file:0', 'type': 'diff', 'url': identity['url'] + '/files', 'text': '.gitignore\n@@ -1 +1 @@\n-research/\n+/research/'},
-                    {'id': 'comment:1', 'type': 'pr_comment', 'url': identity['url'], 'text': '本地运行 build 成功；新增目录检查清单。'},
+                    {'id': 'comment:1', 'type': 'pr_comment', 'url': identity['url'], 'text': '本地运行 build 成功；新增目录检查清单；页面未显示。'},
                 ]}
 
 
@@ -50,7 +50,7 @@ def test_author_reports_remain_verbatim_and_human_edits_survive_regeneration(tmp
             doc = super().generate(material)
             doc.update(symptom='不能冒充运行记录', validation='build、E2E 全通过', prevention='已上线完善流水线')
             doc['root_cause'].update(basis='fact', source=ref('file:0', '-research/\n+/research/'))
-            doc['evidence'] = {'symptom': {'basis': 'inference', 'sources': [ref('file:0', '-research/\n+/research/')]},
+            doc['evidence'] = {'symptom': {'basis': 'fact', 'sources': [ref('comment:1', '页面未显示')]},
                                'validation': [ref('comment:1', '本地运行 build 成功')],
                                'prevention': {'implemented': [ref('comment:1', '新增目录检查清单')], 'suggestions': []}}
             return doc
@@ -59,7 +59,7 @@ def test_author_reports_remain_verbatim_and_human_edits_survive_regeneration(tmp
         url = '/api/bug-review/reviews/' + rid
         review = client.get(url).json()['review']
         doc = deepcopy(review['document'])
-        assert doc['symptom'].startswith('代码推断，待复现：')
+        assert doc['symptom'] == '作者材料原文（本模块未独立复现）：\n页面未显示'
         assert doc['validation'] == '作者报告（本模块未执行验证）：本地运行 build 成功'
         assert 'E2E' not in doc['validation']
         assert doc['prevention'] == '作者报告的措施（未独立核验）：新增目录检查清单'
@@ -94,6 +94,58 @@ def test_titles_and_unreferenced_symptoms_are_not_independent_evidence(tmp_path,
         assert 'fix: restore' not in doc['prevention']
         assert '作者报告的措施' not in doc['prevention']
         assert doc['root_cause']['basis'] == 'inference'
+
+
+def test_diff_only_symptoms_and_impact_do_not_become_runtime_facts(tmp_path):
+    class ChangedFiles(RestoreCollector):
+        def collect(self, identity):
+            material = super().collect(identity)
+            material['files'] = [{'filename': '.gitignore'}, {'filename': 'src/features/research/api.ts'}]
+            return material
+    class Overconfident(Extractor):
+        def generate(self, material):
+            doc = super().generate(material)
+            doc.update(symptom='全量用户无法调用 API', confidence=0.98)
+            doc['impact'] = {'scope': '全站不可用', 'affected_users': '全量终端用户', 'severity': 'P1'}
+            quote = ref('file:0', '-research/\n+/research/')
+            doc['evidence'] = {'symptom': {'basis': 'inference', 'sources': [quote]}, 'impact': [quote]}
+            return doc
+    with TestClient(create_app(tmp_path, ChangedFiles(), Overconfident())) as client:
+        rid = client.post('/api/bug-review/import', json={'url': 'https://github.com/demo/repo/pull/9'}).json()['review']['id']
+        url = '/api/bug-review/reviews/' + rid
+        review = client.get(url).json()['review']
+        doc = review['document']
+        assert '未提供' in doc['symptom'] and '全量用户' not in doc['symptom']
+        assert doc['impact']['severity'] == 'unknown' and doc['impact']['affected_users'] is None
+        assert doc['impact']['scope'] == '变更涉及文件（不代表实际故障影响）：\n.gitignore\nsrc/features/research/api.ts'
+        assert 'confidence' not in doc
+        assert review['material']['generated_document']['confidence'] == 0.98
+        approved = client.post(url + '/approve', json={'revision': review['revision']}).json()['review']
+        published = client.post(url + '/publish', json={'revision': approved['revision']}).json()['review']
+        exports = list((tmp_path / 'markdown').glob('*.md'))
+        assert len(exports) == 1
+        markdown = exports[0].read_text()
+        assert '严重程度**: 待确认' in markdown and '未提供可靠性评分' in markdown and '98%' not in markdown
+        doc['impact'] = {'scope': '人工确认：测试用户登录受影响', 'affected_users': '测试用户', 'severity': 'P2'}
+        edited = client.post(url + '/edit', json={'revision': published['revision'], 'document': doc}).json()['review']
+        client.post(url + '/regenerate', json={'revision': edited['revision']})
+        review = client.get(url).json()['review']
+        assert review['document']['impact'] == doc['impact']
+        assert review['candidate']['impact']['severity'] == 'unknown'
+        assert review['published']['document']['impact']['severity'] == 'unknown'
+
+
+def test_reported_impact_is_retained_verbatim_without_guessed_severity(tmp_path):
+    class Reported(Extractor):
+        def generate(self, material):
+            doc = super().generate(material)
+            doc['evidence'] = {'impact': [ref('comment:1', '页面未显示')]}
+            return doc
+    with TestClient(create_app(tmp_path, RestoreCollector(), Reported())) as client:
+        rid = client.post('/api/bug-review/import', json={'url': 'https://github.com/demo/repo/pull/12'}).json()['review']['id']
+        doc = client.get('/api/bug-review/reviews/' + rid).json()['review']['document']
+        assert doc['impact']['scope'] == '作者报告的影响（未独立核验）：\n页面未显示'
+        assert doc['impact']['severity'] == 'unknown'
 
 
 def test_ci_states_do_not_inherit_unrelated_model_validation(tmp_path):

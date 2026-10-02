@@ -55,7 +55,12 @@ reserve space for background and share the rest across diffs; each truncation is
 disclosed. Generated author reports remain verbatim and labelled as unverified;
 CI states come from collected checks. Unsupported validation claims are replaced
 with missing-evidence wording. Title-only quotes cannot support these claims;
-symptom inferences also require a traceable quote. Implemented measures require source quotes; advice
+runtime symptoms require an author report rather than a diff-based hypothesis.
+Generated impact quotes remain verbatim; otherwise scope lists collected changed
+files explicitly without claiming runtime impact. Affected users and severity
+remain unconfirmed (`severity=unknown`) until human correction. Generated model
+self-scores remain in raw material, without becoming document reliability scores.
+Implemented measures require source quotes; advice
 is labelled as suggestions. Internal generation evidence is stored in the raw
 material snapshot, without changing the frontend document contract. These checks
 do not establish semantic truth, and never overwrite existing drafts automatically.

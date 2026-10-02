@@ -58,7 +58,7 @@ class Impact:
     """Bug 影响评估"""
     scope: str                                          # 影响范围（如 "用户登录模块"）
     affected_users: str | None                          # 受影响用户量（如 "全量用户"）
-    severity: Literal["P0", "P1", "P2", "P3"]          # 严重程度
+    severity: Literal["P0", "P1", "P2", "P3", "unknown"]  # 严重程度；未确认不能自动评级
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -285,7 +285,7 @@ BUG_REVIEW_JSON_SCHEMA = {
                 "affected_users": {"type": ["string", "null"]},
                 "severity": {
                     "type": "string",
-                    "enum": ["P0", "P1", "P2", "P3"]
+                    "enum": ["P0", "P1", "P2", "P3", "unknown"]
                 }
             }
         },
@@ -345,6 +345,7 @@ BUG_REVIEW_JSON_SCHEMA["properties"]["evidence"] = {
             "basis": {"type": "string", "enum": ["fact", "inference", "unknown"]},
             "sources": _EVIDENCE_REFS}},
         "validation": _EVIDENCE_REFS,
+        "impact": _EVIDENCE_REFS,
         "prevention": {"type": "object", "required": ["implemented", "suggestions"], "properties": {
             "implemented": _EVIDENCE_REFS,
             "suggestions": {"type": "array", "items": {"type": "string"}}}},
@@ -377,8 +378,8 @@ def validate_bug_review_document(data: dict[str, Any]) -> tuple[bool, list[str]]
 
     impact = data.get("impact", {})
     if isinstance(impact, dict):
-        if impact.get("severity") not in ("P0", "P1", "P2", "P3"):
-            errors.append("impact.severity 必须为 P0/P1/P2/P3")
+        if impact.get("severity") not in ("P0", "P1", "P2", "P3", "unknown"):
+            errors.append("impact.severity 必须为 P0/P1/P2/P3/unknown")
     else:
         errors.append("impact 格式错误")
 

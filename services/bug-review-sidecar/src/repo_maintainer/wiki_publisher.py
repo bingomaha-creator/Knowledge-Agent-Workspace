@@ -121,7 +121,8 @@ class WikiPublisherService:
         if isinstance(impact, dict):
             lines.append("## 影响评估")
             lines.append("")
-            lines.append(f"- **严重程度**: {impact.get('severity', 'P2')}")
+            severity = impact.get('severity', 'unknown')
+            lines.append(f"- **严重程度**: {'待确认' if severity == 'unknown' else severity}")
             if impact.get("scope"):
                 lines.append(f"- **影响范围**: {impact['scope']}")
             if impact.get("affected_users"):
@@ -169,9 +170,10 @@ class WikiPublisherService:
             lines.append("")
 
         # Footer
-        confidence = doc.get("confidence", 0)
+        confidence = doc.get("confidence")
         lines.append("---")
-        lines.append(f"*AI 抽取置信度: {confidence:.0%} | 审核状态: {doc.get('review_status', 'draft')}*")
+        score = f"模型自评分（未校准）: {confidence:.0%}" if confidence is not None else "未提供可靠性评分"
+        lines.append(f"*{score} | 审核状态: {doc.get('review_status', 'draft')}*")
         lines.append("")
 
         return "\n".join(lines)

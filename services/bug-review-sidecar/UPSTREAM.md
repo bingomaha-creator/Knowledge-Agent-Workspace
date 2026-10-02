@@ -37,7 +37,10 @@ Migration changes:
   preserves raw output before governance, uses author quotes verbatim, renders
   actual CI states, and drops unsupported verification/implemented claims. Title-only
   quotes are excluded from symptom/validation/prevention evidence, and inferred
-  symptoms also require a bound quote. Code,
+  symptoms require author reports rather than diff-based runtime guesses. Impact
+  uses reported quotes or clearly labelled changed-file scope; user counts and
+  severity stay unconfirmed, and generated self-scores are not published as
+  reliability measurements. Code,
   CI and title-only root evidence cannot promote a generated root cause to fact.
   This is conservative source governance, not semantic entailment verification;
   human editing and approval remain separate and existing snapshots are preserved.
