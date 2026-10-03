@@ -4,10 +4,12 @@ import { AppLayout } from '@/ui/AppLayout';
 import { findWorkspaceModule, workspaceModules } from './navigation';
 import { WorkspaceHeader } from './WorkspaceHeader';
 import { WorkspaceSidebar } from './WorkspaceSidebar';
+import { useThemePreference } from './useThemePreference';
 
 export function App() {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [themePreference, setThemePreference] = useThemePreference();
   const activeModule = findWorkspaceModule(location.pathname) ?? workspaceModules[0];
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
@@ -22,6 +24,8 @@ export function App() {
           modules={workspaceModules}
           open={sidebarOpen}
           onClose={closeSidebar}
+          themePreference={themePreference}
+          onThemeChange={setThemePreference}
         />
       )}
       header={(

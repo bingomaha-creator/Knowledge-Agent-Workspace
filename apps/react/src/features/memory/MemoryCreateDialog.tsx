@@ -41,7 +41,7 @@ const Button = styled.button<{ $primary?: boolean }>`
   padding: 0.6rem 0.85rem;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-control);
-  color: ${({ $primary }) => $primary ? 'white' : 'var(--color-text)'};
+  color: ${({ $primary }) => $primary ? 'var(--color-text-on-primary)' : 'var(--color-text)'};
   background: ${({ $primary }) => $primary ? 'var(--color-primary)' : 'var(--color-surface)'};
   &:disabled { opacity: 0.55; }
 `;

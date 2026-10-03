@@ -161,12 +161,12 @@ export function ChatWorkspace({
     ));
   }, [messagesQuery.messages, sessionId, streamSnapshot]);
 
-  async function send(content: string) {
+  async function send(content: string, onAccepted: () => void) {
     return stream.send(content, sessionId ? {} : {
       presetId,
       ragEnabled,
       knowledgeBaseIds
-    });
+    }, onAccepted);
   }
 
   function changePreset(nextPresetId: string) {
@@ -254,6 +254,7 @@ export function ChatWorkspace({
         meta={<HeaderStatus>{stream.isActive ? streamStatusLabel(stream.status) : '已就绪'}</HeaderStatus>}
       />
       <MessageList
+        key={sessionId || 'new'}
         messages={messages}
         hasEarlierMessages={Boolean(messagesQuery.hasNextPage)}
         loadingEarlierMessages={messagesQuery.isFetchingNextPage}

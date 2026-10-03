@@ -92,16 +92,20 @@ export function MessageList({
 }: MessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [isAtBottom, setIsAtBottom] = useState(true);
+  const [readingPaused, setReadingPaused] = useState(false);
+  // 留在列表而非虚拟 item：卸载再进入视口仍恢复选择；会话退出时随列表释放。
+  const [expandedDetails, setExpandedDetails] = useState<Set<string>>(() => new Set());
   const firstItemIndex = FIRST_ITEM_BASE + (messages[0]?.sequenceNo || 0);
   const streamMessage = useMemo(() => (
     messages.find((message) => message.id === streamAssistantMessageId)
   ), [messages, streamAssistantMessageId]);
 
   useEffect(() => {
-    if (!isAtBottom || !streamMessage) return;
+    if (readingPaused || !isAtBottom || !streamMessage) return;
     virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end' });
   }, [
     isAtBottom,
+    readingPaused,
     streamMessage?.citations.length,
     streamMessage?.content.length,
     streamMessage?.status,
@@ -136,11 +140,17 @@ export function MessageList({
             onStartResearch={onStartResearch}
             onReviewMemory={onReviewMemory}
             onCorrectMemory={onCorrectMemory}
-            onReadingStart={() => setIsAtBottom(false)}
+            onReadingStart={() => setReadingPaused(true)}
+            expandedDetails={expandedDetails}
+            onDetailsChange={(key, open) => setExpandedDetails((current) => {
+              const next = new Set(current);
+              if (open) next.add(key); else next.delete(key);
+              return next;
+            })}
           />
         )}
         increaseViewportBy={{ top: 240, bottom: 240 }}
-        followOutput={(atBottom) => atBottom ? 'auto' : false}
+        followOutput={(atBottom) => !readingPaused && atBottom ? 'auto' : false}
         atBottomStateChange={setIsAtBottom}
         startReached={() => {
           if (hasEarlierMessages && !loadingEarlierMessages) void loadEarlierMessages();
@@ -153,10 +163,11 @@ export function MessageList({
               : <TopStatus>已经到达会话开头</TopStatus>
         }}
       />
-      {!isAtBottom ? (
+      {readingPaused || !isAtBottom ? (
         <ReturnToBottom
           type="button"
           onClick={() => {
+            setReadingPaused(false);
             setIsAtBottom(true);
             virtuosoRef.current?.scrollToIndex({ index: 'LAST', align: 'end', behavior: 'smooth' });
           }}

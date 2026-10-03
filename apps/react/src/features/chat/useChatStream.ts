@@ -33,7 +33,8 @@ export function useChatStream({
 
   const send = useCallback(async (
     content: string,
-    options: ChatSendOptions = {}
+    options: ChatSendOptions = {},
+    onAccepted?: () => void
   ) => {
     const requestId = createRequestId();
     const controller = new AbortController();
@@ -51,6 +52,7 @@ export function useChatStream({
         useChatStreamStore.getState().apply(event);
         if (event.type === 'accepted') {
           cacheAcceptedTurn(queryClient, event.accepted);
+          onAccepted?.();
           if (event.accepted.session.id !== sessionId) {
             onSessionAccepted?.(event.accepted.session.id);
           }

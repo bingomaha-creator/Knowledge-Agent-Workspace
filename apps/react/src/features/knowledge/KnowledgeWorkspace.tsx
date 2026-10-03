@@ -76,7 +76,7 @@ const UploadLabel = styled.label<{ $disabled: boolean }>`
   min-height: 2.25rem;
   padding: 0.35rem 0.7rem;
   border-radius: var(--radius-control);
-  color: white;
+  color: var(--color-text-on-primary);
   background: var(--color-primary);
   font-size: 0.875rem;
   font-weight: 650;
@@ -86,7 +86,7 @@ const UploadLabel = styled.label<{ $disabled: boolean }>`
 
   /* 隐藏的 file input 获得键盘焦点时，在可见的 label 上呈现焦点环。 */
   &:focus-within {
-    outline: 3px solid rgba(23, 100, 216, 0.42);
+    outline: 3px solid var(--color-focus);
     outline-offset: 3px;
   }
 

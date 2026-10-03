@@ -1,15 +1,10 @@
-import { useQuery } from '@tanstack/react-query';
 import { useState, type SyntheticEvent } from 'react';
 import styled from 'styled-components';
-import { chatApi } from '@/services/chatApi';
 import type { MemoryStatus, MemoryType } from '@/services/memoryApi';
 import { SafeMarkdown } from '@/ui/SafeMarkdown';
 import { Select } from '@/ui/Select';
-import { chatQueryKeys } from './chatQueries';
-import type {
-  AgentRun,
-  ChatMessage
-} from './chat.types';
+import type { ChatMessage } from './chat.types';
+import { ChatExecutionDetails } from './ChatExecutionDetails';
 
 type MemoryCorrection = {
   type: MemoryType;
@@ -29,6 +24,8 @@ type MessageCardProps = {
   ) => void;
   onCorrectMemory?: (messageId: string, memoryId: string, patch: MemoryCorrection) => void;
   onReadingStart?: () => void;
+  expandedDetails: ReadonlySet<string>;
+  onDetailsChange: (key: string, open: boolean) => void;
 };
 
 const Article = styled.article`
@@ -252,38 +249,6 @@ function statusLabel(status: ChatMessage['status']) {
   return '';
 }
 
-function runStepLabel(name: string) {
-  const labels: Record<string, string> = {
-    mcp_connect: '连接工具服务',
-    mcp_tool_discovery: '发现可用工具',
-    knowledge_scope_check: '检查资料范围',
-    retrieve_memory: '检索长期记忆',
-    retrieve_knowledge: '检索资料库',
-    read_knowledge_document: '读取知识文档',
-    knowledge_evidence_gate: '评估资料证据',
-    tool_planning: '规划工具调用',
-    generation: '生成最终回答',
-    memory_candidate_extraction: '提取记忆候选'
-  };
-  return labels[name] || name;
-}
-
-function readableResult(result: unknown) {
-  if (typeof result === 'string') return result;
-  try { return JSON.stringify(result, null, 2); } catch { return String(result); }
-}
-
-// 工具卡片展示可读名称；未映射的工具回退为原始名。
-function toolNameLabel(name: string) {
-  const labels: Record<string, string> = {
-    retrieve_knowledge: '检索资料库',
-    read_knowledge_document: '读取知识文档',
-    list_knowledge_documents: '列出资料库文档',
-    get_current_time: '获取当前时间'
-  };
-  return labels[name] || name;
-}
-
 function memoryTypeLabel(type: MemoryType) {
   return { profile: '画像', preference: '偏好', fact: '事实', event: '事件', pitfall: '踩坑' }[type];
 }
@@ -294,7 +259,9 @@ export function MessageCard({
   onStartResearch,
   onReviewMemory,
   onCorrectMemory,
-  onReadingStart
+  onReadingStart,
+  expandedDetails,
+  onDetailsChange
 }: MessageCardProps) {
   const [editingMemory, setEditingMemory] = useState(false);
   const candidate = message.memoryCandidate;
@@ -303,16 +270,15 @@ export function MessageCard({
     title: candidate?.title || '',
     content: candidate?.content || ''
   }));
-  const runQuery = useQuery({
-    queryKey: chatQueryKeys.run(message.runId || ''),
-    queryFn: () => chatApi.getRun(message.runId as string),
-    enabled: Boolean(message.runId && !message.run),
-    staleTime: Number.POSITIVE_INFINITY
-  });
-  const run: AgentRun | null | undefined = message.run || runQuery.data;
   const label = statusLabel(message.status);
+  const changeDetails = (key: string, open: boolean) => {
+    if (open) onReadingStart?.();
+    onDetailsChange(key, open);
+  };
+  const citationKey = `${message.id}:citations`;
   const detailsToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
-    if (event.currentTarget.open) onReadingStart?.();
+    const open = event.currentTarget.open;
+    if (open !== expandedDetails.has(citationKey)) changeDetails(citationKey, open);
   };
 
   return (
@@ -336,23 +302,14 @@ export function MessageCard({
         </SecondaryActions>
       ) : null}
 
-      {message.tools.length ? (
-        <DetailPanel onToggle={detailsToggle}>
-          <summary><strong>工具调用</strong><span>{message.tools.length} 次 · 点击展开</span></summary>
-          <DetailBody>
-            {message.tools.map((tool) => (
-              <DetailCard key={tool.id}>
-                <strong>{toolNameLabel(tool.name)}</strong> <Status>{tool.status}</Status>
-                <pre>{JSON.stringify(tool.args, null, 2)}</pre>
-                {tool.result !== undefined ? <pre>{readableResult(tool.result)}</pre> : null}
-              </DetailCard>
-            ))}
-          </DetailBody>
-        </DetailPanel>
-      ) : null}
+      <ChatExecutionDetails
+        message={message}
+        expandedDetails={expandedDetails}
+        onDetailsChange={changeDetails}
+      />
 
       {message.citations.length ? (
-        <DetailPanel onToggle={detailsToggle}>
+        <DetailPanel open={expandedDetails.has(citationKey)} onToggle={detailsToggle}>
           <summary><strong>参考来源</strong><span>{message.citations.length} 条命中 · 点击展开</span></summary>
           <DetailBody>
             {message.citations.map((citation) => (
@@ -362,26 +319,6 @@ export function MessageCard({
                 <small>{citation.source}</small>
               </DetailCard>
             ))}
-          </DetailBody>
-        </DetailPanel>
-      ) : null}
-
-      {run || runQuery.isLoading ? (
-        <DetailPanel onToggle={detailsToggle}>
-          <summary><strong>回答详情</strong><span>{run?.status || '正在读取'} · 点击展开</span></summary>
-          <DetailBody>
-            {run ? (
-              <DetailCard>
-                <strong>Agent Run · {run.status}</strong>
-                <p>输入 {run.inputTokens || 0} · 输出 {run.outputTokens || 0} tokens</p>
-                {(run.spans || []).map((span) => (
-                  <p key={span.id}>
-                    {runStepLabel(span.name)} · {span.status}
-                    {span.durationMs != null ? ` · ${span.durationMs}ms` : ''}
-                  </p>
-                ))}
-              </DetailCard>
-            ) : <DetailCard>正在读取 Agent Run…</DetailCard>}
           </DetailBody>
         </DetailPanel>
       ) : null}

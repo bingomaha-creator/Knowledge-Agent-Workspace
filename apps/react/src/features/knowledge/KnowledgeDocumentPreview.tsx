@@ -24,7 +24,7 @@ const Button = styled.button<{ $primary?: boolean; $danger?: boolean }>`
   padding: 0.55rem 0.8rem;
   border: 1px solid ${({ $danger }) => $danger ? 'var(--color-danger)' : 'var(--color-border)'};
   border-radius: var(--radius-control);
-  color: ${({ $primary, $danger }) => $primary ? 'white' : $danger ? 'var(--color-danger)' : 'var(--color-text)'};
+  color: ${({ $primary, $danger }) => $primary ? 'var(--color-text-on-primary)' : $danger ? 'var(--color-danger)' : 'var(--color-text)'};
   background: ${({ $primary }) => $primary ? 'var(--color-primary)' : 'var(--color-surface)'};
   font: inherit;
   font-size: 0.8125rem;

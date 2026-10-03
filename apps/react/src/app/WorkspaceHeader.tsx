@@ -18,13 +18,13 @@ const StyledHeader = styled.header`
   gap: var(--space-6);
   padding: 0.5rem clamp(1.25rem, 4vw, 3rem);
   border-bottom: 1px solid var(--color-border);
-  background: rgba(255, 255, 255, 0.88);
+  background: var(--color-header);
   backdrop-filter: blur(16px);
 
   @media (max-width: 63.9375rem) {
     min-height: 4.5rem;
     padding: 0.75rem 1.25rem;
-    background: rgba(247, 249, 253, 0.94);
+    background: var(--color-header-mobile);
   }
 `;
 

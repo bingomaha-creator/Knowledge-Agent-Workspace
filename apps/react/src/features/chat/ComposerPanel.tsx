@@ -17,7 +17,7 @@ type ComposerPanelProps = {
   onPresetChange: (presetId: string) => void;
   onRagChange: (enabled: boolean) => void;
   onKnowledgeBaseIdsChange: (knowledgeBaseIds: string[]) => void;
-  onSend: (content: string) => Promise<boolean>;
+  onSend: (content: string, onAccepted: () => void) => Promise<boolean>;
   onStop: () => void;
 };
 
@@ -129,7 +129,7 @@ const ActionButton = styled.button`
   padding: 0.75rem 1rem;
   border: 1px solid var(--color-primary);
   border-radius: 1rem;
-  color: white;
+  color: var(--color-text-on-primary);
   background: var(--color-primary);
   font-weight: 750;
 
@@ -198,8 +198,9 @@ export function ComposerPanel({
     event?.preventDefault();
     const content = draft.trim();
     if (!content || isActive) return;
-    const started = await onSend(content);
-    if (started) setDraft('');
+    await onSend(content, () => {
+      setDraft((current) => current.trim() === content ? '' : current);
+    });
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLTextAreaElement>) {

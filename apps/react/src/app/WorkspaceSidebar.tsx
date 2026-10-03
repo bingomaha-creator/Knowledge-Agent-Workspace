@@ -1,15 +1,19 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { NavLink } from 'react-router';
 import styled from 'styled-components';
 import { ChatSidebarSection } from '@/features/chat/ChatSidebarSection';
 import { KnowledgeSidebarSummary } from '@/features/knowledge/KnowledgeSidebarSummary';
 import { MemorySidebarSummary } from '@/features/memory/MemorySidebarSummary';
 import type { WorkspaceModule } from './navigation';
+import { Select } from '@/ui/Select';
+import type { ThemePreference } from './useThemePreference';
 
 type WorkspaceSidebarProps = {
   modules: readonly WorkspaceModule[];
   open: boolean;
   onClose: () => void;
+  themePreference: ThemePreference;
+  onThemeChange: (preference: ThemePreference) => void;
 };
 
 const Backdrop = styled.button`
@@ -49,6 +53,8 @@ const StyledSidebar = styled.aside`
   overflow-y: auto;
   border-right: 1px solid var(--color-border);
   background: var(--color-sidebar);
+
+  > * { flex-shrink: 0; }
 
   @media (max-width: 63.9375rem) {
     position: fixed;
@@ -93,8 +99,8 @@ const BrandMark = styled.span`
   place-items: center;
   border-radius: 1rem;
   color: var(--color-primary);
-  background: linear-gradient(145deg, #d9e8ff, #ffffff);
-  box-shadow: 0 8px 24px rgba(69, 111, 180, 0.14);
+  background: linear-gradient(145deg, var(--color-primary-surface), var(--color-surface));
+  box-shadow: var(--shadow-soft);
   font-size: 1.5rem;
 `;
 
@@ -199,8 +205,15 @@ const SectionHeader = styled.div`
 `;
 
 const SidebarFooter = styled.div`
+  display: grid;
+  gap: var(--space-2);
   margin-top: auto;
   padding-top: var(--space-2);
+`;
+
+const ThemeLabel = styled.span`
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
 `;
 
 const FooterButton = styled.button`
@@ -215,11 +228,12 @@ const FooterButton = styled.button`
 
   &:hover {
     border-color: var(--color-border);
-    background: rgba(255, 255, 255, 0.6);
+    background: var(--color-surface);
   }
 `;
 
-export function WorkspaceSidebar({ modules, open, onClose }: WorkspaceSidebarProps) {
+export function WorkspaceSidebar({ modules, open, onClose, themePreference, onThemeChange }: WorkspaceSidebarProps) {
+  const sidebarRef = useRef<HTMLElement>(null);
   useEffect(() => {
     if (!open) return undefined;
 
@@ -246,6 +260,7 @@ export function WorkspaceSidebar({ modules, open, onClose }: WorkspaceSidebarPro
         onClick={onClose}
       />
       <StyledSidebar
+        ref={sidebarRef}
         data-open={open}
         role={open ? 'dialog' : undefined}
         aria-modal={open ? true : undefined}
@@ -286,6 +301,18 @@ export function WorkspaceSidebar({ modules, open, onClose }: WorkspaceSidebarPro
         </SidebarSection>
 
         <SidebarFooter>
+          <ThemeLabel>外观主题</ThemeLabel>
+          <Select
+            aria-label="外观主题"
+            value={themePreference}
+            popupHost={() => sidebarRef.current}
+            onChange={(value) => onThemeChange(value as ThemePreference)}
+            options={[
+              { value: 'system', label: '跟随系统' },
+              { value: 'light', label: '亮色' },
+              { value: 'dark', label: '暗色' }
+            ]}
+          />
           <FooterButton type="button">设置和帮助</FooterButton>
         </SidebarFooter>
       </StyledSidebar>

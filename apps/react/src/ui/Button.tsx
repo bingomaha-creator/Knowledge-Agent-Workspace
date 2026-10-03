@@ -12,7 +12,7 @@ type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
 const variantStyles: Record<ButtonVariant, string> = {
   primary: `
     border-color: var(--color-primary);
-    color: white;
+    color: var(--color-text-on-primary);
     background: var(--color-primary);
 
     &:hover:not(:disabled) { filter: brightness(0.94); }

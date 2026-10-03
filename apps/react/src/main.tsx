@@ -3,6 +3,9 @@ import { createRoot } from 'react-dom/client';
 import { RouterProvider } from 'react-router';
 import { AppProviders } from '@/app/providers';
 import { createWorkspaceRouter } from '@/app/router';
+import { readThemePreference } from '@/app/useThemePreference';
+
+document.documentElement.dataset.theme = readThemePreference();
 
 const rootElement = document.getElementById('root');
 

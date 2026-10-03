@@ -98,11 +98,13 @@ describe('useChatStream', () => {
       createRequestId: () => 'request-1'
     }), { wrapper: wrapper(queryClient) });
 
+    const onAccepted = vi.fn();
     let sending: Promise<boolean>;
     act(() => {
-      sending = result.current.send('你好');
+      sending = result.current.send('你好', {}, onAccepted);
     });
     await waitFor(() => expect(useChatStreamStore.getState().status).toBe('streaming'));
+    expect(onAccepted).toHaveBeenCalledOnce();
     unmount();
     release?.();
     await sending!;

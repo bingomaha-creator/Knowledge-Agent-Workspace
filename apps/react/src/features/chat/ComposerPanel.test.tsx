@@ -26,6 +26,32 @@ afterEach(() => {
 });
 
 describe('ComposerPanel', () => {
+  it('clears the accepted draft before generation finishes and preserves the next draft', async () => {
+    let accept: (() => void) | undefined;
+    let finish: ((started: boolean) => void) | undefined;
+    const onSend = vi.fn((_content: string, onAccepted?: () => void) => {
+      accept = onAccepted;
+      return new Promise<boolean>((resolve) => { finish = resolve; });
+    });
+    render(<ComposerPanel {...baseProps} onSend={onSend} />);
+    const input = screen.getByRole('textbox', { name: '输入消息' });
+    await userEvent.type(input, '当前问题');
+    await userEvent.click(screen.getByRole('button', { name: '发送消息' }));
+    expect(input).toHaveValue('当前问题');
+    act(() => accept?.());
+    expect(input).toHaveValue('');
+    await userEvent.type(input, '下一条草稿');
+    await act(async () => finish?.(true));
+    expect(input).toHaveValue('下一条草稿');
+  });
+
+  it('keeps the draft when sending fails before acceptance', async () => {
+    render(<ComposerPanel {...baseProps} onSend={async () => false} />);
+    await userEvent.type(screen.getByRole('textbox', { name: '输入消息' }), '未发送的问题');
+    await userEvent.click(screen.getByRole('button', { name: '发送消息' }));
+    expect(screen.getByRole('textbox', { name: '输入消息' })).toHaveValue('未发送的问题');
+  });
+
   it('lets the user choose the retrieval scope', async () => {
     const onKnowledgeBaseIdsChange = vi.fn();
     render(<ComposerPanel {...baseProps} onKnowledgeBaseIdsChange={onKnowledgeBaseIdsChange} />);
