@@ -20,15 +20,8 @@ import { createKnowledgeStore } from './modules/knowledge/store.js';
 import { loadPresets } from './modules/chat/presets.js';
 import { createResearchNewStore } from './modules/research-new/store.js';
 import { readGraphScope } from './modules/research-new/graph-scope.js';
-import { createResearchNewWorker } from './modules/research-new/worker.js';
 import { createResearchSidecarClient } from './modules/research-new/sidecar-client.js';
 import { createResearchNewSidecarWorker } from './modules/research-new/sidecar-worker.js';
-import { createResearchNewAiService } from './modules/research-new/ai-service.js';
-import { createResearchNewSearch } from './modules/research-new/acquisition/search.js';
-import { createResearchNewSourceReader } from './modules/research-new/acquisition/source-readers.js';
-import { createSafeHttpsReader } from './infrastructure/web-reading/safe-request.js';
-import { createWebDocumentReader } from './infrastructure/web-reading/reader.js';
-import { createTavilyWebSearchProvider } from './infrastructure/web-search/provider.js';
 import { createChatRouter } from './modules/chat/routes.js';
 import { createKnowledgeRouter } from './modules/knowledge/routes.js';
 import { createMemoryRouter } from './modules/memory/routes.js';
@@ -101,48 +94,15 @@ const chatStore = createChatStore();
 const researchNewStore = createResearchNewStore();
 const researchKnowledgeStore = createKnowledgeStore();
 const researchKnowledgeSearch = createMcpKnowledgeSearchAdapter({ toolExecutor });
-const researchNewWebSearchProvider = createTavilyWebSearchProvider();
-const researchNewSearch = createResearchNewSearch({
-  knowledgeSearch: researchKnowledgeSearch,
-  webSearchProvider: researchNewWebSearchProvider
-});
-const researchNewSafeReader = createSafeHttpsReader();
-const researchNewWebDocumentReader = createWebDocumentReader({ safeReader: researchNewSafeReader });
-const researchNewSourceReader = createResearchNewSourceReader({
-  safeReader: researchNewSafeReader,
-  webDocumentReader: researchNewWebDocumentReader
-});
-const researchNewAiService = createResearchNewAiService({ qwenClient, model: config.model });
-const researchNewEngine = process.env.RESEARCH_NEW_ENGINE === 'sidecar' ? 'sidecar' : 'node';
-const researchNewNodeWorker = createResearchNewWorker({
-  store: researchNewStore,
-  search: researchNewSearch,
-  sourceReader: researchNewSourceReader,
-  aiService: researchNewAiService
-});
 const researchSidecarClient = createResearchSidecarClient({
   baseUrl: process.env.RESEARCH_SIDECAR_URL || 'http://127.0.0.1:8000/api/v1',
   timeoutMs: Number(process.env.RESEARCH_SIDECAR_TIMEOUT_MS) || 15_000
 });
-const researchNewSidecarWorker = createResearchNewSidecarWorker({
+const researchNewWorker = createResearchNewSidecarWorker({
   store: researchNewStore,
   client: researchSidecarClient,
   pollMs: Number(process.env.RESEARCH_SIDECAR_POLL_MS) || 1_000
 });
-const researchNewWorkers = { node: researchNewNodeWorker, sidecar: researchNewSidecarWorker };
-const researchNewWorker = {
-  enqueue(id) {
-    const run = researchNewStore.get(id);
-    return researchNewWorkers[run?.diagnostics?.engine || researchNewEngine].enqueue(id);
-  },
-  cancel(id) {
-    const run = researchNewStore.get(id);
-    return researchNewWorkers[run?.diagnostics?.engine || researchNewEngine].cancel(id);
-  },
-  async resume() {
-    await Promise.all([researchNewNodeWorker.resume(), researchNewSidecarWorker.resume()]);
-  }
-};
 const callMcpTool = createRouteMcpCaller({ toolExecutor });
 const chatOrchestrator = createChatOrchestrator({
   qwenClient,
@@ -179,15 +139,11 @@ const app = createApp({
     graphScope: (ids) => readGraphScope(
       path.resolve(process.env.RESEARCH_GRAPH_MANIFEST || 'services/research-sidecar/data/current-graph.json'),
       researchKnowledgeStore, ids),
-    modelConfigured: researchNewEngine === 'sidecar' || Boolean(config.apiKey),
-    engine: researchNewEngine,
-    webReaderTransport: researchNewEngine === 'sidecar'
-      ? 'research_sidecar'
-      : (researchNewWebSearchProvider.configured ? 'tavily_raw_content' : 'direct_pinned'),
-    webSearchCapabilities: researchNewEngine === 'sidecar'
-      ? { provider: 'research_sidecar', fullText: true, domainFilter: false, temporalFilter: false }
-      : researchNewWebSearchProvider.capabilities,
-    webSearchConfigured: researchNewEngine === 'sidecar' || researchNewWebSearchProvider.configured
+    modelConfigured: true,
+    engine: 'sidecar',
+    webReaderTransport: 'research_sidecar',
+    webSearchCapabilities: { provider: 'research_sidecar', fullText: true, domainFilter: false, temporalFilter: false },
+    webSearchConfigured: true
   }),
   knowledgeRouter: createKnowledgeRouter({ callMcpTool }),
   memoryRouter: createMemoryRouter({

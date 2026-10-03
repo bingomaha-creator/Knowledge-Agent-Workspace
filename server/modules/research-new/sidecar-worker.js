@@ -250,6 +250,8 @@ export function createResearchNewSidecarWorker({ store, client, pollMs = 1_000 }
   }
 
   function enqueue(id) {
+    const current = store.get(id);
+    if (current?.diagnostics?.engine !== 'sidecar') return Promise.resolve(current);
     if (active.has(id)) return active.get(id).promise;
     const controller = new AbortController();
     const promise = execute(id, controller).finally(() => active.delete(id));
@@ -259,6 +261,7 @@ export function createResearchNewSidecarWorker({ store, client, pollMs = 1_000 }
 
   function cancel(id) {
     const current = store.requestCancel(id);
+    if (current && current.diagnostics?.engine !== 'sidecar') return store.cancel(id, current.attempt);
     const runId = current?.diagnostics?.sidecar?.runId;
     if (runId) void client.cancelRun(runId).catch(() => null);
     active.get(id)?.controller.abort(new Error('cancelled'));

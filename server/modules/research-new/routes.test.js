@@ -123,7 +123,7 @@ test('Research New HTTP 提供能力、创建、详情、列表和取消合同',
       webReader: { configured: true, transport: 'tavily_raw_content' },
       modes: ['web', 'hybrid'],
       targetedReplan: true,
-      engine: 'node'
+      engine: 'sidecar'
     }
   });
 
@@ -132,7 +132,9 @@ test('Research New HTTP 提供能力、创建、详情、列表和取消合同',
     body: JSON.stringify({ question: '结合项目调查公开方案', mode: 'hybrid', knowledgeBaseIds: ['kb-a'] })
   });
   assert.equal(created.status, 202);
-  assert.equal((await created.json()).run.id, 'research-new-1');
+  const createdRun = (await created.json()).run;
+  assert.equal(createdRun.id, 'research-new-1');
+  assert.equal(createdRun.engine, 'sidecar');
   await new Promise((resolve) => setImmediate(resolve));
   assert.deepEqual(values.queued, ['research-new-1']);
 

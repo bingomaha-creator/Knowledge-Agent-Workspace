@@ -10,7 +10,7 @@
 - 修改 `server/`：`docs/architecture/server.md`。
 - 修改 Chat：`docs/specs/chat.md`；涉及按文档 ID 读取正文时再读 `docs/specs/chat-document-reading.md`。
 - 修改 Knowledge、Memory、Bug Agent：分别读 `docs/specs/knowledge.md`、`docs/specs/memory.md`、`docs/specs/bug-agent.md`。
-- 维护现有 Research：阅读 `docs/specs/research.md`。开发 `research-new` 时只读未来的 `docs/specs/research-new.md`；归档的 Harness Spec 与 Plan 仅供追溯，不作为下一阶段任务清单。
+- 开发深度研究：阅读 `docs/specs/research-new.md`。Legacy Research 已退役；归档的旧 Spec、Harness Spec 与 Plan 仅供追溯，不作为当前任务清单。
 
 本地 `docs/` 可能不在 Git 提交中；若文档不可用，先核对现有代码和测试，不自行假定旧 Plan 是规范。
 
@@ -36,7 +36,7 @@
 - `server/shared/` 只接纳多个真实业务模块复用、无单一业务归属的能力；Infrastructure 和 Shared 不依赖业务模块。
 - 业务模块不要导入另一业务模块的内部 Store 或流程；跨模块协作经明确接口和组合入口注入。
 - 单模块测试与源码相邻；跨模块测试放 `integration/`，固定评测放 `regression/`。测试数据库使用临时路径，不修改 `server/data/`。
-- 创建 `server/modules/research-new/` 时，不导入旧 `research/` 的内部实现；只复用清楚界定的基础设施和 Shared，验证完成后不长期保留双引擎。
+- 深度研究由 `server/modules/research-new/` 与 Python Sidecar 承载，只复用清楚界定的基础设施和 Shared；不恢复已退役的 Legacy 引擎。
 - `research-new` 的 MVP 优先复现参考项目已经跑通的主链路和依赖形态。参考实现已有可用方案时，不先增加原创基础设施、安全旁路或抽象层；先以最小改动跑通真实 Web/Hybrid Case，再由评测结果决定替换、扩展或自研。任何偏离参考实现的设计都必须说明参考方案为何不适用，并获得用户确认。
 
 ## 验证

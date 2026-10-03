@@ -16,6 +16,23 @@ function fixture(t, client) {
   return { store, worker: createResearchNewSidecarWorker({ store, client, pollMs: 1 }) };
 }
 
+test('Sidecar worker 不启动或恢复旧 Node 任务，仍可查看并取消历史任务', async (t) => {
+  const { store, worker } = fixture(t, {
+    startRun: async () => assert.fail('旧 Node 任务不能交给 Sidecar 执行'),
+    cancelRun: async () => assert.fail('旧 Node 任务没有远端 Sidecar Run')
+  });
+  const queued = store.create({ question: '旧排队任务', mode: 'web', engine: 'node' });
+  const running = store.claim(store.create({ question: '旧运行任务', mode: 'web', engine: 'node' }).id);
+  assert.equal((await worker.enqueue(queued.id)).status, 'queued');
+  await worker.resume();
+  assert.equal(store.get(queued.id).status, 'queued');
+  assert.equal(store.get(running.id).status, 'running');
+  assert.equal(store.get(running.id).attempt, running.attempt);
+  assert.equal(worker.cancel(queued.id).status, 'cancelled');
+  assert.equal(worker.cancel(running.id).status, 'cancelled');
+  assert.equal(store.get(running.id).question, '旧运行任务');
+});
+
 test('Sidecar worker 持久化映射并投影报告、来源与证据', async (t) => {
   let polls = 0;
   const client = {

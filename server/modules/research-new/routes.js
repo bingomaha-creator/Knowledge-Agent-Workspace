@@ -16,7 +16,7 @@ export function createResearchNewRouter({
   webSearchConfigured = false,
   webSearchCapabilities = {},
   webReaderTransport = '',
-  engine = 'node',
+  engine = 'sidecar',
   knowledgeSearch,
   graphScope
 }) {
