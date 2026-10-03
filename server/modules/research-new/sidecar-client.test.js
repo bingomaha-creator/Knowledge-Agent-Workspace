@@ -16,6 +16,14 @@ function json(res, status, body) {
   res.end(JSON.stringify(body));
 }
 
+function closeServer(server) {
+  if (!server.listening) return Promise.resolve();
+  return new Promise((resolve) => {
+    server.close(resolve);
+    server.closeAllConnections();
+  });
+}
+
 test('Sidecar client 覆盖创建、读取结果与取消合同', async (t) => {
   const requests = [];
   const server = await listen(async (req, res) => {
@@ -31,7 +39,7 @@ test('Sidecar client 覆盖创建、读取结果与取消合同', async (t) => {
     if (req.url === '/api/v1/runs/run-1/cancel') return json(res, 200, { run_id: 'run-1', status: 'cancelling' });
     return json(res, 200, { run_id: 'run-1', status: 'completed', current_stage: 'completed' });
   });
-  t.after(() => new Promise((resolve) => server.close(resolve)));
+  t.after(() => closeServer(server));
   const client = createResearchSidecarClient({
     baseUrl: `http://127.0.0.1:${server.address().port}/api/v1`, timeoutMs: 500
   });
@@ -54,6 +62,7 @@ test('Sidecar client 区分远端失败、超时和不可用', async (t) => {
     json(res, 503, { error: { code: 'UPSTREAM_FAILED', message: '上游失败', retryable: true } });
   });
   const baseUrl = `http://127.0.0.1:${server.address().port}/api/v1`;
+  t.after(() => closeServer(server));
   const client = createResearchSidecarClient({ baseUrl, timeoutMs: 30 });
   await assert.rejects(client.getRun('failed'), (error) => {
     assert.equal(error.code, 'UPSTREAM_FAILED');
@@ -61,7 +70,7 @@ test('Sidecar client 区分远端失败、超时和不可用', async (t) => {
     return true;
   });
   await assert.rejects(client.getRun('slow'), { code: 'RESEARCH_SIDECAR_TIMEOUT' });
-  await new Promise((resolve) => server.close(resolve));
+  await closeServer(server);
   const unavailable = createResearchSidecarClient({ baseUrl, timeoutMs: 100 });
   await assert.rejects(unavailable.getRun('run-1'), { code: 'RESEARCH_SIDECAR_UNAVAILABLE' });
 });
