@@ -2,7 +2,7 @@
 
 本目录保存从 `deepresearch_agent_harness` 迁入的 Python Deep Research 实现。
 
-当前状态：Sidecar Demo 已接入当前唯一的深度研究入口，沿用上游研究流程，并加入知识库范围隔离、引用展示与报告交付检查修复。Legacy Research 已退役；Node MVP 仅保留为配置回退。GraphRAG 为实验选项，交付检查不等于逐句语义核验，报告质量未全面验收。
+当前状态：Sidecar Demo 已接入当前唯一的深度研究入口，沿用上游研究流程，并加入知识库范围隔离、引用展示与报告交付检查修复。Legacy Research 已退役；早期 Node MVP 源码与测试保存在 `server/modules/research-new/oldVersion/`，不再接入主服务或自动恢复旧任务，历史报告仍可查看。GraphRAG 为实验选项，交付检查不等于逐句语义核验，报告质量未全面验收。
 
 ## 本地运行
 
@@ -17,10 +17,10 @@ Sidecar 默认监听 `http://127.0.0.1:8000`，健康检查为 `GET /api/v1/heal
 
 本地 Neo4j 只绑定 loopback，默认开发密码为 `research-sidecar-dev`；可在命令环境中设置 `NEO4J_PASSWORD` 覆盖。Python、SQLite、artifact、cache 与语料路径均留在本目录，Node 不管理 Sidecar 进程。
 
-要让新建的 Research New 任务使用 Sidecar，启动前设置：
+联合启动工作台与 Sidecar：
 
 ```bash
-RESEARCH_NEW_ENGINE=sidecar npm run dev:with-research-sidecar
+npm run dev:with-research-sidecar
 ```
 
 资料研究现在可以选择「关键词＋向量」或「GraphRAG」，两者使用同一 Python 研究流程，当前不混合网页来源。关键词＋向量调用项目已有 Knowledge 检索，范围来自 Node 持久化的 Run，而非模型参数。

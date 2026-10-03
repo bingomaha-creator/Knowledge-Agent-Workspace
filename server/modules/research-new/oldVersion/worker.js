@@ -1,5 +1,5 @@
 import { assessTracks, buildPassageCandidates, materializeEvidence } from './evidence.js';
-import { createResearchNewError, RESEARCH_NEW_STAGE_PROGRESS } from './domain.js';
+import { createResearchNewError, RESEARCH_NEW_STAGE_PROGRESS } from '../domain.js';
 import { createVerifiedReport } from './report-delivery.js';
 import { resultQualityFor, verifyResearchNewDelivery } from './verification.js';
 

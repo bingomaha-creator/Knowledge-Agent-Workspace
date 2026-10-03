@@ -1,4 +1,4 @@
-import { createResearchNewError } from './domain.js';
+import { createResearchNewError } from '../domain.js';
 
 const CLAIM_LABELS = Object.freeze({
   workspace_fact: '项目事实',

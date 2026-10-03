@@ -57,8 +57,10 @@ flowchart LR
   API --> BUG[Bug Review]
   BUG --> BUGPY[Python Bug Review Sidecar]
   BUGPY --> CASES[(JSON / Markdown / BM25)]
-  API --> RESEARCH[Research Worker]
-  RESEARCH --> DATA
+  API --> RESEARCH[Research New]
+  RESEARCH --> PY[Python Research Sidecar]
+  PY --> GRAPH[(Neo4j / Web Provider)]
+  RESEARCH -->|任务与历史结果| DATA
 ```
 
 ## 当前边界
@@ -90,7 +92,15 @@ QWEN_API_KEY=your_api_key
 npm run dev
 ```
 
-默认访问地址为 `http://127.0.0.1:5173`。前端和 Express 服务会同时启动；服务端默认端口为 `8787`。
+默认访问地址为 `http://127.0.0.1:5175`。前端和 Express 服务会同时启动；服务端默认端口为 `8787`。上述命令不会启动 Python Sidecar；深度研究需要单独启动 Sidecar，或使用下方的联合启动命令。早期 Node 研究引擎保存在 `server/modules/research-new/oldVersion/`，不接入主服务。
+
+要体验参考项目迁入的 Sidecar 研究链路，先按 [Research Sidecar 启动说明](services/research-sidecar/README.md) 准备 Python 环境、模型／搜索配置及所需的 Neo4j，再运行：
+
+```bash
+npm run dev:with-research-sidecar
+```
+
+该命令并列启动前端、Express 和 Sidecar，并将新建研究任务路由到 Sidecar；它不会自动启动 Neo4j。当前 GraphRAG 仅支持已建图的单个资料库，知识库与联网联合研究尚未实现。
 
 Bug 复盘需按 [Bug Review Sidecar 启动说明](services/bug-review-sidecar/README.md) 准备独立 Python 环境，然后运行：
 

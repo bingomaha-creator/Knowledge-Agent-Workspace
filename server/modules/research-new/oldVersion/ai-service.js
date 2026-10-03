@@ -1,4 +1,4 @@
-import { createResearchNewError } from './domain.js';
+import { createResearchNewError } from '../domain.js';
 
 function responseText(response) {
   return String(response?.choices?.[0]?.message?.content || '').trim();
