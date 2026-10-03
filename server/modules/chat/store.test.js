@@ -235,3 +235,23 @@ test('memory projection synchronization updates and removes every matching candi
   assert.equal(store.getMessage(started.assistantMessage.id).memoryCandidate, null);
   store.close();
 });
+
+test('recovery queries unique Memory references and ignores corrupted projections', () => {
+  const { store, dbPath } = createFixture();
+  const ids = [];
+  for (let index = 0; index < 4; index += 1) {
+    const started = startTurn(store, { requestId: `reference-${index}` });
+    ids.push(started.assistantMessage.id);
+    store.updateAssistantMessage(started.assistantMessage.id, {
+      status: 'done', memoryCandidate: { id: 'memory-1', title: '候选' }
+    });
+  }
+  const db = new DatabaseSync(dbPath);
+  db.prepare('UPDATE chat_messages SET memory_candidate_json = ? WHERE id = ?').run('{', ids[2]);
+  db.prepare('UPDATE chat_messages SET memory_candidate_json = ? WHERE id = ?').run('{"id":123}', ids[3]);
+  db.close();
+  assert.deepEqual(store.getMemoryCandidateIds(), ['memory-1']);
+  store.syncMemoryCandidateProjection('memory-1', null);
+  assert.deepEqual(store.getMemoryCandidateIds(), []);
+  store.close();
+});

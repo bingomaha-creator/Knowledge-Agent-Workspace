@@ -67,6 +67,7 @@ function replayEvent(message) {
 export function createChatService({
   store,
   orchestrator,
+  listMemories,
   checkpointIntervalMs = DEFAULT_CHECKPOINT_INTERVAL_MS,
   setTimer = setTimeout,
   clearTimer = clearTimeout
@@ -303,6 +304,25 @@ export function createChatService({
     };
   }
 
+  async function recoverMemoryProjections() {
+    const ids = store.getMemoryCandidateIds();
+    if (!ids.length) return;
+    if (typeof listMemories !== 'function') {
+      throw new TypeError('Memory projection recovery requires canonical Memory lookup.');
+    }
+    for (let offset = 0; offset < ids.length; offset += 100) {
+      const batch = ids.slice(offset, offset + 100);
+      const memories = await listMemories({ ids: batch, limit: 100, offset: 0 });
+      if (!Array.isArray(memories) || memories.some((memory) => (
+        !memory || typeof memory !== 'object' || !batch.includes(memory.id)
+      ))) {
+        throw createServiceError('MEMORY_PROJECTION_RECOVERY_FAILED', '规范 Memory 返回无效，未清理候选投影', 502);
+      }
+      const canonical = new Map(memories.map((memory) => [memory.id, memory]));
+      for (const id of batch) store.syncMemoryCandidateProjection(id, canonical.get(id) ?? null);
+    }
+  }
+
   function updateMessageMemoryCandidate(messageId, memoryCandidate) {
     const message = store.getMessage(messageId);
     if (!message) {
@@ -316,6 +336,7 @@ export function createChatService({
 
   return {
     openReply,
+    recoverMemoryProjections,
     listSessions: (options) => store.listSessions(options),
     getSession: (id) => store.getSession(id),
     listMessages: (id, options) => store.listMessages(id, options),

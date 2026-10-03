@@ -498,6 +498,16 @@ export function createChatStore(dbPath = DEFAULT_DB_PATH, options = {}) {
     return Boolean(result.changes);
   }
 
+  function getMemoryCandidateIds() {
+    const rows = db.prepare(`
+      SELECT memory_candidate_json FROM chat_messages
+      WHERE role = 'assistant' AND memory_candidate_json != 'null'
+    `).all();
+    return [...new Set(rows.map((row) => (
+      normalizeObject(parseJson(row.memory_candidate_json, null))?.id
+    )).filter((id) => typeof id === 'string' && id.trim() && id.length <= 160))];
+  }
+
   function syncMemoryCandidateProjection(memoryId, memory) {
     const normalizedMemoryId = normalizeId(memoryId, 'Memory ID');
     const rows = db.prepare(`
@@ -534,6 +544,7 @@ export function createChatStore(dbPath = DEFAULT_DB_PATH, options = {}) {
     getMessage,
     updateSession,
     updateAssistantMessage,
+    getMemoryCandidateIds,
     syncMemoryCandidateProjection,
     deleteSession,
     recoverInterrupted,

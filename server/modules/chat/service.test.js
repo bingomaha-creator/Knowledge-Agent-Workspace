@@ -27,6 +27,7 @@ function createFixture(run, options = {}) {
   const service = createChatService({
     store,
     orchestrator: { run },
+    listMemories: options.listMemories,
     checkpointIntervalMs: options.checkpointIntervalMs ?? 0
   });
   return { service, store };
@@ -42,6 +43,57 @@ function input(overrides = {}) {
     ...overrides
   };
 }
+
+test('restart recovery batches canonical Memory and removes deleted historical projections', async (t) => {
+  const dbPath = temporaryDatabasePath();
+  let store = createChatStore(dbPath);
+  const messages = [];
+  for (let index = 0; index < 101; index += 1) {
+    const started = store.startTurn(input({ requestId: `recovery-${index}` }));
+    messages.push(started.assistantMessage.id);
+    store.updateAssistantMessage(started.assistantMessage.id, {
+      status: 'done', memoryCandidate: { id: `memory-${index}`, title: '旧候选', status: 'candidate' }
+    });
+  }
+  store.close();
+  store = createChatStore(dbPath);
+  t.after(() => store.close());
+  const batches = [];
+  const service = createChatService({
+    store, orchestrator: { run: async () => {} },
+    listMemories: async (filters) => {
+      batches.push(filters);
+      return filters.ids.filter((id) => id !== 'memory-0').map((id) => ({
+        id, title: '规范记录', content: '已人工纠正', status: 'corrected'
+      }));
+    }
+  });
+  await service.recoverMemoryProjections();
+  assert.deepEqual(batches.map((batch) => batch.ids.length), [100, 1]);
+  assert.ok(batches.every((batch) => batch.limit === 100 && batch.offset === 0 && !('statuses' in batch)));
+  assert.equal(store.getMessage(messages[0]).memoryCandidate, null);
+  assert.equal(store.getMessage(messages[1]).memoryCandidate.status, 'corrected');
+  await service.recoverMemoryProjections();
+  assert.equal(store.getMessage(messages[1]).memoryCandidate.content, '已人工纠正');
+});
+
+test('failed or malformed canonical lookup never erases historical Memory projections', async (t) => {
+  let result;
+  const { service, store } = createFixture(async () => {}, {
+    listMemories: async () => {
+      if (result instanceof Error) throw result;
+      return result;
+    }
+  });
+  t.after(() => store.close());
+  const started = store.startTurn(input());
+  const candidate = { id: 'memory-1', title: '保留候选', status: 'candidate' };
+  store.updateAssistantMessage(started.assistantMessage.id, { status: 'done', memoryCandidate: candidate });
+  for (result of [new Error('MCP unavailable'), null, [{ id: 'wrong-id' }]]) {
+    await assert.rejects(service.recoverMemoryProjections());
+    assert.deepEqual(store.getMessage(started.assistantMessage.id).memoryCandidate, candidate);
+  }
+});
 
 test('persisted reply loads canonical history and enriches the terminal done event', async () => {
   const requests = [];

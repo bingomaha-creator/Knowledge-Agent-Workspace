@@ -117,8 +117,14 @@ const chatOrchestrator = createChatOrchestrator({
 });
 const chatService = createChatService({
   store: chatStore,
-  orchestrator: chatOrchestrator
+  orchestrator: chatOrchestrator,
+  listMemories: async (filters) => {
+    const result = await callMcpTool('list_memories', filters, { fallbackMessage: '恢复历史记忆候选失败' });
+    return result.memories;
+  }
 });
+
+await chatService.recoverMemoryProjections();
 
 void researchNewWorker.resume().catch((error) => {
   console.error('[research-new] startup recovery failed:', error?.message || error);
