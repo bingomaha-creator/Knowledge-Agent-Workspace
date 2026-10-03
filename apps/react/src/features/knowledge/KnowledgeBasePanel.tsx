@@ -1,0 +1,68 @@
+import styled from 'styled-components';
+import type { KnowledgeBase } from '@/services/knowledgeApi';
+import { PaneHeader } from '@/ui/PaneHeader';
+
+const Panel = styled.aside`
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  background: var(--color-surface);
+
+  @media (max-width: 48rem) { display: none; }
+`;
+
+const List = styled.div`
+  display: grid;
+  flex: 1;
+  align-content: start;
+  gap: 0.25rem;
+  min-height: 0;
+  padding: var(--space-2);
+  overflow-y: auto;
+`;
+
+const BaseButton = styled.button<{ $active?: boolean }>`
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid ${({ $active }) => $active ? 'var(--color-primary-border)' : 'transparent'};
+  border-radius: var(--radius-control);
+  color: var(--color-text);
+  background: ${({ $active }) => $active ? 'var(--color-surface)' : 'transparent'};
+  text-align: left;
+  cursor: pointer;
+
+  &:hover { background: var(--color-surface); }
+  strong { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  span { display: block; margin-top: 0.25rem; color: var(--color-text-muted); font-size: 0.75rem; }
+`;
+
+export function KnowledgeBasePanel({
+  bases,
+  activeBaseId,
+  onSelectBase
+}: {
+  bases: KnowledgeBase[];
+  activeBaseId?: string;
+  onSelectBase: (id: string) => void;
+}) {
+  return (
+    <Panel aria-label="资料库列表">
+      <PaneHeader title="资料库管理" description={`共 ${bases.length} 个资料库`} />
+      <List>
+        {bases.map((base) => (
+          <BaseButton
+            key={base.id}
+            type="button"
+            $active={base.id === activeBaseId}
+            aria-label={`选择资料库 ${base.name}`}
+            aria-pressed={base.id === activeBaseId}
+            onClick={() => onSelectBase(base.id)}
+          >
+            <strong>{base.name}</strong>
+            <span>{base.publishedDocumentCount} 已发布 · {base.draftDocumentCount} 草稿</span>
+          </BaseButton>
+        ))}
+      </List>
+    </Panel>
+  );
+}

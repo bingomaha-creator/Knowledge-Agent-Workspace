@@ -6,36 +6,30 @@ import dotenv from 'dotenv';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createApp } from './app.js';
-import { createChatOrchestrator } from './chat/chat-orchestrator.js';
-import { createRouteMcpCaller } from './http-utils.js';
-import { createMcpGateway } from './infrastructure/mcp-gateway.js';
-import { createMcpSessionManager } from './infrastructure/mcp-session.js';
-import { createChatQwenClient } from './infrastructure/qwen-client.js';
-import { createMcpKnowledgeSearchAdapter } from './infrastructure/mcp-knowledge-search-adapter.js';
-import { createKnowledgeStore } from './knowledge-store.js';
-import { createBugInvestigationStore } from './bug-investigation/bug-investigation-store.js';
-import { createBugInvestigationService } from './bug-investigation/bug-investigation-service.js';
-import { loadPresets } from './preset-utils.js';
-import { createResearchStore } from './research-store.js';
-import { createResearchWorker } from './research-worker.js';
-import { createChatRouter } from './routes/chat-routes.js';
-import { createBugKnowledgeRouter } from './routes/bug-knowledge-routes.js';
-import { createBugInvestigationRouter } from './routes/bug-investigation-routes.js';
-import { createKnowledgeRouter } from './routes/knowledge-routes.js';
-import { createMemoryRouter } from './routes/memory-routes.js';
-import { createResearchRouter } from './routes/research-routes.js';
-import { createSystemRouter } from './routes/system-routes.js';
-import { createRunStore } from './run-store.js';
-import { parsePricing } from './run-utils.js';
-import {
-  createResearchSearchService,
-  normalizeKnowledgeBaseIds
-} from './services/research-search-service.js';
-import { createResearchAiService } from './services/research-ai-service.js';
-import { createBugInvestigationAiService } from './services/bug-investigation-ai-service.js';
-import { createResearchSourceReader } from './services/research-source-reader.js';
-import { createResearchRepositoryResolver } from './services/research-repository-resolver.js';
-import { createToolExecutor } from './tool-capabilities.js';
+import { createBugReviewRouter } from './modules/bug-review/routes.js';
+import { createBugReviewClient } from './modules/bug-review/sidecar-client.js';
+import { createChatOrchestrator } from './modules/chat/orchestrator.js';
+import { createChatService } from './modules/chat/service.js';
+import { createChatStore } from './modules/chat/store.js';
+import { createRouteMcpCaller } from './shared/http/utils.js';
+import { createMcpGateway } from './infrastructure/mcp-client/gateway.js';
+import { createMcpSessionManager } from './infrastructure/mcp-client/session.js';
+import { createChatQwenClient } from './infrastructure/ai/qwen-client.js';
+import { createMcpKnowledgeSearchAdapter } from './shared/retrieval/knowledge-search-adapter.js';
+import { createKnowledgeStore } from './modules/knowledge/store.js';
+import { loadPresets } from './modules/chat/presets.js';
+import { createResearchNewStore } from './modules/research-new/store.js';
+import { readGraphScope } from './modules/research-new/graph-scope.js';
+import { createResearchSidecarClient } from './modules/research-new/sidecar-client.js';
+import { createResearchNewSidecarWorker } from './modules/research-new/sidecar-worker.js';
+import { createChatRouter } from './modules/chat/routes.js';
+import { createKnowledgeRouter } from './modules/knowledge/routes.js';
+import { createMemoryRouter } from './modules/memory/routes.js';
+import { createResearchNewRouter } from './modules/research-new/routes.js';
+import { createSystemRouter } from './modules/system/routes.js';
+import { createRunStore } from './modules/chat/run-store.js';
+import { parsePricing } from './modules/chat/run-utils.js';
+import { createToolExecutor } from './shared/agent-tools/catalog.js';
 
 dotenv.config({ path: path.resolve(process.cwd(), '.env.local') });
 dotenv.config();
@@ -84,7 +78,7 @@ const mcpSessionManager = createMcpSessionManager({
   },
   transportOptions: {
     command: process.execPath,
-    args: [path.resolve(__dirname, './mcp-server.js')],
+    args: [path.resolve(__dirname, './mcp-server/index.js')],
     cwd: process.cwd(),
     env: {
       ...process.env,
@@ -96,46 +90,20 @@ const mcpSessionManager = createMcpSessionManager({
 const mcpGateway = createMcpGateway({ sessionManager: mcpSessionManager });
 const toolExecutor = createToolExecutor({ gateway: mcpGateway });
 const runStore = createRunStore();
-const researchStore = createResearchStore();
-const bugInvestigationStore = createBugInvestigationStore();
+const chatStore = createChatStore();
+const researchNewStore = createResearchNewStore();
 const researchKnowledgeStore = createKnowledgeStore();
 const researchKnowledgeSearch = createMcpKnowledgeSearchAdapter({ toolExecutor });
-const researchSearchService = createResearchSearchService({
-  searchEvidence: researchKnowledgeSearch.searchEvidence,
-  toolExecutor
+const researchSidecarClient = createResearchSidecarClient({
+  baseUrl: process.env.RESEARCH_SIDECAR_URL || 'http://127.0.0.1:8000/api/v1',
+  timeoutMs: Number(process.env.RESEARCH_SIDECAR_TIMEOUT_MS) || 15_000
 });
-const researchAiService = createResearchAiService({
-  // 研究任务的模型能力是可选增强；没有聊天模型配置时 Worker 会退回单问题、
-  // 确定性证据报告，而不是把任务标成失败。
-  qwenClient: config.apiKey ? qwenClient : null,
-  model: config.model
-});
-const researchSourceReader = createResearchSourceReader();
-const researchRepositoryResolver = createResearchRepositoryResolver();
-const researchWorker = createResearchWorker({
-  store: researchStore,
-  searchSources: researchSearchService.searchSources,
-  planResearch: researchAiService.planResearch,
-  resolveResearchRepositories: researchRepositoryResolver.resolveRepositories,
-  readResearchSources: researchSourceReader.readSelected,
-  writeResearchReport: researchAiService.writeResearchReport
+const researchNewWorker = createResearchNewSidecarWorker({
+  store: researchNewStore,
+  client: researchSidecarClient,
+  pollMs: Number(process.env.RESEARCH_SIDECAR_POLL_MS) || 1_000
 });
 const callMcpTool = createRouteMcpCaller({ toolExecutor });
-const callBugMcpTool = createRouteMcpCaller({ toolExecutor, caller: 'bug-ui' });
-const bugInvestigationAiService = createBugInvestigationAiService({
-  qwenClient: config.apiKey ? qwenClient : null,
-  model: config.model
-});
-const bugInvestigationService = createBugInvestigationService({
-  store: bugInvestigationStore,
-  projectExists: async (projectRef) => {
-    const result = await callBugMcpTool('list_bug_projects');
-    return (result.projects || []).some((project) => project.projectRef === projectRef);
-  },
-  searchBugCases: (input) => callBugMcpTool('search_bug_cases', input),
-  analyzeEvidence: bugInvestigationAiService.analyze,
-  createBugCase: (input) => callBugMcpTool('create_bug_case', input)
-});
 const chatOrchestrator = createChatOrchestrator({
   qwenClient,
   mcpGateway,
@@ -147,41 +115,52 @@ const chatOrchestrator = createChatOrchestrator({
   modelRetries: config.modelRetries,
   contextWindowTokens: config.contextWindowTokens
 });
-
-void researchWorker.resume().catch((error) => {
-  console.error('[research] startup recovery failed:', error?.message || error);
+const chatService = createChatService({
+  store: chatStore,
+  orchestrator: chatOrchestrator,
+  listMemories: async (filters) => {
+    const result = await callMcpTool('list_memories', filters, { fallbackMessage: '恢复历史记忆候选失败' });
+    return result.memories;
+  }
 });
-const enqueueResearch = (id) => {
-  void researchWorker.enqueue(id).catch((error) => {
-    console.error(`[research] task ${id} could not start:`, error?.message || error);
-  });
-};
+
+await chatService.recoverMemoryProjections();
+
+void researchNewWorker.resume().catch((error) => {
+  console.error('[research-new] startup recovery failed:', error?.message || error);
+});
 
 const app = createApp({
+  bugReviewRouter: createBugReviewRouter({ client: createBugReviewClient() }),
   systemRouter: createSystemRouter({
     presets: config.presets,
     runStore,
     callMcpTool
   }),
-  researchRouter: createResearchRouter({
-    researchStore,
-    researchWorker,
-    researchKnowledgeStore,
-    enqueueResearch,
-    normalizeKnowledgeBaseIds,
-    webSearchConfigured: Boolean(
-      process.env.BOCHA_API_KEY || (
-        (process.env.RESEARCH_WEB_SEARCH_ENDPOINT || process.env.WEB_SEARCH_ENDPOINT) &&
-        (process.env.RESEARCH_WEB_SEARCH_API_KEY || process.env.WEB_SEARCH_API_KEY)
-      )
-    )
+  researchNewRouter: createResearchNewRouter({
+    store: researchNewStore,
+    worker: researchNewWorker,
+    knowledgeStore: researchKnowledgeStore,
+    knowledgeSearch: researchKnowledgeSearch,
+    graphScope: (ids) => readGraphScope(
+      path.resolve(process.env.RESEARCH_GRAPH_MANIFEST || 'services/research-sidecar/data/current-graph.json'),
+      researchKnowledgeStore, ids),
+    modelConfigured: true,
+    engine: 'sidecar',
+    webReaderTransport: 'research_sidecar',
+    webSearchCapabilities: { provider: 'research_sidecar', fullText: true, domainFilter: false, temporalFilter: false },
+    webSearchConfigured: true
   }),
   knowledgeRouter: createKnowledgeRouter({ callMcpTool }),
-  bugKnowledgeRouter: createBugKnowledgeRouter({ callMcpTool: callBugMcpTool }),
-  bugInvestigationRouter: createBugInvestigationRouter({ investigationService: bugInvestigationService }),
-  memoryRouter: createMemoryRouter({ callMcpTool }),
-  chatRouter: createChatRouter({ orchestrator: chatOrchestrator }),
-  frontendDir: path.resolve(__dirname, '../dist')
+  memoryRouter: createMemoryRouter({
+    callMcpTool,
+    syncMemoryProjection: (id, memory) => chatStore.syncMemoryCandidateProjection(id, memory)
+  }),
+  chatRouter: createChatRouter({
+    orchestrator: chatOrchestrator,
+    chatService
+  }),
+  frontendDir: path.resolve(__dirname, '../apps/react/dist')
 });
 
 const httpServer = app.listen(config.port, config.host, () => {
@@ -191,8 +170,9 @@ const httpServer = app.listen(config.port, config.host, () => {
 async function shutdown(signal) {
   console.log(`[server] received ${signal}, shutting down`);
   httpServer.close();
-  bugInvestigationStore.close();
-  researchStore.close();
+  chatStore.close();
+  researchNewStore.close();
+  researchKnowledgeStore.close();
   await mcpSessionManager.close();
 }
 

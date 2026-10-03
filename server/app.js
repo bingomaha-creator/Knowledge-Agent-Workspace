@@ -1,7 +1,7 @@
 import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
-import { getErrorPayload } from './http-utils.js';
+import { getErrorPayload } from './shared/http/utils.js';
 
 /**
  * 创建一个尚未 listen 的 Express 应用。
@@ -11,23 +11,28 @@ import { getErrorPayload } from './http-utils.js';
  */
 export function createApp({
   systemRouter,
-  researchRouter,
+  researchNewRouter,
+  bugReviewRouter,
   knowledgeRouter,
-  bugKnowledgeRouter,
-  bugInvestigationRouter,
   memoryRouter,
   chatRouter,
   frontendDir
 } = {}) {
   const app = express();
   app.use(express.json({ limit: '4mb' }));
+  app.use('/api/research', (_req, res) => {
+    res.status(410).json({ code: 'RESEARCH_RETIRED', error: '旧版深度研究已退役，请使用当前深度研究入口。' });
+  });
+
+  app.use(['/api/bug-projects', '/api/bug-cases', '/api/bug-investigations'], (_req, res) => {
+    res.status(410).json({ code: 'BUG_RETIRED', error: '旧版 Bug 调查与案例接口已退役，请使用 Bug 复盘入口。' });
+  });
 
   for (const router of [
     systemRouter,
-    researchRouter,
+    researchNewRouter,
+    bugReviewRouter,
     knowledgeRouter,
-    bugKnowledgeRouter,
-    bugInvestigationRouter,
     memoryRouter,
     chatRouter
   ]) {

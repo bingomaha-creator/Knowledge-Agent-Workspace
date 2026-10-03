@@ -3,43 +3,42 @@
   "private": true,
   "version": "0.0.1",
   "type": "module",
+  "workspaces": [
+    "apps/react"
+  ],
   "engines": {
     "node": ">=22.13.0"
   },
   "scripts": {
-    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
-    "dev:client": "vite",
+    "dev": "concurrently -n server,react -c yellow,green \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm run dev --workspace @matthews-workspace/react",
     "dev:server": "node ./server/index.js",
-    "build": "vue-tsc -b && vite build",
-    "preview": "vite preview",
+    "dev:research-sidecar": "cd services/research-sidecar && PYTHONPATH=src RESEARCH_SIDECAR_ENV_FILE=../../.env.local CACHE_ROOT=data/current-graph-cache NEO4J_URI=neo4j://127.0.0.1:7687 NEO4J_USERNAME=neo4j NEO4J_PASSWORD=${NEO4J_PASSWORD:-research-sidecar-dev} .venv/bin/python -m uvicorn backend.app.main:app --host 127.0.0.1 --port 8000",
+    "research-sidecar:neo4j:local": "sh services/research-sidecar/start-neo4j-local.sh",
+    "dev:with-research-sidecar": "concurrently -n server,react,sidecar -c yellow,green,cyan \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:research-sidecar\"",
+    "research-sidecar:neo4j": "docker compose -f services/research-sidecar/compose.neo4j.yml up -d",
+    "test:research-sidecar": "cd services/research-sidecar && OPENAI_API_KEY=test OPENAI_LLM_MODEL=test-model .venv/bin/python -m pytest -q --ignore=tests/acceptance/test_delivery_phase8.py",
+    "build": "npm run build --workspace @matthews-workspace/react",
+    "preview": "npm run preview --workspace @matthews-workspace/react",
     "start": "node ./server/index.js",
     "test": "node --test \"server/**/*.test.js\"",
-    "test:client": "vitest run src"
+    "test:client": "npm run test --workspace @matthews-workspace/react",
+    "check:react": "npm run typecheck --workspace @matthews-workspace/react && npm run test:client && npm run build",
+    "dev:bug-review-sidecar": "node services/bug-review-sidecar/start.mjs",
+    "test:bug-review-sidecar": "node services/bug-review-sidecar/start.mjs --test",
+    "dev:with-bug-review-sidecar": "concurrently -n server,react,bug-review -c yellow,green,cyan \"npm run dev:server\" \"npm run dev:client\" \"npm run dev:bug-review-sidecar\""
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "dompurify": "^3.2.6",
+    "@mozilla/readability": "^0.6.0",
     "dotenv": "^16.6.1",
     "express": "^4.21.2",
-    "markdown-it": "^14.1.0",
+    "ipaddr.js": "^2.5.0",
+    "jsdom": "^29.1.1",
     "multer": "^2.0.2",
-    "pinia": "^3.0.3",
-    "vue": "^3.5.13",
-    "vue-router": "^4.6.4",
-    "vue-virtual-scroller": "^2.0.0-beta.8",
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@types/dompurify": "^3.2.0",
-    "@types/markdown-it": "^14.1.2",
-    "@vitejs/plugin-vue": "^5.2.1",
-    "@vue/test-utils": "^2.4.11",
-    "@vue/tsconfig": "^0.7.0",
-    "concurrently": "^9.1.2",
-    "happy-dom": "^20.10.6",
-    "typescript": "^5.7.3",
-    "vite": "^6.0.7",
-    "vitest": "^4.1.10",
-    "vue-tsc": "^2.2.0"
+    "concurrently": "^9.1.2"
   }
 }

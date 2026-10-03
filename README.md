@@ -6,7 +6,7 @@
 
 > 一个前端主导的 AI Agent 工作台：让对话、资料证据、长期记忆与深度研究在同一套可解释流程中协作。
 
-Matthew's Workspace 基于 Vue 3、TypeScript、Express、MCP 和 SQLite 构建。它关注的不是把模型回答直接展示出来，而是让用户能够看到：本轮回答使用了哪些上下文、资料是否真的被检索并采纳、长期记忆是否经过确认，以及研究任务的来源与进度。
+Matthew's Workspace 基于 React、TypeScript、Express、MCP 和 SQLite 构建。它关注的不是把模型回答直接展示出来，而是让用户能够看到：本轮回答使用了哪些上下文、资料是否真的被检索并采纳、长期记忆是否经过确认，以及研究任务的来源与进度。
 
 ## 核心能力
 
@@ -29,11 +29,11 @@ Matthew's Workspace 基于 Vue 3、TypeScript、Express、MCP 和 SQLite 构建�
 - 候选需经过敏感信息过滤和重复检查，并等待人工确认、纠正或拒绝。
 - 只有 `confirmed / corrected` 的相关记录才可能参与后续上下文装配。
 
-### 深度研究与 BugCase
+### 深度研究与 Bug 复盘
 
-- 深度研究任务具备持久化阶段、恢复、取消、重试、来源和报告校验。
-- 支持本地资料、受控联网或混合研究；未配置联网 provider 时会明确降级。
-- BugCase 将症状、上下文、修复、验证和审核状态作为结构化知识管理，并区分项目范围与公共案例。
+- 深度研究使用单一工作台入口，展示任务状态、报告、来源与交付检查；Python Sidecar 承载参考项目研究链路。
+- 当前可研究知识库或联网资料；知识库默认使用关键词与向量检索，GraphRAG 为实验选项。知识库与联网联合研究、逐句语义核验尚未完成。
+- Bug 复盘支持手动导入已合入的 GitHub PR，保留 PR、diff、讨论及 CI 等材料，经 Qwen 生成、人工编辑审核后发布；案例库只检索已发布快照，证据不完整的案例持续显示缺口。
 
 ## 一分钟体验路径
 
@@ -42,19 +42,25 @@ Matthew's Workspace 基于 Vue 3、TypeScript、Express、MCP 和 SQLite 构建�
 3. 开启 RAG 提问，随后展开回答详情查看资料取证与引用。
 4. 在记忆中心确认有长期价值的候选信息。
 5. 将需要多步查证的问题转为深度研究任务，查看进度、来源和报告。
+6. 在 Bug 复盘中导入已合入 PR，核对来源和推断、补充缺口，再审核发布并搜索修复经验。
 
 ## 架构概览
 
 ```mermaid
 flowchart LR
-  UI[Vue 3 Workspace] -->|HTTP / SSE| API[Express Application]
+  UI[React Workspace] -->|HTTP / SSE| API[Express Application]
   API --> CHAT[Chat Orchestrator]
   API --> MCP[MCP Gateway]
   CHAT --> MODEL[Qwen Compatible API]
-  MCP --> TOOLS[Knowledge / Memory / BugCase / Web Tools]
+  MCP --> TOOLS[Knowledge / Memory / Web Tools]
   TOOLS --> DATA[(SQLite + FTS5)]
-  API --> RESEARCH[Research Worker]
-  RESEARCH --> DATA
+  API --> BUG[Bug Review]
+  BUG --> BUGPY[Python Bug Review Sidecar]
+  BUGPY --> CASES[(JSON / Markdown / BM25)]
+  API --> RESEARCH[Research New]
+  RESEARCH --> PY[Python Research Sidecar]
+  PY --> GRAPH[(Neo4j / Web Provider)]
+  RESEARCH -->|任务与历史结果| DATA
 ```
 
 ## 当前边界
@@ -63,6 +69,7 @@ flowchart LR
 - 当前为单工作区、单 Node 服务实例，尚未提供多用户鉴权或分布式 worker。
 - 联网搜索仅由深度研究在服务端受控调用；需要配置实际 provider 才会启用。
 - 不提供 Coding Agent、任意文件写入或 shell 执行能力。
+- Bug 复盘为单人审核 Demo，生成结果需要核对；引用可追溯不等于根因已被证实。未接入 GitHub webhook、自动修复或 Chat 检索；私有 PR 与更多真实样本仍待验收。旧 Bug API 返回 410，旧 SQLite 数据保留，不自动迁移。
 
 ## 本地启动
 
@@ -85,13 +92,29 @@ QWEN_API_KEY=your_api_key
 npm run dev
 ```
 
-默认访问地址为 `http://127.0.0.1:5173`。前端和 Express 服务会同时启动；服务端默认端口为 `8787`。
+默认访问地址为 `http://127.0.0.1:5175`。前端和 Express 服务会同时启动；服务端默认端口为 `8787`。上述命令不会启动 Python Sidecar；深度研究需要单独启动 Sidecar，或使用下方的联合启动命令。早期 Node 研究引擎保存在 `server/modules/research-new/oldVersion/`，不接入主服务。
+
+要体验参考项目迁入的 Sidecar 研究链路，先按 [Research Sidecar 启动说明](services/research-sidecar/README.md) 准备 Python 环境、模型／搜索配置及所需的 Neo4j，再运行：
+
+```bash
+npm run dev:with-research-sidecar
+```
+
+该命令并列启动前端、Express 和 Sidecar，并将新建研究任务路由到 Sidecar；它不会自动启动 Neo4j。当前 GraphRAG 仅支持已建图的单个资料库，知识库与联网联合研究尚未实现。
+
+Bug 复盘需按 [Bug Review Sidecar 启动说明](services/bug-review-sidecar/README.md) 准备独立 Python 环境，然后运行：
+
+```bash
+npm run dev:with-bug-review-sidecar
+```
+
+默认使用现有 Qwen 配置；私有仓库凭据仅留在后端。该命令不启动 Research Sidecar，两个模块的存储与任务相互独立。
 
 ## 技术栈
 
 | 层级 | 技术 |
 | --- | --- |
-| Frontend | Vue 3, Vite, TypeScript, Pinia |
+| Frontend | React, Vite, TypeScript, TanStack Query, Zustand |
 | Backend | Node.js, Express, SSE |
 | Agent | MCP, Function Calling, Qwen OpenAI-compatible API |
 | Storage & Retrieval | SQLite, FTS5/BM25, Embedding, RRF |
