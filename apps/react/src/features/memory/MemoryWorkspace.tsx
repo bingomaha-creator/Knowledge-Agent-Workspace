@@ -5,7 +5,8 @@ import { Button } from '@/ui/Button';
 import { Feedback } from '@/ui/Feedback';
 import { FeatureHeader } from '@/ui/FeatureHeader';
 import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
-import { Select } from '@/ui/Select';
+import { Select } from 'matthew-ui/select';
+import 'matthew-ui/select/style.css';
 import { WorkspaceControlBar } from '@/ui/WorkspaceControlBar';
 import { MemoryCreateDialog } from './MemoryCreateDialog';
 import { MemoryDetail } from './MemoryDetail';
@@ -83,10 +84,8 @@ export function MemoryWorkspace({
   const counts = useMemoryCounts();
   const [queryDraft, setQueryDraft] = useState(filters.query);
   const [createOpen, setCreateOpen] = useState(false);
-  const [returnFocus, setReturnFocus] = useState<HTMLElement | null>(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  const createButtonRef = useRef<HTMLButtonElement>(null);
   const filtersRef = useRef(filters);
   const onFiltersChangeRef = useRef(onFiltersChange);
   const totalPages = Math.max(1, Math.ceil((list.data?.total || 0) / MEMORY_PAGE_SIZE));
@@ -130,7 +129,6 @@ export function MemoryWorkspace({
   }
 
   function openCreate() {
-    setReturnFocus(document.activeElement instanceof HTMLElement ? document.activeElement : createButtonRef.current);
     setCreateOpen(true);
   }
 
@@ -140,7 +138,7 @@ export function MemoryWorkspace({
         title="Memory"
         description="创建、审查并纠正可由 Workspace 长期召回的记忆。"
         meta={<span>{counts.total} 条 · {counts.candidates} 条待审查</span>}
-        actions={<Button variant="primary" ref={createButtonRef} onClick={openCreate}>新建记忆</Button>}
+        actions={<Button variant="primary" onClick={openCreate}>新建记忆</Button>}
       />
       {notice && <Feedback>{notice}</Feedback>}
       {error && <Feedback tone="danger">{error}</Feedback>}
@@ -149,13 +147,13 @@ export function MemoryWorkspace({
         <FilterSelect
           aria-label="记忆状态筛选"
           value={filters.status || ''}
-          onChange={(value) => changeFilter({ status: (value || undefined) as MemoryStatus | undefined })}
+          onValueChange={(value) => changeFilter({ status: (value || undefined) as MemoryStatus | undefined })}
           options={[{ value: '', label: '全部状态' }, ...memoryStatuses.map((status) => ({ value: status, label: memoryStatusLabel(status) }))]}
         />
         <FilterSelect
           aria-label="记忆类型筛选"
           value={filters.type || ''}
-          onChange={(value) => changeFilter({ type: (value || undefined) as MemoryType | undefined })}
+          onValueChange={(value) => changeFilter({ type: (value || undefined) as MemoryType | undefined })}
           options={[{ value: '', label: '全部类型' }, ...memoryTypes.map((type) => ({ value: type, label: memoryTypeLabel(type) }))]}
         />
         <QuickFilter $active={filters.status === 'candidate'} onClick={() => changeFilter({ status: filters.status === 'candidate' ? undefined : 'candidate' })}>
@@ -189,7 +187,6 @@ export function MemoryWorkspace({
       />
       <MemoryCreateDialog
         open={createOpen}
-        returnFocus={returnFocus}
         onClose={() => setCreateOpen(false)}
         onCreated={(memory) => { setCreateOpen(false); setNotice('记忆已创建并确认。'); onCreated(memory.id); }}
       />

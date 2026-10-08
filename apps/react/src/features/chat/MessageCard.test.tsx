@@ -119,6 +119,65 @@ describe('MessageCard', () => {
     expect(screen.getByText(/生成最终回答/)).toBeInTheDocument();
   });
 
+  it('copies tool result text without folding and clears feedback when the result changes', async () => {
+    const user = userEvent.setup();
+    const writeText = vi.spyOn(navigator.clipboard, 'writeText').mockResolvedValue();
+    const queryClient = new QueryClient();
+    const tool = { id: 'tool-copy', name: 'read_knowledge_document', args: { documentId: 'doc-1' }, status: 'success' as const, result: '  原文\n\t<script>纯文本</script>\n' };
+    const card = (result: ChatMessage['tools'][number]['result']) =>
+      <QueryClientProvider client={queryClient}><ControlledMessageCard message={message({ tools: [{ ...tool, result }] })} /></QueryClientProvider>;
+    const view = render(card(tool.result));
+    const toggle = screen.getByRole('button', { name: /读取知识文档/ });
+    await user.click(toggle);
+    expect(screen.getByRole('region', { name: '参数' }).textContent).toBe(JSON.stringify(tool.args, null, 2));
+    const result = screen.getByRole('region', { name: '结果' });
+    expect(result.textContent).toBe(tool.result);
+    await user.click(within(result.parentElement!).getByRole('button', { name: '复制' }));
+    expect(writeText).toHaveBeenCalledWith(tool.result);
+    expect(screen.getByText('已复制')).toBeVisible();
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    view.rerender(card({ updated: true }));
+    expect(screen.queryByText('已复制')).not.toBeInTheDocument();
+    expect(screen.getByRole('region', { name: '结果' }).textContent).toBe(JSON.stringify({ updated: true }, null, 2));
+    await user.click(toggle);
+    expect(screen.queryByRole('button', { name: '复制' })).not.toBeInTheDocument();
+  });
+
+  it('keeps citation order and the parent expansion state across message remounts', async () => {
+    const onReadingStart = vi.fn();
+    const citations = [
+      { id: 'second', title: '第二份资料', snippet: '<b>证据原文</b>', source: 'document-b.md' },
+      { id: 'first', title: '第一份资料', snippet: '另一段证据', source: 'document-a.md' }
+    ];
+    function Host({ version, items }: { version: number; items: ChatMessage['citations'] }) {
+      const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
+      return <MessageCard key={version} message={message({ citations: items })}
+        expandedDetails={expanded} onReadingStart={onReadingStart}
+        onDetailsChange={(key, open) => setExpanded(current => {
+          const next = new Set(current);
+          if (open) next.add(key); else next.delete(key);
+          return next;
+        })} />;
+    }
+    const queryClient = new QueryClient();
+    const view = render(<Host version={1} items={citations} />, {
+      wrapper: ({ children }) => <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    });
+    expect(screen.getByRole('button', { name: '参考来源 2' })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('<b>证据原文</b>')).not.toBeVisible();
+    await userEvent.click(screen.getByRole('button', { name: '参考来源 2' }));
+    expect(onReadingStart).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole('listitem').map(item => item.textContent)).toEqual([
+      '第二份资料<b>证据原文</b>document-b.md', '第一份资料另一段证据document-a.md'
+    ]);
+    view.rerender(<Host version={2} items={[...citations].reverse()} />);
+    expect(screen.getByRole('button', { name: '参考来源 2' })).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getAllByRole('listitem')[0]).toHaveTextContent('第一份资料');
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    view.rerender(<Host version={2} items={[]} />);
+    expect(screen.queryByRole('button', { name: /参考来源/ })).not.toBeInTheDocument();
+  });
+
   it('keeps the Research intent while retiring Bug investigation', async () => {
     const onStartResearch = vi.fn();
     renderCard(<ControlledMessageCard

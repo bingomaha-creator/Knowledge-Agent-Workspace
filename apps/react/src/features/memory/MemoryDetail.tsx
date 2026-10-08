@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import styled from 'styled-components';
 import type { MemoryRecord, MemoryType } from '@/services/memoryApi';
-import { Select } from '@/ui/Select';
+import { Select } from 'matthew-ui/select';
+import 'matthew-ui/select/style.css';
 import { memoryStatusLabel, memoryTypeLabel, memoryTypes } from './memoryDisplay';
 import { useMemoryDetail } from './memoryQueries';
 import { useMemoryMutations } from './useMemoryMutations';
@@ -152,7 +153,7 @@ export function MemoryDetail({ memoryId, onClose, onChanged, onDeleted, onOpenSo
       <Body>
         {editing ? (
           <Form onSubmit={save}>
-            <label>类型<Select aria-label="记忆类型" value={draft.type} onChange={(value) => setDraft((current) => ({ ...current, type: value as MemoryType }))} options={memoryTypes.map((type) => ({ value: type, label: memoryTypeLabel(type) }))} /></label>
+            <label>类型<Select aria-label="记忆类型" value={draft.type} onValueChange={(value) => setDraft((current) => ({ ...current, type: value as MemoryType }))} options={memoryTypes.map((type) => ({ value: type, label: memoryTypeLabel(type) }))} /></label>
             <label>标题<input aria-label="记忆标题" maxLength={160} value={draft.title} onChange={(event) => setDraft((current) => ({ ...current, title: event.target.value }))} /></label>
             <label>内容<textarea aria-label="记忆内容" rows={8} maxLength={8000} value={draft.content} onChange={(event) => setDraft((current) => ({ ...current, content: event.target.value }))} /></label>
             <label>置信度 {Math.round(draft.confidence * 100)}%<input aria-label="记忆置信度" type="range" min="0" max="1" step="0.05" value={draft.confidence} onChange={(event) => setDraft((current) => ({ ...current, confidence: Number(event.target.value) }))} /></label>

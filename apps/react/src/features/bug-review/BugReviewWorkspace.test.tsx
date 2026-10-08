@@ -55,7 +55,8 @@ it('keeps incomplete evidence visible and requires saving edits before approval'
   await user.clear(screen.getByLabelText('影响范围'));
   await user.type(screen.getByLabelText('影响范围'),'人工核对的上传影响');
   await user.type(screen.getByLabelText('受影响用户'),'测试用户');
-  await user.selectOptions(screen.getByLabelText('严重程度'),'unknown');
+  await user.click(screen.getByRole('combobox',{name:'严重程度'}));
+  await user.click(screen.getByRole('option',{name:'待确认'}));
   expect(screen.queryByRole('button',{name:'审核通过'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'丢弃新结果'})).not.toBeInTheDocument();
   expect(screen.queryByRole('button',{name:'重试采集与生成'})).not.toBeInTheDocument();
@@ -97,9 +98,10 @@ it('edits the latest working draft from the library and retains input after a fa
   await user.click(screen.getByRole('button',{name:'编辑复盘'}));
   expect(await screen.findByRole('textbox',{name:'标题'})).toHaveValue('尚未发布的新标题');
   await user.click(screen.getByText('编辑根因依据与原文引用'));
+  await user.click(screen.getByRole('combobox',{name:'根因来源'}));
   expect(screen.getByRole('option',{name:'PR 评论 1'})).toBeInTheDocument();
   expect(screen.getByRole('option',{name:'PR 评论 2'})).toBeInTheDocument();
-  await user.selectOptions(screen.getByRole('combobox',{name:'根因来源'}),'comments:2');
+  await user.click(screen.getByRole('option',{name:'PR 评论 2'}));
   await user.click(screen.getByText('查看所选来源原文'));
   expect(screen.getByText('第二条讨论证据')).toBeVisible();
   await user.clear(screen.getByRole('textbox',{name:'标题'}));

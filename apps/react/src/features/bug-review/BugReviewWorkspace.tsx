@@ -1,6 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { replaceEqualDeep, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import styled from 'styled-components';
+import { Select } from 'matthew-ui/select';
+import 'matthew-ui/select/style.css';
+import { CodeBlock } from 'matthew-ui/code-block';
+import 'matthew-ui/tokens.css';
+import 'matthew-ui/code-block/style.css';
 import { bugReviewApi, type BugReview, type ReviewDocument, type ReviewMaterial, type ReviewOperation, type ReviewSource } from '@/services/bugReviewApi';
 import { Button } from '@/ui/Button';
 import { Feedback } from '@/ui/Feedback';
@@ -17,12 +22,15 @@ const Form = styled.form`display:flex;flex-direction:column;gap:var(--space-3);`
 const Label = styled.label`display:flex;flex-direction:column;gap:var(--space-2);color:var(--color-text);font-size:.875rem;min-width:0;`;
 const Input = styled.input`width:100%;min-width:0;padding:.65rem;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);`;
 const Textarea = styled.textarea`width:100%;min-height:6rem;resize:vertical;padding:.65rem;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);line-height:1.6;`;
-const Select = styled.select`padding:.65rem;border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);`;
 const Card = styled.div`padding:var(--space-4);border:1px solid var(--color-border);border-radius:var(--radius-control);background:var(--color-surface);overflow-wrap:anywhere;`;
 const RecordButton = styled.button<{$selected:boolean}>`width:100%;text-align:left;padding:var(--space-3);border:1px solid ${({$selected})=>$selected?'var(--color-primary)':'var(--color-border)'};border-radius:var(--radius-control);background:var(--color-surface);color:var(--color-text);overflow-wrap:anywhere;line-height:1.5;`;
 const Subtle = styled.p`margin:0;color:var(--color-text-muted);font-size:.8rem;line-height:1.6;overflow-wrap:anywhere;`;
 const Text = styled.p`white-space:pre-wrap;overflow-wrap:anywhere;line-height:1.7;`;
-const Code = styled.pre`max-width:100%;max-height:24rem;overflow:auto;font-size:.75rem;line-height:1.6;white-space:pre-wrap;overflow-wrap:anywhere;`;
+const MaterialCode = styled(CodeBlock)`
+  /* 原文阅读的业务限高，使用组件公开的代码区样式接入点。 */
+  .matthew-code-block__pre { max-height: 24rem; }
+`;
+const copyLabels = { label: '复制', copiedLabel: '已复制', errorLabel: '复制失败，请手动选择文本复制' };
 const Heading = styled.h2`margin:0 0 var(--space-3);font-size:1rem;`;
 const Article = styled.article`background:var(--color-surface);border:1px solid var(--color-border);border-radius:var(--radius-card);padding:var(--space-5);min-width:0;`;
 const Chapter = styled.section`padding:var(--space-4) 0;border-bottom:1px solid var(--color-border);&:first-child{padding-top:0;}&:last-child{border-bottom:0;padding-bottom:0;}`;
@@ -69,7 +77,7 @@ function sourceName(reference:ReviewSource, material?:ReviewMaterial|null) {
 function Citation({reference,material,label}:{reference:ReviewSource;material?:ReviewMaterial|null;label:string}) {
   if (!reference.source_id) return null;
   return <Details><summary>{label} · {sourceName(reference,material)}</summary>
-    <a href={reference.url} target="_blank" rel="noreferrer">打开来源</a><Code>{reference.snippet}</Code>
+    <a href={reference.url} target="_blank" rel="noreferrer">打开来源</a><MaterialCode title="引用原文" code={reference.snippet || ''} wrap copy={copyLabels} />
   </Details>;
 }
 function Material({material}:{material:ReviewMaterial|null}) {
@@ -77,7 +85,7 @@ function Material({material}:{material:ReviewMaterial|null}) {
   return <details><summary>查看采集材料、diff 与来源（{material.sources.length}）</summary>
     <Subtle>采集时间：{material.collected_at || '未提供'} · Head：{material.head_sha || '未提供'}</Subtle>
     {[...material.gaps,...(material.model_gaps || [])].map((gap,index)=><Subtle key={index}>{gap}</Subtle>)}
-    {material.sources.map(source=><Card key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{sourceName({source_id:source.id},material)}</a><Code>{source.text || '无内容'}</Code></Card>)}
+    {material.sources.map(source=><Card key={source.id}><a href={source.url} target="_blank" rel="noreferrer">{sourceName({source_id:source.id},material)}</a>{!source.text && <Subtle>无内容</Subtle>}<MaterialCode title="材料原文" code={source.text || ''} wrap copy={copyLabels} /></Card>)}
   </details>;
 }
 function DocumentView({document,material}:{document:ReviewDocument;material?:ReviewMaterial|null}) {
@@ -108,18 +116,18 @@ function Editor({review, busy, onSave, onCancel, onDirtyChange}:{review:BugRevie
     {field('title','标题')}{field('symptom','问题现象')}
     <Label>根因<Textarea value={document.root_cause.content} disabled={disabled} onChange={e=>setDocument({...document,root_cause:{...document.root_cause,content:e.target.value}})}/></Label>
     <Details><summary>编辑根因依据与原文引用</summary>
-    <Label>根因依据<Select value={document.root_cause.basis} disabled={disabled} onChange={e=>setDocument({...document,root_cause:{...document.root_cause,basis:e.target.value as ReviewDocument['root_cause']['basis']}})}><option value="fact">材料事实</option><option value="inference">推断，待确认</option><option value="human">人工补充</option></Select></Label>
-    <Label>根因来源<Select value={document.root_cause.source.location || document.root_cause.source.source_id || ''} disabled={disabled} onChange={e=>setDocument({...document,root_cause:{...document.root_cause,source:{location:e.target.value,snippet:''}}})}><option value="">尚未绑定来源</option>{(review.document_material || review.material)?.sources.map(source=><option key={source.id} value={source.id}>{sourceName({source_id:source.id},review.document_material || review.material)}</option>)}</Select></Label>
-    {selectedSource && <Details><summary>查看所选来源原文</summary><a href={selectedSource.url} target="_blank" rel="noreferrer">打开来源</a><Code>{selectedSource.text}</Code></Details>}
+    <Label>根因依据<Select aria-label="根因依据" value={document.root_cause.basis} disabled={disabled} onValueChange={value=>setDocument({...document,root_cause:{...document.root_cause,basis:value as ReviewDocument['root_cause']['basis']}})} options={[{value:'fact',label:'材料事实'},{value:'inference',label:'推断，待确认'},{value:'human',label:'人工补充'}]} /></Label>
+    <Label>根因来源<Select aria-label="根因来源" value={document.root_cause.source.location || document.root_cause.source.source_id || ''} placeholder="尚未绑定来源" disabled={disabled} onValueChange={value=>setDocument({...document,root_cause:{...document.root_cause,source:{location:value,snippet:''}}})} options={[{value:'',label:'尚未绑定来源'},...(material?.sources || []).map(source=>({value:source.id,label:sourceName({source_id:source.id},material)}))]} /></Label>
+    {selectedSource && <Details><summary>查看所选来源原文</summary><a href={selectedSource.url} target="_blank" rel="noreferrer">打开来源</a><MaterialCode title="所选来源原文" code={selectedSource.text} wrap copy={copyLabels} /></Details>}
     <Label>根因原文引用<Textarea value={document.root_cause.source.snippet || ''} disabled={disabled} onChange={e=>setDocument({...document,root_cause:{...document.root_cause,source:{...document.root_cause.source,snippet:e.target.value}}})}/></Label>
     </Details>
     <Label>影响范围<Textarea value={document.impact.scope} disabled={disabled} onChange={e=>setDocument({...document,impact:{...document.impact,scope:e.target.value}})}/></Label>
     <Label>受影响用户<Input value={document.impact.affected_users || ''} disabled={disabled} onChange={e=>setDocument({...document,impact:{...document.impact,affected_users:e.target.value || null}})}/></Label>
-    <Label>严重程度<Select value={document.impact.severity} disabled={disabled} onChange={e=>setDocument({...document,impact:{...document.impact,severity:e.target.value}})}><option value="unknown">待确认</option>{['P0','P1','P2','P3'].map(severity=><option key={severity} value={severity}>{severity}</option>)}</Select></Label>
+    <Label>严重程度<Select aria-label="严重程度" value={document.impact.severity} disabled={disabled} onValueChange={value=>setDocument({...document,impact:{...document.impact,severity:value}})} options={[{value:'unknown',label:'待确认'},...['P0','P1','P2','P3'].map(value=>({value,label:value}))]} /></Label>
     <Subtle>请依据实际影响补充用户范围与评级；缺少证据时保留待确认。</Subtle>
     {field('fix_solution','修复方案')}{field('prevention','规避措施')}{field('validation','验证依据')}{field('human_notes','人工补充背景')}
     <Label>关键词（逗号分隔）<Input value={document.keywords.join(', ')} disabled={disabled} onChange={e=>setDocument({...document,keywords:e.target.value.split(/[,，]/).map(x=>x.trim()).filter(Boolean)})}/></Label>
-    <Label>证据完整性<Select value={document.completeness} disabled={disabled} onChange={e=>setDocument({...document,completeness:e.target.value as ReviewDocument['completeness']})}><option value="incomplete">证据不完整</option><option value="complete">证据完整（由审核者判断）</option></Select></Label>
+    <Label>证据完整性<Select aria-label="证据完整性" value={document.completeness} disabled={disabled} onValueChange={value=>setDocument({...document,completeness:value as ReviewDocument['completeness']})} options={[{value:'incomplete',label:'证据不完整'},{value:'complete',label:'证据完整（由审核者判断）'}]} /></Label>
     <Label>缺口说明（一行一项）<Textarea value={document.gaps.join('\n')} disabled={disabled} onChange={e=>setDocument({...document,gaps:e.target.value.split('\n').filter(Boolean)})}/></Label>
     <Quality document={document}/>
   </Form>;

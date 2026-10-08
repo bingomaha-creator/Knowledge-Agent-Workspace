@@ -1,6 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
 import { Thinking, type ThinkingStatus } from 'matthew-ui/thinking';
 import { ToolCall, type ToolCallStatus } from 'matthew-ui/tool-call';
+import { CodeBlock } from 'matthew-ui/code-block';
+import 'matthew-ui/tokens.css';
+import 'matthew-ui/code-block/style.css';
 // 第三方组件通过编译后、按需 CSS 接入；主题由 GlobalStyles 的公开变量映射提供。
 import 'matthew-ui/thinking/style.css';
 import 'matthew-ui/tool-call/style.css';
@@ -16,42 +19,13 @@ const Execution = styled.section`
   width: min(100%, 46rem);
   min-width: 0;
   gap: var(--space-2);
-
-  .matthew-tool-call__header {
-    min-height: var(--matthew-ui-control-height-md);
-    gap: 0.625rem;
-    padding: 0.5rem 0.75rem;
-    font-size: var(--matthew-ui-font-size-md);
-    font-weight: 500;
-  }
-  .matthew-tool-call__summary {
-    flex: 0 1 auto;
-    font-size: inherit;
-    text-align: right;
-  }
-  .matthew-tool-call__status { width: 0.75rem; height: 0.75rem; }
-  .matthew-tool-call__arrow {
-    border-top: 0;
-    border-bottom: 1.5px solid currentColor;
-  }
-  .matthew-tool-call__header[aria-expanded='true'] .matthew-tool-call__arrow {
-    transform: rotate(225deg);
-  }
 `;
 
 const ToolDetails = styled.div`
+  display: grid;
   min-width: 0;
+  gap: var(--space-2);
   p { margin: var(--space-2) 0; }
-  pre {
-    max-width: 100%;
-    margin: var(--space-2) 0;
-    padding: var(--space-3);
-    border-radius: var(--radius-control);
-    background: var(--color-background);
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    overflow: auto;
-  }
 `;
 
 const RunDetails = styled.div`
@@ -60,6 +34,8 @@ const RunDetails = styled.div`
   ul { padding-left: var(--space-5); }
   li { margin: var(--space-2) 0; overflow-wrap: anywhere; }
 `;
+
+const copyLabels = { label: '复制', copiedLabel: '已复制', errorLabel: '复制失败，请手动选择文本复制' };
 
 const toolLabels: Record<ToolCallStatus, string> = {
   pending: '等待执行', running: '执行中', completed: '已完成', error: '执行失败', stopped: '未完成，结果未确认'
@@ -125,13 +101,12 @@ export function ChatExecutionDetails({ message, expandedDetails, onDetailsChange
                 name={toolNames[tool.name] || tool.name}
                 status={toolStatus}
                 summary={toolLabels[toolStatus]}
-                statusLabels={toolLabels}
                 open={expandedDetails.has(key)}
                 onOpenChange={(open) => onDetailsChange(key, open)}
               >
                 <ToolDetails>
-                  <p>参数</p><pre>{JSON.stringify(tool.args, null, 2)}</pre>
-                  {tool.result !== undefined ? <><p>结果</p><pre>{typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)}</pre></> : null}
+                  <CodeBlock title="参数" code={JSON.stringify(tool.args, null, 2)} wrap copy={copyLabels} />
+                  {tool.result !== undefined ? <CodeBlock title="结果" code={typeof tool.result === 'string' ? tool.result : JSON.stringify(tool.result, null, 2)} wrap copy={copyLabels} /> : null}
                   {toolStatus === 'stopped' ? <p>本轮已结束，未收到该工具的完成结果。</p> : null}
                 </ToolDetails>
               </ToolCall>

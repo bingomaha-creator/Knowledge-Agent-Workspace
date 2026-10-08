@@ -5,7 +5,8 @@ import { ChatSidebarSection } from '@/features/chat/ChatSidebarSection';
 import { KnowledgeSidebarSummary } from '@/features/knowledge/KnowledgeSidebarSummary';
 import { MemorySidebarSummary } from '@/features/memory/MemorySidebarSummary';
 import type { WorkspaceModule } from './navigation';
-import { Select } from '@/ui/Select';
+import { Select } from 'matthew-ui/select';
+import 'matthew-ui/select/style.css';
 import type { ThemePreference } from './useThemePreference';
 
 type WorkspaceSidebarProps = {
@@ -306,7 +307,7 @@ export function WorkspaceSidebar({ modules, open, onClose, themePreference, onTh
             aria-label="外观主题"
             value={themePreference}
             popupHost={() => sidebarRef.current}
-            onChange={(value) => onThemeChange(value as ThemePreference)}
+            onValueChange={(value) => onThemeChange(value as ThemePreference)}
             options={[
               { value: 'system', label: '跟随系统' },
               { value: 'light', label: '亮色' },

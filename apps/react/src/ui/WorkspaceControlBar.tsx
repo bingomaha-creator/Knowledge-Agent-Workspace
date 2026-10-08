@@ -5,7 +5,7 @@ import styled from 'styled-components';
  * 并提供桌面/移动端的响应式行为。不理解任何业务字段。
  *
  * 外壳保留直接子级 input 的统一控件皮肤（Memory 搜索等仍在使用）；
- * 下拉选择统一使用 ui/Select（自带控件外观），按钮由调用方使用共享组件。
+ * 下拉选择统一使用 Matthew UI Select（自带控件外观），按钮由调用方使用共享组件。
  * min-width: 0 提供基础收缩能力；扩张规则归调用方所有——
  * 谁需要占据剩余空间，谁在自己的 styled 扩展里声明 flex。
  */

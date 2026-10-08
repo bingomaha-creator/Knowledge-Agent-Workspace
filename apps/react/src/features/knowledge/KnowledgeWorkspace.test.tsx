@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -58,6 +58,26 @@ describe('KnowledgeWorkspace', () => {
     expect(await screen.findByText('无法加载资料库目录。')).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: '重试' }));
     await waitFor(() => expect(catalogCalls).toBeGreaterThanOrEqual(2));
+  });
+
+  it.each(['create', 'delete'] as const)('keeps %s errors inside the manager dialog', async (operation) => {
+    vi.stubGlobal('confirm', () => true);
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === 'POST' || init?.method === 'DELETE') return Response.json({ error: '管理请求失败' }, { status: 503 });
+      if (url === '/api/knowledge-bases') return Response.json({ knowledgeBases: [defaultBase, projectBase] });
+      if (url.startsWith('/api/knowledge?')) return Response.json({ documents: [] });
+      throw new Error(`Unexpected request: ${url}`);
+    }));
+    renderWorkspace();
+    await screen.findByLabelText('选择资料库 默认知识库');
+    await userEvent.click(screen.getByRole('button', { name: '新建资料库' }));
+    const dialog = screen.getByRole('dialog', { name: '资料库管理' });
+    await userEvent.type(within(dialog).getByRole('textbox', { name: '资料库名称' }), '保留草稿');
+    await userEvent.click(within(dialog).getByRole('button', { name: operation === 'create' ? '创建并打开' : '永久删除' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('管理请求失败');
+    expect(within(dialog).getByRole('textbox', { name: '资料库名称' })).toHaveValue('保留草稿');
+    expect(screen.getAllByText('管理请求失败')).toHaveLength(1);
   });
 
   it('renders the catalog and publishes stable navigation intents', async () => {

@@ -1,8 +1,12 @@
-import { useState, type SyntheticEvent } from 'react';
+import { useState } from 'react';
 import styled from 'styled-components';
 import type { MemoryStatus, MemoryType } from '@/services/memoryApi';
 import { SafeMarkdown } from '@/ui/SafeMarkdown';
-import { Select } from '@/ui/Select';
+import { Select } from 'matthew-ui/select';
+import 'matthew-ui/select/style.css';
+import { SourceList } from 'matthew-ui/source-list';
+import 'matthew-ui/tokens.css';
+import 'matthew-ui/source-list/style.css';
 import type { ChatMessage } from './chat.types';
 import { ChatExecutionDetails } from './ChatExecutionDetails';
 
@@ -135,55 +139,8 @@ const SecondaryActions = styled.div`
   }
 `;
 
-const DetailPanel = styled.details`
+const CitationSources = styled(SourceList)`
   width: min(100%, 46rem);
-  overflow: hidden;
-  border: 1px solid var(--color-border);
-  border-radius: 0.9rem;
-  background: var(--color-surface);
-
-  > summary {
-    display: flex;
-    min-height: 2.6rem;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    padding: 0.65rem 0.8rem;
-    cursor: pointer;
-    color: var(--color-text-muted);
-    font-size: 0.8125rem;
-    list-style: none;
-  }
-
-  > summary::-webkit-details-marker { display: none; }
-  > summary strong { color: var(--color-text); }
-`;
-
-const DetailBody = styled.div`
-  display: grid;
-  gap: var(--space-3);
-  padding: 0 var(--space-3) var(--space-3);
-`;
-
-const DetailCard = styled.article`
-  min-width: 0;
-  padding: var(--space-3);
-  overflow-wrap: anywhere;
-  border-radius: 0.75rem;
-  background: var(--color-background);
-  color: var(--color-text-muted);
-  font-size: 0.8125rem;
-  line-height: 1.55;
-
-  strong { color: var(--color-text); }
-  p { margin: 0.4rem 0; }
-  small { display: block; color: var(--color-text-subtle); }
-  pre {
-    max-width: 100%;
-    margin: var(--space-2) 0 0;
-    overflow: auto;
-    white-space: pre-wrap;
-  }
 `;
 
 const Status = styled.span`
@@ -276,10 +233,6 @@ export function MessageCard({
     onDetailsChange(key, open);
   };
   const citationKey = `${message.id}:citations`;
-  const detailsToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
-    const open = event.currentTarget.open;
-    if (open !== expandedDetails.has(citationKey)) changeDetails(citationKey, open);
-  };
 
   return (
     <Article data-role={message.role} aria-label={message.role === 'user' ? '你的消息' : '助手消息'}>
@@ -309,18 +262,17 @@ export function MessageCard({
       />
 
       {message.citations.length ? (
-        <DetailPanel open={expandedDetails.has(citationKey)} onToggle={detailsToggle}>
-          <summary><strong>参考来源</strong><span>{message.citations.length} 条命中 · 点击展开</span></summary>
-          <DetailBody>
-            {message.citations.map((citation) => (
-              <DetailCard key={citation.id}>
-                <strong>{citation.title}</strong>
-                <p>{citation.snippet}</p>
-                <small>{citation.source}</small>
-              </DetailCard>
-            ))}
-          </DetailBody>
-        </DetailPanel>
+        <CitationSources
+          title="参考来源"
+          items={message.citations.map((citation) => ({
+            id: citation.id,
+            title: citation.title,
+            summary: citation.snippet,
+            source: citation.source
+          }))}
+          open={expandedDetails.has(citationKey)}
+          onOpenChange={(open) => changeDetails(citationKey, open)}
+        />
       ) : null}
 
       {candidate ? (
@@ -345,7 +297,7 @@ export function MessageCard({
                 <Select
                   aria-label="候选记忆类型"
                   value={memoryDraft.type}
-                  onChange={(value) => setMemoryDraft((draft) => ({
+                  onValueChange={(value) => setMemoryDraft((draft) => ({
                     ...draft, type: value as MemoryType
                   }))}
                   options={( ['profile', 'preference', 'fact', 'event', 'pitfall'] as MemoryType[])

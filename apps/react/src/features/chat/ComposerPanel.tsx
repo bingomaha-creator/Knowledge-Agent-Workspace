@@ -1,7 +1,8 @@
 import { useState, type FormEvent, type KeyboardEvent } from 'react';
 import styled from 'styled-components';
 import type { KnowledgeBase } from '@/services/knowledgeApi';
-import { Select } from '@/ui/Select';
+import { Select } from 'matthew-ui/select';
+import 'matthew-ui/select/style.css';
 import type { AgentPreset } from './chat.types';
 import { useSpeechRecognition } from './useSpeechRecognition';
 
@@ -216,7 +217,7 @@ export function ComposerPanel({
           aria-label="角色预设"
           value={presetId}
           disabled={controlsDisabled || isActive}
-          onChange={(value) => onPresetChange(value)}
+          onValueChange={onPresetChange}
           options={presets.map((preset) => ({ value: preset.id, label: preset.name }))}
         />
         <RagControl>

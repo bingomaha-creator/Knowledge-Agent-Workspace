@@ -12,7 +12,10 @@ import { Button } from '@/ui/Button';
 import { Feedback } from '@/ui/Feedback';
 import { FeatureHeader } from '@/ui/FeatureHeader';
 import { MasterDetailLayout } from '@/ui/MasterDetailLayout';
-import { Select } from '@/ui/Select';
+import { Select } from 'matthew-ui/select';
+import { Dialog } from 'matthew-ui/dialog';
+import 'matthew-ui/select/style.css';
+import 'matthew-ui/dialog/style.css';
 import {
   resolveKnowledgeBaseId,
   useKnowledgeBases,
@@ -155,30 +158,19 @@ const State = styled.div`
   strong { color: var(--color-text); }
 `;
 
-const Overlay = styled.div`
-  position: fixed;
-  z-index: 50;
-  inset: 0;
-  display: grid;
-  padding: var(--space-4);
-  place-items: center;
-  background: rgb(15 23 42 / 45%);
+const ManagerDialog = styled(Dialog)`
+  width: min(30rem, calc(100% - 2rem));
+  max-height: min(42rem, calc(100dvh - 2rem));
+  --matthew-ui-dialog-radius: var(--radius-card);
 `;
 
-const Dialog = styled.section`
-  width: min(30rem, 100%);
-  max-height: min(42rem, calc(100dvh - 2rem));
-  overflow-y: auto;
-  border-radius: var(--radius-card);
-  background: var(--color-surface);
-  box-shadow: var(--shadow-soft);
-
-  header, form, section { padding: var(--space-4); }
-  header { display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--color-border); }
-  h2, h3 { margin: 0; font-size: 1rem; }
-  form { display: grid; gap: var(--space-3); border-bottom: 1px solid var(--color-border); }
+const ManagerContent = styled.div`
+  min-width: 0;
+  form { display: grid; gap: var(--space-3); padding-bottom: var(--space-4); border-bottom: 1px solid var(--color-border); }
+  section { padding-top: var(--space-4); }
+  h3 { margin: 0; font-size: 1rem; }
   label { display: grid; gap: var(--space-2); color: var(--color-text-muted); font-size: 0.75rem; }
-  input { padding: 0.65rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); }
+  input { width: 100%; min-width: 0; padding: 0.65rem 0.75rem; border: 1px solid var(--color-border); border-radius: var(--radius-control); color: var(--color-text); background: var(--color-background); }
 `;
 
 const DialogBase = styled.div`
@@ -221,8 +213,7 @@ export function KnowledgeWorkspace({
   const [newBaseName, setNewBaseName] = useState('');
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
-  const dialogRef = useRef<HTMLElement>(null);
-  const managerTriggerRef = useRef<HTMLElement | null>(null);
+  const managerInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (basesQuery.isSuccess && activeBaseId && activeBaseId !== requestedBaseId) {
@@ -230,36 +221,7 @@ export function KnowledgeWorkspace({
     }
   }, [activeBaseId, basesQuery.isSuccess, onSelectBase, requestedBaseId]);
 
-  useEffect(() => {
-    if (!manageOpen) {
-      managerTriggerRef.current?.focus();
-      return;
-    }
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') closeManager();
-      if (event.key !== 'Tab') return;
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button:not(:disabled), input:not(:disabled), select:not(:disabled), [href], [tabindex]:not([tabindex="-1"])'
-      );
-      if (!focusable?.length) return;
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
-    };
-    window.addEventListener('keydown', closeOnEscape);
-    return () => window.removeEventListener('keydown', closeOnEscape);
-  }, [manageOpen]);
-
   function openManager() {
-    managerTriggerRef.current = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
     setManageOpen(true);
   }
 
@@ -374,7 +336,7 @@ export function KnowledgeWorkspace({
           无法加载资料库目录。
         </Feedback>
       )}
-      {(notice || error) && <Feedback tone={error ? 'danger' : 'neutral'}>{error || notice}</Feedback>}
+      {!manageOpen && (notice || error) && <Feedback tone={error ? 'danger' : 'neutral'}>{error || notice}</Feedback>}
 
       <MasterDetailLayout
         master={<KnowledgeBasePanel bases={bases} activeBaseId={activeBaseId} onSelectBase={onSelectBase} />}
@@ -402,7 +364,7 @@ export function KnowledgeWorkspace({
                     <MobileBaseSelect
                       aria-label="当前资料库"
                       value={activeBaseId || ''}
-                      onChange={(value) => onSelectBase(value)}
+                      onValueChange={onSelectBase}
                       options={bases.map((base) => ({ value: base.id, label: base.name }))}
                     />
                     <Button size="sm" onClick={openManager}>管理</Button>
@@ -452,40 +414,42 @@ export function KnowledgeWorkspace({
         detailLabel="知识文档工作区"
       />
 
-      {manageOpen && (
-        <Overlay onMouseDown={(event) => event.target === event.currentTarget && closeManager()}>
-          <Dialog ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="knowledge-manager-title">
-            <header>
-              <h2 id="knowledge-manager-title">资料库管理</h2>
-              <Button size="sm" aria-label="关闭资料库管理" onClick={closeManager}>关闭</Button>
-            </header>
-            <form onSubmit={createBase}>
-              <label>
-                资料库名称
-                <input
-                  autoFocus
-                  aria-label="资料库名称"
-                  value={newBaseName}
-                  maxLength={80}
-                  onChange={(event) => setNewBaseName(event.target.value)}
-                />
-              </label>
-              <Button variant="primary" type="submit" disabled={!newBaseName.trim() || mutations.createBase.isPending}>创建并打开</Button>
-            </form>
-            <section>
-              <h3>现有资料库</h3>
-              {bases.map((base) => (
-                <DialogBase key={base.id}>
-                  <div><strong>{base.name}</strong><div>{base.documentCount} 个文档</div></div>
-                  {base.isDefault
-                    ? <Status>默认资料库</Status>
-                    : <Button variant="danger" size="sm" onClick={() => deleteBase(base)}>永久删除</Button>}
-                </DialogBase>
-              ))}
-            </section>
-          </Dialog>
-        </Overlay>
-      )}
+      <ManagerDialog
+        open={manageOpen}
+        onOpenChange={(open) => { if (!open) closeManager(); }}
+        title="资料库管理"
+        closeLabel="关闭资料库管理"
+        closeOnBackdrop
+        initialFocus={() => managerInputRef.current}
+      >
+        <ManagerContent>
+          {manageOpen && error && <Feedback tone="danger" role="alert">{error}</Feedback>}
+          <form onSubmit={createBase}>
+            <label>
+              资料库名称
+              <input
+                ref={managerInputRef}
+                aria-label="资料库名称"
+                value={newBaseName}
+                maxLength={80}
+                onChange={(event) => setNewBaseName(event.target.value)}
+              />
+            </label>
+            <Button variant="primary" type="submit" disabled={!newBaseName.trim() || mutations.createBase.isPending}>创建并打开</Button>
+          </form>
+          <section>
+            <h3>现有资料库</h3>
+            {bases.map((base) => (
+              <DialogBase key={base.id}>
+                <div><strong>{base.name}</strong><div>{base.documentCount} 个文档</div></div>
+                {base.isDefault
+                  ? <Status>默认资料库</Status>
+                  : <Button variant="danger" size="sm" onClick={() => deleteBase(base)}>永久删除</Button>}
+              </DialogBase>
+            ))}
+          </section>
+        </ManagerContent>
+      </ManagerDialog>
     </Workspace>
   );
 }
